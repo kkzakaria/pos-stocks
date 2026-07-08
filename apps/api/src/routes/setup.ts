@@ -10,7 +10,10 @@ import type { Env } from "../env"
 export const setupRoute = new Hono<{ Bindings: Env }>()
 
 setupRoute.post("/", async (c) => {
-  if (c.req.header("x-setup-token") !== c.env.SETUP_TOKEN) {
+  if (
+    !c.env.SETUP_TOKEN ||
+    c.req.header("x-setup-token") !== c.env.SETUP_TOKEN
+  ) {
     return c.json({ code: "INTERDIT", message: "Jeton de setup invalide" }, 403)
   }
 
@@ -85,6 +88,7 @@ setupRoute.post("/", async (c) => {
     ])
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)
+    // D1 n'expose pas de code d'erreur structuré : la détection par texte est le seul moyen fiable.
     if (message.includes("UNIQUE constraint failed")) {
       return c.json(
         {
