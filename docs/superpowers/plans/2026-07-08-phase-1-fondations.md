@@ -61,17 +61,25 @@ rm -rf node_modules bun.lock
     "typecheck": "bun run --cwd apps/web typecheck && bun run --cwd apps/api typecheck && bun run --cwd packages/shared typecheck",
     "test": "bun run --cwd apps/web test && bun run --cwd apps/api test",
     "lint": "eslint .",
-    "format": "prettier --write \"**/*.{ts,tsx,js,jsx}\""
+    "format": "prettier --write \"**/*.{ts,tsx,js,jsx}\"",
+    "prepare": "husky"
+  },
+  "lint-staged": {
+    "*.{ts,tsx,js,jsx}": ["prettier --write", "eslint --fix"]
   },
   "devDependencies": {
     "@tanstack/eslint-config": "latest",
     "eslint": "^9",
+    "husky": "^9.1.7",
+    "lint-staged": "^17.0.8",
     "prettier": "^3.8.3",
     "prettier-plugin-tailwindcss": "^0.8.0",
     "typescript": "^5.9.0"
   }
 }
 ```
+
+⚠️ Les hooks husky (`.husky/pre-commit`, `.husky/pre-push`) et les workflows `.github/workflows/` existent déjà — la restructuration ne doit PAS les supprimer, et le `package.json` racine doit conserver `prepare`, `lint-staged`, `husky` et `lint-staged` en devDependencies (déjà inclus ci-dessus).
 
 Note : TypeScript `^5.9` (et non `^6` du scaffold) pour rester compatible avec l'écosystème (drizzle-kit, better-auth CLI). Ajouter à `.gitignore` les lignes `apps/api/.dev.vars` et `apps/api/.wrangler/`.
 
@@ -87,7 +95,7 @@ Note : TypeScript `^5.9` (et non `^6` du scaffold) pour rester compatible avec l
   "scripts": {
     "dev": "vite dev --port 3000",
     "build": "vite build",
-    "test": "vitest run",
+    "test": "vitest run --passWithNoTests",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
@@ -1448,58 +1456,41 @@ git commit -m "feat(web): connexion Better Auth, garde de routes et shell back-o
 
 ---
 
-### Task 8: CI GitHub Actions
+### Task 8: Vérification CI/CD et hooks après restructuration
+
+La CI (`.github/workflows/ci.yml`), le CD (`.github/workflows/deploy.yml`) et les hooks husky ont été mis en place AVANT la Phase 1. Cette tâche vérifie qu'ils fonctionnent toujours après la restructuration en monorepo.
 
 **Files:**
-- Create: `.github/workflows/ci.yml`
+- Aucun nouveau fichier (vérification uniquement)
 
 **Interfaces:**
-- Consumes: scripts racine `typecheck`, `lint`, `test` (Task 1)
-- Produces: CI verte sur chaque push
+- Consumes: scripts racine `typecheck`, `lint`, `test` (Task 1), hooks `.husky/*`, workflows `.github/workflows/*`
+- Produces: CI verte sur le monorepo ; hooks locaux fonctionnels
 
-- [ ] **Step 1: Créer le workflow**
-
-`.github/workflows/ci.yml` :
-
-```yaml
-name: CI
-
-on:
-  push:
-    branches: [main]
-  pull_request:
-
-jobs:
-  ci:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: latest
-      - run: bun install --frozen-lockfile
-      - run: bun run typecheck
-      - run: bun run lint
-      - run: bun run test
-```
-
-- [ ] **Step 2: Vérifier localement les trois commandes**
+- [ ] **Step 1: Vérifier localement les commandes que la CI exécute**
 
 ```bash
 bun run typecheck && bun run lint && bun run test
 ```
 
-Expected: exit 0 pour les trois. (Si `lint` échoue sur les fichiers déplacés, corriger les erreurs signalées avant de committer.)
+Expected: exit 0 pour les trois.
 
-- [ ] **Step 3: Commit et push**
+- [ ] **Step 2: Vérifier que les hooks husky sont actifs**
 
 ```bash
-git add .github
-git commit -m "ci: typecheck, lint et tests sur chaque push"
-git push
+git config core.hooksPath
 ```
 
-Expected: le workflow passe au vert sur GitHub (vérifier avec `gh run watch` ou l'onglet Actions).
+Expected: `.husky/_`. Sinon, exécuter `bun run prepare`.
+
+- [ ] **Step 3: Push et vérification de la CI**
+
+```bash
+git push
+gh run watch
+```
+
+Expected: workflow CI vert ; workflow Deploy affiche la notice « Apps absentes » tant que la Tâche 9 n'est pas faite (ou déploie si elle l'est).
 
 ---
 
@@ -1589,7 +1580,15 @@ curl -s -X POST https://pos-stocks-api.<compte>.workers.dev/api/v1/setup \
 
 Expected: 201. Rejouer la commande → 409 `DEJA_INITIALISE`.
 
-- [ ] **Step 5: Commit et mise à jour de la roadmap**
+- [ ] **Step 5: Activer le CD GitHub Actions**
+
+Dans GitHub → Settings → Secrets and variables → Actions :
+- secrets `CLOUDFLARE_API_TOKEN` (token API avec droits Workers + D1) et `CLOUDFLARE_ACCOUNT_ID`
+- variable `VITE_API_URL` = URL publique de l'API
+
+Puis déclencher le workflow **Deploy** manuellement (`gh workflow run deploy.yml`) et vérifier qu'il déploie les deux Workers.
+
+- [ ] **Step 6: Commit et mise à jour de la roadmap**
 
 ```bash
 git add -A
