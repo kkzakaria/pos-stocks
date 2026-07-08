@@ -8,7 +8,7 @@
 
 | Phase | Contenu | Plan détaillé | Statut |
 |---|---|---|---|
-| 1 | Fondations : monorepo, API Hono + D1 + Drizzle, Better Auth + organisation, login, CI | `2026-07-08-phase-1-fondations.md` | ⏳ à exécuter |
+| 1 | Fondations : monorepo, API Hono + D1 + Drizzle, Better Auth + organisation, login, CI | `2026-07-08-phase-1-fondations.md` | ✅ terminée (2026-07-08, PR #1) |
 | 2 | Administration : entrepôts, utilisateurs, affectations, middleware de permissions complet | à rédiger | — |
 | 3 | Catalogue : catégories, fournisseurs, produits, variantes, images R2, lots | à rédiger | — |
 | 4 | Moteur de stock : journal + niveaux, service atomique, réceptions, ajustements, alertes | à rédiger | — |
@@ -19,13 +19,15 @@
 ## Détail des phases
 
 ### Phase 1 — Fondations
-- [ ] Monorepo bun workspaces (`apps/api`, `apps/web`, `packages/shared`)
-- [ ] Worker API : Hono, D1, Drizzle, tests `vitest-pool-workers`
-- [ ] Better Auth (adapter Drizzle/D1, plugin organization, inscription publique bloquée)
-- [ ] Bootstrap organisation + compte owner (route protégée par jeton)
-- [ ] Middleware de session + route `/api/v1/me`
-- [ ] Front : page de connexion, garde de routes, shell back-office minimal
-- [ ] CI GitHub Actions + premier déploiement des deux Workers
+- [x] Monorepo bun workspaces (`apps/api`, `apps/web`, `packages/shared`)
+- [x] Worker API : Hono, D1, Drizzle, tests `vitest-pool-workers`
+- [x] Better Auth (adapter Drizzle/D1, plugin organization, inscription publique bloquée)
+- [x] Bootstrap organisation + compte owner (route protégée par jeton)
+- [x] Middleware de session + route `/api/v1/me`
+- [x] Front : page de connexion, garde de routes, shell back-office minimal
+- [x] CI GitHub Actions + premier déploiement des deux Workers
+
+Notes de fin de phase : API `https://pos-stocks-api.koffiz2110.workers.dev`, SPA `https://pos-stocks-web.koffiz2110.workers.dev` ; connexion validée en production au niveau API (cookie SameSite=Lax partagé — les deux hôtes sont same-site sous `koffiz2110.workers.dev`). CD GitHub : `CLOUDFLARE_ACCOUNT_ID` et `VITE_API_URL` posés ; **reste à créer manuellement** un token API Cloudflare (modèle « Edit Cloudflare Workers » + D1) et `gh secret set CLOUDFLARE_API_TOKEN`.
 
 **Livrable** : application déployée où l'on peut se connecter et voir un back-office vide.
 
