@@ -1,6 +1,8 @@
 import { Hono } from "hono"
+import type { ContentfulStatusCode } from "hono/utils/http-status"
 import { drizzle } from "drizzle-orm/d1"
 import { setupSchema } from "shared"
+import { APIError } from "better-auth/api"
 import { createAuth } from "../lib/auth"
 import * as schema from "../db/schema"
 import type { Env } from "../env"
@@ -40,33 +42,60 @@ setupRoute.post("/", async (c) => {
   }
 
   const auth = createAuth(c.env)
-  const signUp = await auth.api.signUpEmail({
-    body: {
-      email: parsed.data.email,
-      password: parsed.data.password,
-      name: parsed.data.name,
-    },
-    headers: new Headers({ "x-setup-token": c.env.SETUP_TOKEN }),
-  })
+
+  let signUp: Awaited<ReturnType<typeof auth.api.signUpEmail>>
+  try {
+    signUp = await auth.api.signUpEmail({
+      body: {
+        email: parsed.data.email,
+        password: parsed.data.password,
+        name: parsed.data.name,
+      },
+      headers: new Headers({ "x-setup-token": c.env.SETUP_TOKEN }),
+    })
+  } catch (err) {
+    if (err instanceof APIError) {
+      const status = err.statusCode as ContentfulStatusCode
+      return c.json(
+        { code: "CREATION_UTILISATEUR", message: err.message },
+        status
+      )
+    }
+    throw err
+  }
 
   const now = new Date()
   const organizationId = crypto.randomUUID()
-  await db.batch([
-    db.insert(schema.organization).values({
-      id: organizationId,
-      name: parsed.data.organizationName,
-      slug: "principale",
-      createdAt: now,
-      metadata: JSON.stringify({ currency: "XOF" }),
-    }),
-    db.insert(schema.member).values({
-      id: crypto.randomUUID(),
-      organizationId,
-      userId: signUp.user.id,
-      role: "owner",
-      createdAt: now,
-    }),
-  ])
+  try {
+    await db.batch([
+      db.insert(schema.organization).values({
+        id: organizationId,
+        name: parsed.data.organizationName,
+        slug: "principale",
+        createdAt: now,
+        metadata: JSON.stringify({ currency: "XOF" }),
+      }),
+      db.insert(schema.member).values({
+        id: crypto.randomUUID(),
+        organizationId,
+        userId: signUp.user.id,
+        role: "owner",
+        createdAt: now,
+      }),
+    ])
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err)
+    if (message.includes("UNIQUE constraint failed")) {
+      return c.json(
+        {
+          code: "DEJA_INITIALISE",
+          message: "L'application est déjà initialisée",
+        },
+        409
+      )
+    }
+    throw err
+  }
 
   return c.json({ organizationId, userId: signUp.user.id }, 201)
 })

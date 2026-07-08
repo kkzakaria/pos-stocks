@@ -6,6 +6,14 @@ import { setupRoute } from "./routes/setup"
 
 const app = new Hono<{ Bindings: Env }>()
 
+app.onError((err, c) => {
+  console.error(err)
+  return c.json(
+    { code: "ERREUR_INTERNE", message: "Une erreur interne est survenue" },
+    500
+  )
+})
+
 app.use("/api/*", (c, next) =>
   cors({ origin: c.env.WEB_ORIGIN, credentials: true })(c, next)
 )

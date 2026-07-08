@@ -1,6 +1,8 @@
 import { describe, it, expect } from "vitest"
 import { env } from "cloudflare:test"
+import { drizzle } from "drizzle-orm/d1"
 import app from "../src/index"
+import * as schema from "../src/db/schema"
 
 const payload = {
   organizationName: "Ma Société",
@@ -45,5 +47,25 @@ describe("POST /api/v1/setup", () => {
     const again = await setup(payload, env.SETUP_TOKEN)
     expect(again.status).toBe(409)
     expect((await again.json<{ code: string }>()).code).toBe("DEJA_INITIALISE")
+  })
+
+  it("retourne une erreur stable (non 500) si l'utilisateur existe déjà sans organisation (retry orphelin)", async () => {
+    const orphanPayload = { ...payload, email: "orphan@exemple.com" }
+
+    const first = await setup(orphanPayload, env.SETUP_TOKEN)
+    expect(first.status).toBe(201)
+
+    // Simule un échec partiel précédent : l'organisation a disparu mais
+    // l'utilisateur Better Auth existe toujours, donc le retry doit rejouer
+    // signUpEmail et tomber sur une erreur d'email dupliqué gérée proprement.
+    const db = drizzle(env.DB, { schema })
+    await db.delete(schema.member)
+    await db.delete(schema.organization)
+
+    const retry = await setup(orphanPayload, env.SETUP_TOKEN)
+    expect(retry.status).not.toBe(500)
+    const body = await retry.json<{ code: string; message: string }>()
+    expect(body.code).toBe("CREATION_UTILISATEUR")
+    expect(typeof body.message).toBe("string")
   })
 })
