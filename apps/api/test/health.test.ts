@@ -8,4 +8,11 @@ describe("GET /api/v1/health", () => {
     expect(res.status).toBe(200)
     expect(await res.json()).toEqual({ status: "ok" })
   })
+
+  it("les migrations sont appliquées", async () => {
+    const { results } = await env.DB.prepare(
+      "SELECT name FROM sqlite_master WHERE type='table' AND name='user'"
+    ).all()
+    expect(results).toHaveLength(1)
+  })
 })
