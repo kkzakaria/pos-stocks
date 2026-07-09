@@ -11,6 +11,8 @@ export type AuthUser = {
 
 export type AuthVariables = { user: AuthUser }
 
+const CHEMINS_AUTORISES_MDP = ["/api/v1/me", "/api/v1/mon-compte/mot-de-passe"]
+
 export const requireAuth = createMiddleware<{
   Bindings: Env
   Variables: AuthVariables
@@ -36,5 +38,17 @@ export const requireAuth = createMiddleware<{
     name: u.name,
     mustChangePassword: u.mustChangePassword === true,
   })
+  if (
+    c.get("user").mustChangePassword &&
+    !CHEMINS_AUTORISES_MDP.includes(new URL(c.req.url).pathname)
+  ) {
+    return c.json(
+      {
+        code: "MOT_DE_PASSE_A_CHANGER",
+        message: "Vous devez changer votre mot de passe avant de continuer",
+      },
+      403
+    )
+  }
   await next()
 })

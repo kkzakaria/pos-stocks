@@ -25,3 +25,7 @@ export {
   organizationSettingsSchema,
   type OrganizationSettingsInput,
 } from "./schemas/organization"
+export {
+  changePasswordSchema,
+  type ChangePasswordInput,
+} from "./schemas/account"
