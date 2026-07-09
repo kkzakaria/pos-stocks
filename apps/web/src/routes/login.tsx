@@ -1,8 +1,13 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router"
+import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router"
 import { authClient } from "@/lib/auth-client"
 import { LoginForm } from "@/components/login-form"
+import { TicketHorloge } from "@/components/ticket-horloge"
 
 export const Route = createFileRoute("/login")({
+  beforeLoad: async () => {
+    const { data } = await authClient.getSession()
+    if (data) throw redirect({ to: "/" })
+  },
   component: LoginPage,
 })
 
@@ -17,10 +22,35 @@ function LoginPage() {
   }
 
   return (
-    <main className="grid min-h-screen place-items-center">
-      <div className="flex flex-col items-center gap-6">
-        <h1 className="text-2xl font-semibold">pos-stocks</h1>
-        <LoginForm onSubmit={handleSubmit} />
+    <main className="login-comptoir grid min-h-screen place-items-center px-4 py-10">
+      <div className="ticket-sortie w-full max-w-sm">
+        <div className="ticket-zigzag ticket-zigzag--haut" aria-hidden="true" />
+        <div className="ticket px-7 py-6">
+          <header className="login-mono border-b border-dashed border-(--ligne) pb-5 text-center">
+            <p className="login-display text-2xl font-bold tracking-tight">
+              POS·STOCKS
+            </p>
+            <p className="mt-2 text-[11px] tracking-widest text-(--encre-pale) uppercase">
+              Gestion de stock &amp; point de vente
+            </p>
+            <TicketHorloge className="mt-1 text-[11px] tracking-widest text-(--encre-pale)" />
+          </header>
+
+          <div className="py-6">
+            <h1 className="login-display mb-5 text-lg font-semibold">
+              Connexion
+            </h1>
+            <LoginForm onSubmit={handleSubmit} />
+          </div>
+
+          <footer className="border-t border-dashed border-(--ligne) pt-5">
+            <div className="ticket-code-barres" aria-hidden="true" />
+            <p className="login-mono mt-3 text-center text-[10px] tracking-widest text-(--encre-pale) uppercase">
+              Accès réservé au personnel autorisé
+            </p>
+          </footer>
+        </div>
+        <div className="ticket-zigzag" aria-hidden="true" />
       </div>
     </main>
   )

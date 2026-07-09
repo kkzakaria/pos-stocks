@@ -2,6 +2,8 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 @import "@fontsource-variable/inter";
+@import "@fontsource-variable/space-grotesk";
+@import "@fontsource-variable/jetbrains-mono";
 
 @custom-variant dark (&:is(.dark *));
 
@@ -130,4 +132,94 @@
   html {
     @apply font-sans;
     }
+}
+/* ─── Page de connexion : ticket de caisse ─────────────────────────────── */
+
+.login-comptoir {
+  --comptoir: #14261d;
+  --comptoir-clair: #1c3428;
+  --papier: #fcfcf8;
+  --encre: #1a2019;
+  --encre-pale: #6b7268;
+  --rack: #c2410c;
+  --rack-vif: #e8590c;
+  --ligne: #d9d6c8;
+  background:
+    radial-gradient(
+      ellipse 120% 80% at 50% -20%,
+      var(--comptoir-clair),
+      transparent 60%
+    ),
+    var(--comptoir);
+}
+
+.login-display {
+  font-family: "Space Grotesk Variable", "Inter Variable", sans-serif;
+}
+
+.login-mono {
+  font-family: "JetBrains Mono Variable", monospace;
+}
+
+/* Corps du ticket : papier thermique, ombre portée sur le comptoir */
+.ticket {
+  background: var(--papier);
+  color: var(--encre);
+  box-shadow:
+    0 1px 2px rgb(0 0 0 / 0.25),
+    0 24px 48px -16px rgb(0 0 0 / 0.5);
+}
+
+/* Bords perforés haut/bas (zigzag de déchirure) */
+.ticket-zigzag {
+  height: 12px;
+  background:
+    linear-gradient(-45deg, transparent 8.49px, var(--papier) 8.5px),
+    linear-gradient(45deg, transparent 8.49px, var(--papier) 8.5px);
+  background-size: 17px 100%;
+  background-position: 0 0;
+}
+
+.ticket-zigzag--haut {
+  transform: scaleY(-1);
+}
+
+/* Code-barres décoratif imprimé en pied de ticket */
+.ticket-code-barres {
+  height: 34px;
+  background: repeating-linear-gradient(
+    90deg,
+    var(--encre) 0 2px,
+    transparent 2px 4px,
+    var(--encre) 4px 7px,
+    transparent 7px 9px,
+    var(--encre) 9px 10px,
+    transparent 10px 14px,
+    var(--encre) 14px 16px,
+    transparent 16px 17px,
+    var(--encre) 17px 21px,
+    transparent 21px 24px
+  );
+}
+
+/* Impression du ticket à l'arrivée */
+@keyframes ticket-imprimer {
+  from {
+    transform: translateY(28px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.ticket-sortie {
+  animation: ticket-imprimer 0.55s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ticket-sortie {
+    animation: none;
+  }
 }

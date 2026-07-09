@@ -58,4 +58,22 @@ describe("LoginForm", () => {
     })
     expect(button.disabled).toBe(false)
   })
+
+  it("affiche puis masque le mot de passe via le bouton dédié", () => {
+    const onSubmit = vi.fn().mockResolvedValue(null)
+    render(<LoginForm onSubmit={onSubmit} />)
+
+    const champ = screen.getByLabelText<HTMLInputElement>("Mot de passe")
+    expect(champ.type).toBe("password")
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Afficher le mot de passe" })
+    )
+    expect(champ.type).toBe("text")
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Masquer le mot de passe" })
+    )
+    expect(champ.type).toBe("password")
+  })
 })
