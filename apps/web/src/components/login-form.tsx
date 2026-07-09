@@ -1,4 +1,5 @@
 import { useState } from "react"
+import { Eye, EyeOff } from "lucide-react"
 
 type Props = {
   onSubmit: (values: {
@@ -12,6 +13,7 @@ export function LoginForm({ onSubmit }: Props) {
   const [password, setPassword] = useState("")
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+  const [showPassword, setShowPassword] = useState(false)
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -54,15 +56,33 @@ export function LoginForm({ onSubmit }: Props) {
         <label htmlFor="password" className="text-sm font-medium">
           Mot de passe
         </label>
-        <input
-          id="password"
-          type="password"
-          required
-          autoComplete="current-password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          className={inputClasses}
-        />
+        <div className="relative">
+          <input
+            id="password"
+            type={showPassword ? "text" : "password"}
+            required
+            autoComplete="current-password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            className={`${inputClasses} w-full pr-11`}
+          />
+          <button
+            type="button"
+            onClick={() => setShowPassword((v) => !v)}
+            aria-label={
+              showPassword
+                ? "Masquer le mot de passe"
+                : "Afficher le mot de passe"
+            }
+            className="absolute inset-y-0 right-0 flex w-11 items-center justify-center text-(--encre-pale) transition-colors hover:text-(--encre) focus-visible:text-(--encre) focus-visible:outline-none"
+          >
+            {showPassword ? (
+              <EyeOff size={18} aria-hidden="true" />
+            ) : (
+              <Eye size={18} aria-hidden="true" />
+            )}
+          </button>
+        </div>
       </div>
       {error && (
         <p
