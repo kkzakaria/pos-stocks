@@ -32,7 +32,7 @@ Notes de fin de phase : API `https://pos-stocks-api.koffiz2110.workers.dev`, SPA
 **Livrable** : application déployée où l'on peut se connecter et voir un back-office vide.
 
 ### Phase 2 — Administration
-- [ ] Reprise Phase 1 : étape de migration D1 dans deploy.yml (`wrangler d1 migrations apply pos-stocks-db --remote` avant le déploiement API), message français sur `CREATION_UTILISATEUR`, suppression de `--passWithNoTests` et des dépendances web inutilisées (@base-ui/react, cva, clsx, lucide-react, tailwind-merge si toujours inutilisées), redirection /login si déjà connecté, `role="alert"` sur l'erreur de connexion, drop de l'index dupliqué `organization_slug_uidx` dans la prochaine migration, `COOKIE_DOMAIN` documenté dans .dev.vars.example, évaluer un défaut SQL pour session/account.updatedAt lors de la prochaine régénération du schéma Better Auth
+- [ ] Reprise Phase 1 : ~~étape de migration D1 dans deploy.yml~~ (✅ fait le 2026-07-09, avec bascule wrangler-action → bunx wrangler), message français sur `CREATION_UTILISATEUR`, suppression de `--passWithNoTests` et des dépendances web inutilisées (@base-ui/react, cva, clsx, lucide-react, tailwind-merge si toujours inutilisées), redirection /login si déjà connecté, `role="alert"` sur l'erreur de connexion, drop de l'index dupliqué `organization_slug_uidx` dans la prochaine migration, `COOKIE_DOMAIN` documenté dans .dev.vars.example, évaluer un défaut SQL pour session/account.updatedAt lors de la prochaine régénération du schéma Better Auth
 - [ ] CRUD entrepôts/boutiques (`warehouses`)
 - [ ] Création de comptes par l'admin, rôles d'entreprise (owner, admin, auditor, stock_manager, staff)
 - [ ] Affectations aux entrepôts (`warehouse_members` : manager, auditor, cashier)
