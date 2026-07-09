@@ -1,19 +1,18 @@
 import { Hono } from "hono"
 import type { ContentfulStatusCode } from "hono/utils/http-status"
 import { drizzle } from "drizzle-orm/d1"
+import { eq } from "drizzle-orm"
 import { setupSchema } from "shared"
 import { APIError } from "better-auth/api"
 import { createAuth } from "../lib/auth"
+import { safeTokenEqual } from "../lib/timing-safe"
 import * as schema from "../db/schema"
 import type { Env } from "../env"
 
 export const setupRoute = new Hono<{ Bindings: Env }>()
 
 setupRoute.post("/", async (c) => {
-  if (
-    !c.env.SETUP_TOKEN ||
-    c.req.header("x-setup-token") !== c.env.SETUP_TOKEN
-  ) {
+  if (!safeTokenEqual(c.req.header("x-setup-token"), c.env.SETUP_TOKEN)) {
     return c.json({ code: "INTERDIT", message: "Jeton de setup invalide" }, 403)
   }
 
@@ -88,6 +87,13 @@ setupRoute.post("/", async (c) => {
     ])
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)
+    // Nettoyage best-effort de l'utilisateur Better Auth orphelin (account/session
+    // cascadent via FK) : ne doit jamais masquer l'erreur d'origine ci-dessous.
+    try {
+      await db.delete(schema.user).where(eq(schema.user.id, signUp.user.id))
+    } catch (cleanupErr) {
+      console.error("Échec du nettoyage de l'utilisateur orphelin", cleanupErr)
+    }
     // D1 n'expose pas de code d'erreur structuré : la détection par texte est le seul moyen fiable.
     if (message.includes("UNIQUE constraint failed")) {
       return c.json(

@@ -17,9 +17,14 @@ export function LoginForm({ onSubmit }: Props) {
     e.preventDefault()
     setLoading(true)
     setError(null)
-    const message = await onSubmit({ email, password })
-    setError(message)
-    setLoading(false)
+    try {
+      const message = await onSubmit({ email, password })
+      setError(message)
+    } catch {
+      setError("Une erreur est survenue, veuillez réessayer.")
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (

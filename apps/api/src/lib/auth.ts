@@ -4,6 +4,7 @@ import { organization } from "better-auth/plugins/organization"
 import { createAuthMiddleware, APIError } from "better-auth/api"
 import { drizzle } from "drizzle-orm/d1"
 import * as schema from "../db/schema"
+import { safeTokenEqual } from "./timing-safe"
 import type { Env } from "../env"
 
 export function createAuth(env: Env) {
@@ -21,7 +22,10 @@ export function createAuth(env: Env) {
       before: createAuthMiddleware(async (ctx) => {
         if (
           ctx.path === "/sign-up/email" &&
-          ctx.headers?.get("x-setup-token") !== env.SETUP_TOKEN
+          !safeTokenEqual(
+            ctx.headers?.get("x-setup-token") ?? undefined,
+            env.SETUP_TOKEN
+          )
         ) {
           throw new APIError("FORBIDDEN", {
             message: "L'inscription publique est désactivée",

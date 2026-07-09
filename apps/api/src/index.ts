@@ -15,9 +15,12 @@ app.onError((err, c) => {
   )
 })
 
-app.use("/api/*", (c, next) =>
-  cors({ origin: c.env.WEB_ORIGIN, credentials: true })(c, next)
-)
+app.use("/api/*", (c, next) => {
+  if (!c.env.WEB_ORIGIN) {
+    throw new Error("Variable WEB_ORIGIN manquante")
+  }
+  return cors({ origin: c.env.WEB_ORIGIN, credentials: true })(c, next)
+})
 
 app.get("/api/v1/health", (c) => c.json({ status: "ok" }))
 

@@ -37,4 +37,25 @@ describe("LoginForm", () => {
 
     expect(await screen.findByText("Identifiants invalides")).toBeTruthy()
   })
+
+  it("affiche un message de repli si onSubmit rejette", async () => {
+    const onSubmit = vi.fn().mockRejectedValue(new Error("réseau HS"))
+    render(<LoginForm onSubmit={onSubmit} />)
+
+    fireEvent.change(screen.getByLabelText("Email"), {
+      target: { value: "a@b.com" },
+    })
+    fireEvent.change(screen.getByLabelText("Mot de passe"), {
+      target: { value: "secret123456" },
+    })
+    fireEvent.click(screen.getByRole("button", { name: "Se connecter" }))
+
+    expect(
+      await screen.findByText("Une erreur est survenue, veuillez réessayer.")
+    ).toBeTruthy()
+    const button = screen.getByRole<HTMLButtonElement>("button", {
+      name: "Se connecter",
+    })
+    expect(button.disabled).toBe(false)
+  })
 })
