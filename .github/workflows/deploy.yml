@@ -49,13 +49,22 @@ jobs:
         if: steps.check.outputs.ready == 'true'
         run: bun install --frozen-lockfile
 
+      # wrangler est invoqué via bun (bunx) et non via cloudflare/wrangler-action :
+      # l'action utilise npm en interne, qui ne comprend pas le protocole workspace:* du monorepo bun.
+      - name: Appliquer les migrations D1
+        if: steps.check.outputs.ready == 'true'
+        run: bun run --cwd apps/api db:migrate:remote
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
       - name: Déployer l'API
         if: steps.check.outputs.ready == 'true'
-        uses: cloudflare/wrangler-action@v3
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          workingDirectory: apps/api
+        run: bunx wrangler deploy
+        working-directory: apps/api
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
 
       - name: Construire la SPA
         if: steps.check.outputs.ready == 'true'
@@ -65,8 +74,8 @@ jobs:
 
       - name: Déployer la SPA
         if: steps.check.outputs.ready == 'true'
-        uses: cloudflare/wrangler-action@v3
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          workingDirectory: apps/web
+        run: bunx wrangler deploy
+        working-directory: apps/web
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
