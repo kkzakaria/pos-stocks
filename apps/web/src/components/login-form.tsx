@@ -27,11 +27,13 @@ export function LoginForm({ onSubmit }: Props) {
     }
   }
 
+  const inputClasses =
+    "h-11 rounded-md border border-(--ligne) bg-white px-3 text-base text-(--encre) " +
+    "placeholder:text-(--encre-pale)/60 " +
+    "focus:border-(--rack-vif) focus:ring-2 focus:ring-(--rack-vif)/35 focus:outline-none"
+
   return (
-    <form
-      onSubmit={handleSubmit}
-      className="flex w-full max-w-sm flex-col gap-4"
-    >
+    <form onSubmit={handleSubmit} className="flex w-full flex-col gap-4">
       <div className="flex flex-col gap-1.5">
         <label htmlFor="email" className="text-sm font-medium">
           Email
@@ -40,9 +42,12 @@ export function LoginForm({ onSubmit }: Props) {
           id="email"
           type="email"
           required
+          autoFocus
+          autoComplete="email"
+          placeholder="nom@entreprise.com"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          className="rounded-md border px-3 py-2 text-sm"
+          className={inputClasses}
         />
       </div>
       <div className="flex flex-col gap-1.5">
@@ -53,18 +58,26 @@ export function LoginForm({ onSubmit }: Props) {
           id="password"
           type="password"
           required
+          autoComplete="current-password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          className="rounded-md border px-3 py-2 text-sm"
+          className={inputClasses}
         />
       </div>
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      {error && (
+        <p
+          role="alert"
+          className="login-mono text-[13px] font-medium text-red-700"
+        >
+          {error}
+        </p>
+      )}
       <button
         type="submit"
         disabled={loading}
-        className="rounded-md bg-black px-3 py-2 text-sm font-medium text-white disabled:opacity-50"
+        className="mt-1 h-11 rounded-md bg-(--rack) text-base font-semibold text-white transition-colors duration-150 hover:bg-(--rack-vif) focus-visible:ring-2 focus-visible:ring-(--rack-vif) focus-visible:ring-offset-2 focus-visible:outline-none disabled:opacity-60"
       >
-        Se connecter
+        {loading ? "Connexion…" : "Se connecter"}
       </button>
     </form>
   )
