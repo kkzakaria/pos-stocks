@@ -15,6 +15,16 @@ export function createAuth(env: Env) {
     baseURL: env.BETTER_AUTH_URL,
     trustedOrigins: [env.WEB_ORIGIN],
     emailAndPassword: { enabled: true },
+    user: {
+      additionalFields: {
+        mustChangePassword: {
+          type: "boolean",
+          defaultValue: false,
+          input: false,
+        },
+        isActive: { type: "boolean", defaultValue: true, input: false },
+      },
+    },
     hooks: {
       // Adaptation vs. la brief : dans better-auth@1.6.x, `hooks.before` est un
       // middleware unique (pas un tableau `{ matcher, handler }`) ; le filtrage

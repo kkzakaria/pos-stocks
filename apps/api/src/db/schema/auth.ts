@@ -22,6 +22,10 @@ export const user = sqliteTable("user", {
     .default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
     .$onUpdate(() => /* @__PURE__ */ new Date())
     .notNull(),
+  mustChangePassword: integer("must_change_password", {
+    mode: "boolean",
+  }).default(false),
+  isActive: integer("is_active", { mode: "boolean" }).default(true),
 })
 
 export const session = sqliteTable(

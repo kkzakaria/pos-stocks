@@ -8,6 +8,13 @@
       "when": 1783530647919,
       "tag": "0000_sad_shotgun",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1783609380968,
+      "tag": "0001_normal_luckman",
+      "breakpoints": true
     }
   ]
 }
