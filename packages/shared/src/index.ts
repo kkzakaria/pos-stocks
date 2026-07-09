@@ -17,3 +17,7 @@ export {
   userStatusSchema,
   type UserCreateInput,
 } from "./schemas/user"
+export {
+  assignmentCreateSchema,
+  type AssignmentCreateInput,
+} from "./schemas/assignment"
