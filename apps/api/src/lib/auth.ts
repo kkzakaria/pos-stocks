@@ -3,6 +3,7 @@ import { drizzleAdapter } from "better-auth/adapters/drizzle"
 import { organization } from "better-auth/plugins/organization"
 import { createAuthMiddleware, APIError } from "better-auth/api"
 import { drizzle } from "drizzle-orm/d1"
+import { eq } from "drizzle-orm"
 import * as schema from "../db/schema"
 import { safeTokenEqual } from "./timing-safe"
 import type { Env } from "../env"
@@ -40,6 +41,19 @@ export function createAuth(env: Env) {
           throw new APIError("FORBIDDEN", {
             message: "L'inscription publique est désactivée",
           })
+        }
+        if (ctx.path === "/sign-in/email") {
+          const email = (ctx.body as { email?: string } | undefined)?.email
+          if (email) {
+            const rows = await db
+              .select({ isActive: schema.user.isActive })
+              .from(schema.user)
+              .where(eq(schema.user.email, email))
+              .limit(1)
+            if (rows[0] && rows[0].isActive === false) {
+              throw new APIError("FORBIDDEN", { message: "Compte désactivé" })
+            }
+          }
         }
       }),
     },
