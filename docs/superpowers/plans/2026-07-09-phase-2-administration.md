@@ -640,15 +640,25 @@ export function requireWarehouseRole(
   bypass: CompanyRole[] = ["owner", "admin", "stock_manager"],
 ) {
   return createMiddleware<Ctx>(async (c, next) => {
-    if (bypass.includes(c.get("membership").role)) {
-      await next()
-      return
-    }
     const warehouseId = c.req.param("warehouseId")
     if (!warehouseId) {
       return c.json({ code: "ACCES_REFUSE", message: "Accès refusé" }, 403)
     }
     const db = drizzle(c.env.DB, { schema })
+    // Garde anti cross-tenant : l'entrepôt doit appartenir à l'organisation
+    // de l'appelant, y compris sur le chemin bypass (owner/admin/…).
+    const entrepot = await db
+      .select({ organizationId: schema.warehouses.organizationId })
+      .from(schema.warehouses)
+      .where(eq(schema.warehouses.id, warehouseId))
+      .limit(1)
+    if (!entrepot[0] || entrepot[0].organizationId !== c.get("membership").organizationId) {
+      return c.json({ code: "ACCES_REFUSE", message: "Accès refusé" }, 403)
+    }
+    if (bypass.includes(c.get("membership").role)) {
+      await next()
+      return
+    }
     const rows = await db
       .select({ role: schema.warehouseMembers.role })
       .from(schema.warehouseMembers)
@@ -656,6 +666,7 @@ export function requireWarehouseRole(
         and(
           eq(schema.warehouseMembers.warehouseId, warehouseId),
           eq(schema.warehouseMembers.userId, c.get("user").id),
+          eq(schema.warehouseMembers.organizationId, c.get("membership").organizationId),
         ),
       )
       .limit(1)
