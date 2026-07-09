@@ -4,12 +4,9 @@ import { and, eq } from "drizzle-orm"
 import { assignmentCreateSchema } from "shared"
 import * as schema from "../db/schema"
 import { requireAuth } from "../middleware/require-auth"
-import {
-  requireMembership,
-  requireRole
-  
-} from "../middleware/permissions"
-import type {PermissionVariables} from "../middleware/permissions";
+import { requireMembership, requireRole } from "../middleware/permissions"
+import type { PermissionVariables } from "../middleware/permissions"
+import { estViolationUnicite } from "../lib/db-errors"
 import type { Env } from "../env"
 
 export const warehouseMembersRoute = new Hono<{
@@ -80,21 +77,14 @@ warehouseMembersRoute.post("/", async (c) => {
       createdAt: new Date(),
     })
   } catch (err) {
-    // D1 n'expose pas de code d'erreur structuré et Drizzle enveloppe l'erreur D1 dans
-    // une DrizzleQueryError dont le message ne contient pas le texte de la contrainte :
-    // il faut remonter la chaîne `cause` pour le trouver.
-    let current: unknown = err
-    while (current instanceof Error) {
-      if (current.message.includes("UNIQUE constraint failed")) {
-        return c.json(
-          {
-            code: "DEJA_AFFECTE",
-            message: "Cet utilisateur est déjà affecté à cet entrepôt",
-          },
-          409
-        )
-      }
-      current = current.cause
+    if (estViolationUnicite(err)) {
+      return c.json(
+        {
+          code: "DEJA_AFFECTE",
+          message: "Cet utilisateur est déjà affecté à cet entrepôt",
+        },
+        409
+      )
     }
     throw err
   }
