@@ -1,0 +1,20 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "pos-stocks-api",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-06-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "observability": { "enabled": true },
+  "vars": {
+    "BETTER_AUTH_URL": "https://pos-stocks-api.koffiz2110.workers.dev",
+    "WEB_ORIGIN": "https://pos-stocks-web.koffiz2110.workers.dev"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "pos-stocks-db",
+      "database_id": "a95a8921-604f-4373-b4e2-a0091dc5e415",
+      "migrations_dir": "drizzle"
+    }
+  ]
+}

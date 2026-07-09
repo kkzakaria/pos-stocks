@@ -13,3 +13,11 @@ todos.json
 
 # typescript
 *.tsbuildinfo
+.superpowers/
+
+# api
+apps/api/.dev.vars
+apps/api/.wrangler/
+
+# web
+apps/web/.wrangler/
