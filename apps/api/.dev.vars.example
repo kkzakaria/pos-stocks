@@ -2,3 +2,6 @@ BETTER_AUTH_SECRET=generer-avec-openssl-rand-base64-32
 BETTER_AUTH_URL=http://localhost:8787
 WEB_ORIGIN=http://localhost:3000
 SETUP_TOKEN=choisir-un-jeton-long-et-secret
+
+# Optionnel — en prod avec domaines personnalisés : domaine racine des cookies (ex: .mondomaine.com)
+# COOKIE_DOMAIN=

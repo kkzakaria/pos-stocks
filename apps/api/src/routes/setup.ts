@@ -59,7 +59,11 @@ setupRoute.post("/", async (c) => {
     if (err instanceof APIError) {
       const status = err.statusCode as ContentfulStatusCode
       return c.json(
-        { code: "CREATION_UTILISATEUR", message: err.message },
+        {
+          code: "CREATION_UTILISATEUR",
+          message: "Impossible de créer le compte utilisateur",
+          details: err.message,
+        },
         status
       )
     }
