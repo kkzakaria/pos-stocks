@@ -100,6 +100,29 @@ describe("permissions", () => {
     ).toBe(200)
   })
 
+  it("requireWarehouseRole : refuse un entrepôt d'une autre organisation même pour owner", async () => {
+    const { ownerCookie } = await bootstrapOwner()
+
+    // Seconde organisation avec son propre entrepôt, insérée directement en base
+    const db = drizzle(env.DB, { schema })
+    const autreOrgId = crypto.randomUUID()
+    await db.insert(schema.organization).values({
+      id: autreOrgId,
+      name: "Autre Société",
+      slug: "autre",
+      createdAt: new Date(),
+    })
+    const autreEntrepotId = await creerEntrepot(autreOrgId)
+
+    const res = await testApp.request(
+      `/t/entrepot/${autreEntrepotId}/vente`,
+      { headers: { cookie: ownerCookie } },
+      env
+    )
+    expect(res.status).toBe(403)
+    expect((await res.json<{ code: string }>()).code).toBe("ACCES_REFUSE")
+  })
+
   it("requireMembership : 403 AUCUNE_ORGANISATION sans membership", async () => {
     await bootstrapOwner()
     // utilisateur créé SANS ligne member (directement via l'API auth, pas via helpers)
