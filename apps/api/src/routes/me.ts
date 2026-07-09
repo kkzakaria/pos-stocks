@@ -25,5 +25,18 @@ meRoute.get("/", requireAuth, async (c) => {
     .where(eq(schema.member.userId, user.id))
     .limit(1)
 
-  return c.json({ user, membership: rows[0] ?? null })
+  const assignments = await db
+    .select({
+      warehouseId: schema.warehouseMembers.warehouseId,
+      warehouseName: schema.warehouses.name,
+      role: schema.warehouseMembers.role,
+    })
+    .from(schema.warehouseMembers)
+    .innerJoin(
+      schema.warehouses,
+      eq(schema.warehouseMembers.warehouseId, schema.warehouses.id)
+    )
+    .where(eq(schema.warehouseMembers.userId, user.id))
+
+  return c.json({ user, membership: rows[0] ?? null, assignments })
 })

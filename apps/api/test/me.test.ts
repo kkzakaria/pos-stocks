@@ -55,4 +55,15 @@ describe("GET /api/v1/me", () => {
     expect(body.membership.role).toBe("owner")
     expect(body.membership.organizationName).toBe("Ma Société")
   })
+
+  it("renvoie mustChangePassword et les affectations", async () => {
+    const cookie = await bootstrapAndSignIn()
+    const res = await app.request("/api/v1/me", { headers: { cookie } }, env)
+    const body = await res.json<{
+      user: { mustChangePassword: boolean }
+      assignments: Array<unknown>
+    }>()
+    expect(body.user.mustChangePassword).toBe(false)
+    expect(body.assignments).toEqual([])
+  })
 })
