@@ -1,6 +1,7 @@
 import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router"
 import { authClient } from "@/lib/auth-client"
 import { LoginForm } from "@/components/login-form"
+import { TicketHorloge } from "@/components/ticket-horloge"
 
 export const Route = createFileRoute("/login")({
   beforeLoad: async () => {
@@ -12,10 +13,6 @@ export const Route = createFileRoute("/login")({
 
 function LoginPage() {
   const navigate = useNavigate()
-  const maintenant = new Intl.DateTimeFormat("fr-FR", {
-    dateStyle: "short",
-    timeStyle: "short",
-  }).format(new Date())
 
   async function handleSubmit(values: { email: string; password: string }) {
     const { error } = await authClient.signIn.email(values)
@@ -36,9 +33,7 @@ function LoginPage() {
             <p className="mt-2 text-[11px] tracking-widest text-(--encre-pale) uppercase">
               Gestion de stock &amp; point de vente
             </p>
-            <p className="mt-1 text-[11px] tracking-widest text-(--encre-pale)">
-              {maintenant}
-            </p>
+            <TicketHorloge className="mt-1 text-[11px] tracking-widest text-(--encre-pale)" />
           </header>
 
           <div className="py-6">
