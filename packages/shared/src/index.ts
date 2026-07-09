@@ -21,3 +21,7 @@ export {
   assignmentCreateSchema,
   type AssignmentCreateInput,
 } from "./schemas/assignment"
+export {
+  organizationSettingsSchema,
+  type OrganizationSettingsInput,
+} from "./schemas/organization"
