@@ -4,6 +4,7 @@ import type { Env } from "./env"
 import { createAuth } from "./lib/auth"
 import { setupRoute } from "./routes/setup"
 import { meRoute } from "./routes/me"
+import { warehousesRoute } from "./routes/warehouses"
 
 const app = new Hono<{ Bindings: Env }>()
 
@@ -31,5 +32,7 @@ app.on(["GET", "POST"], "/api/auth/*", (c) =>
 app.route("/api/v1/setup", setupRoute)
 
 app.route("/api/v1/me", meRoute)
+
+app.route("/api/v1/warehouses", warehousesRoute)
 
 export default app

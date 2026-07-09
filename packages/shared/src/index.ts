@@ -5,3 +5,9 @@ export {
   type CompanyRole,
   type WarehouseRole,
 } from "./roles"
+export {
+  warehouseCreateSchema,
+  warehouseUpdateSchema,
+  type WarehouseCreateInput,
+  type WarehouseUpdateInput,
+} from "./schemas/warehouse"
