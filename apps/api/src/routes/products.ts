@@ -369,3 +369,73 @@ productsRoute.post(
     return c.json({ id, sku }, 201)
   }
 )
+
+const TAILLE_MAX_IMAGE = 2 * 1024 * 1024
+
+const EXTENSIONS_IMAGE: Record<string, string> = {
+  "image/jpeg": "jpg",
+  "image/png": "png",
+  "image/webp": "webp",
+}
+
+productsRoute.post(
+  "/:id/image",
+  requireRole("owner", "admin", "stock_manager"),
+  async (c) => {
+    const { organizationId } = c.get("membership")
+    const db = drizzle(c.env.DB, { schema })
+    const produits = await db
+      .select({ id: schema.products.id, imageKey: schema.products.imageKey })
+      .from(schema.products)
+      .where(
+        and(
+          eq(schema.products.id, c.req.param("id")),
+          eq(schema.products.organizationId, organizationId)
+        )
+      )
+      .limit(1)
+    if (produits.length === 0) {
+      return c.json(
+        { code: "INTROUVABLE", message: "Produit introuvable" },
+        404
+      )
+    }
+    const produit = produits[0]
+
+    const form = await c.req.parseBody()
+    const fichier = form["image"]
+    if (!(fichier instanceof File)) {
+      return c.json(
+        { code: "VALIDATION", message: "Champ « image » manquant" },
+        400
+      )
+    }
+    if (fichier.size > TAILLE_MAX_IMAGE) {
+      return c.json(
+        { code: "IMAGE_TROP_LOURDE", message: "L'image dépasse 2 Mo" },
+        400
+      )
+    }
+    const extension = EXTENSIONS_IMAGE[fichier.type]
+    if (!extension) {
+      return c.json(
+        { code: "FORMAT_IMAGE", message: "Formats acceptés : JPEG, PNG, WebP" },
+        400
+      )
+    }
+
+    const cle = `produits/${produit.id}.${extension}`
+    // L'extension peut changer (jpg → png) : purger l'ancienne clé orpheline
+    if (produit.imageKey && produit.imageKey !== cle) {
+      await c.env.IMAGES.delete(produit.imageKey)
+    }
+    await c.env.IMAGES.put(cle, fichier, {
+      httpMetadata: { contentType: fichier.type },
+    })
+    await db
+      .update(schema.products)
+      .set({ imageKey: cle, updatedAt: new Date() })
+      .where(eq(schema.products.id, produit.id))
+    return c.json({ imageKey: cle })
+  }
+)
