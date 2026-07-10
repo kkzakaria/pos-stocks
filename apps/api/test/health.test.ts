@@ -15,4 +15,11 @@ describe("GET /api/v1/health", () => {
     ).all()
     expect(results).toHaveLength(1)
   })
+
+  it("les tables de la Phase 2 existent", async () => {
+    const { results } = await env.DB.prepare(
+      "SELECT name FROM sqlite_master WHERE type='table' AND name IN ('warehouses','warehouse_members')"
+    ).all()
+    expect(results).toHaveLength(2)
+  })
 })

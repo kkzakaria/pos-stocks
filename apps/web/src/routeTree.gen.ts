@@ -12,6 +12,10 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as AppRouteImport } from './routes/_app'
 import { Route as AppIndexRouteImport } from './routes/_app/index'
+import { Route as AppMonCompteRouteImport } from './routes/_app/mon-compte'
+import { Route as AppAdministrationUtilisateursRouteImport } from './routes/_app/administration/utilisateurs'
+import { Route as AppAdministrationParametresRouteImport } from './routes/_app/administration/parametres'
+import { Route as AppAdministrationEntrepotsRouteImport } from './routes/_app/administration/entrepots'
 
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
@@ -27,27 +31,82 @@ const AppIndexRoute = AppIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AppRoute,
 } as any)
+const AppMonCompteRoute = AppMonCompteRouteImport.update({
+  id: '/mon-compte',
+  path: '/mon-compte',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppAdministrationUtilisateursRoute =
+  AppAdministrationUtilisateursRouteImport.update({
+    id: '/administration/utilisateurs',
+    path: '/administration/utilisateurs',
+    getParentRoute: () => AppRoute,
+  } as any)
+const AppAdministrationParametresRoute =
+  AppAdministrationParametresRouteImport.update({
+    id: '/administration/parametres',
+    path: '/administration/parametres',
+    getParentRoute: () => AppRoute,
+  } as any)
+const AppAdministrationEntrepotsRoute =
+  AppAdministrationEntrepotsRouteImport.update({
+    id: '/administration/entrepots',
+    path: '/administration/entrepots',
+    getParentRoute: () => AppRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof AppIndexRoute
   '/login': typeof LoginRoute
+  '/mon-compte': typeof AppMonCompteRoute
+  '/administration/entrepots': typeof AppAdministrationEntrepotsRoute
+  '/administration/parametres': typeof AppAdministrationParametresRoute
+  '/administration/utilisateurs': typeof AppAdministrationUtilisateursRoute
 }
 export interface FileRoutesByTo {
   '/login': typeof LoginRoute
+  '/mon-compte': typeof AppMonCompteRoute
   '/': typeof AppIndexRoute
+  '/administration/entrepots': typeof AppAdministrationEntrepotsRoute
+  '/administration/parametres': typeof AppAdministrationParametresRoute
+  '/administration/utilisateurs': typeof AppAdministrationUtilisateursRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_app': typeof AppRouteWithChildren
   '/login': typeof LoginRoute
+  '/_app/mon-compte': typeof AppMonCompteRoute
   '/_app/': typeof AppIndexRoute
+  '/_app/administration/entrepots': typeof AppAdministrationEntrepotsRoute
+  '/_app/administration/parametres': typeof AppAdministrationParametresRoute
+  '/_app/administration/utilisateurs': typeof AppAdministrationUtilisateursRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/login'
+  fullPaths:
+    | '/'
+    | '/login'
+    | '/mon-compte'
+    | '/administration/entrepots'
+    | '/administration/parametres'
+    | '/administration/utilisateurs'
   fileRoutesByTo: FileRoutesByTo
-  to: '/login' | '/'
-  id: '__root__' | '/_app' | '/login' | '/_app/'
+  to:
+    | '/login'
+    | '/mon-compte'
+    | '/'
+    | '/administration/entrepots'
+    | '/administration/parametres'
+    | '/administration/utilisateurs'
+  id:
+    | '__root__'
+    | '/_app'
+    | '/login'
+    | '/_app/mon-compte'
+    | '/_app/'
+    | '/_app/administration/entrepots'
+    | '/_app/administration/parametres'
+    | '/_app/administration/utilisateurs'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -78,15 +137,51 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppIndexRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/mon-compte': {
+      id: '/_app/mon-compte'
+      path: '/mon-compte'
+      fullPath: '/mon-compte'
+      preLoaderRoute: typeof AppMonCompteRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/administration/utilisateurs': {
+      id: '/_app/administration/utilisateurs'
+      path: '/administration/utilisateurs'
+      fullPath: '/administration/utilisateurs'
+      preLoaderRoute: typeof AppAdministrationUtilisateursRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/administration/parametres': {
+      id: '/_app/administration/parametres'
+      path: '/administration/parametres'
+      fullPath: '/administration/parametres'
+      preLoaderRoute: typeof AppAdministrationParametresRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/administration/entrepots': {
+      id: '/_app/administration/entrepots'
+      path: '/administration/entrepots'
+      fullPath: '/administration/entrepots'
+      preLoaderRoute: typeof AppAdministrationEntrepotsRouteImport
+      parentRoute: typeof AppRoute
+    }
   }
 }
 
 interface AppRouteChildren {
+  AppMonCompteRoute: typeof AppMonCompteRoute
   AppIndexRoute: typeof AppIndexRoute
+  AppAdministrationEntrepotsRoute: typeof AppAdministrationEntrepotsRoute
+  AppAdministrationParametresRoute: typeof AppAdministrationParametresRoute
+  AppAdministrationUtilisateursRoute: typeof AppAdministrationUtilisateursRoute
 }
 
 const AppRouteChildren: AppRouteChildren = {
+  AppMonCompteRoute: AppMonCompteRoute,
   AppIndexRoute: AppIndexRoute,
+  AppAdministrationEntrepotsRoute: AppAdministrationEntrepotsRoute,
+  AppAdministrationParametresRoute: AppAdministrationParametresRoute,
+  AppAdministrationUtilisateursRoute: AppAdministrationUtilisateursRoute,
 }
 
 const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)

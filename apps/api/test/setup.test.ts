@@ -66,6 +66,6 @@ describe("POST /api/v1/setup", () => {
     expect(retry.status).not.toBe(500)
     const body = await retry.json<{ code: string; message: string }>()
     expect(body.code).toBe("CREATION_UTILISATEUR")
-    expect(typeof body.message).toBe("string")
+    expect(body.message).toBe("Impossible de créer le compte utilisateur")
   })
 })

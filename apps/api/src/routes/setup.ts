@@ -6,6 +6,7 @@ import { setupSchema } from "shared"
 import { APIError } from "better-auth/api"
 import { createAuth } from "../lib/auth"
 import { safeTokenEqual } from "../lib/timing-safe"
+import { estViolationUnicite } from "../lib/db-errors"
 import * as schema from "../db/schema"
 import type { Env } from "../env"
 
@@ -59,7 +60,11 @@ setupRoute.post("/", async (c) => {
     if (err instanceof APIError) {
       const status = err.statusCode as ContentfulStatusCode
       return c.json(
-        { code: "CREATION_UTILISATEUR", message: err.message },
+        {
+          code: "CREATION_UTILISATEUR",
+          message: "Impossible de créer le compte utilisateur",
+          details: err.message,
+        },
         status
       )
     }
@@ -86,7 +91,6 @@ setupRoute.post("/", async (c) => {
       }),
     ])
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err)
     // Nettoyage best-effort de l'utilisateur Better Auth orphelin (account/session
     // cascadent via FK) : ne doit jamais masquer l'erreur d'origine ci-dessous.
     try {
@@ -94,8 +98,7 @@ setupRoute.post("/", async (c) => {
     } catch (cleanupErr) {
       console.error("Échec du nettoyage de l'utilisateur orphelin", cleanupErr)
     }
-    // D1 n'expose pas de code d'erreur structuré : la détection par texte est le seul moyen fiable.
-    if (message.includes("UNIQUE constraint failed")) {
+    if (estViolationUnicite(err)) {
       return c.json(
         {
           code: "DEJA_INITIALISE",
