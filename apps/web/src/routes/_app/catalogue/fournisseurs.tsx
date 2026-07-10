@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { createFileRoute, redirect } from "@tanstack/react-router"
+import { createFileRoute } from "@tanstack/react-router"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { apiFetch } from "@/lib/api"
 import { Button } from "@/components/ui/button"
@@ -22,123 +22,116 @@ import {
   TableRow,
 } from "@/components/ui/table"
 
-export const Route = createFileRoute("/_app/administration/entrepots")({
-  beforeLoad: ({ context }) => {
-    const role = context.me.membership?.role
-    if (role !== "owner" && role !== "admin" && role !== "auditor") {
-      throw redirect({ to: "/" })
-    }
-  },
-  component: EntrepotsPage,
+export const Route = createFileRoute("/_app/catalogue/fournisseurs")({
+  component: FournisseursPage,
 })
 
-type Warehouse = {
+type Fournisseur = {
   id: string
   name: string
-  type: "warehouse" | "store"
-  address: string | null
+  contact: string | null
+  phone: string | null
   isActive: boolean
 }
 
-const TYPES = { warehouse: "Entrepôt", store: "Boutique" } as const
-
-function EntrepotsPage() {
+function FournisseursPage() {
   const { me } = Route.useRouteContext()
+  const role = me.membership?.role
   const peutEcrire =
-    me.membership?.role === "owner" || me.membership?.role === "admin"
+    role === "owner" || role === "admin" || role === "stock_manager"
   const queryClient = useQueryClient()
-  const [dialogOuvert, setDialogOuvert] = useState(false)
-  const [nom, setNom] = useState("")
-  const [type, setType] = useState<"warehouse" | "store">("store")
-  const [adresse, setAdresse] = useState("")
-  const [erreur, setErreur] = useState<string | null>(null)
 
   const { data, isPending } = useQuery({
-    queryKey: ["warehouses"],
-    queryFn: () => apiFetch<{ warehouses: Warehouse[] }>("/api/v1/warehouses"),
+    queryKey: ["suppliers"],
+    queryFn: () => apiFetch<{ suppliers: Fournisseur[] }>("/api/v1/suppliers"),
   })
+
+  const [dialogOuvert, setDialogOuvert] = useState(false)
+  const [nom, setNom] = useState("")
+  const [contact, setContact] = useState("")
+  const [telephone, setTelephone] = useState("")
+  const [erreur, setErreur] = useState<string | null>(null)
+
+  const invalider = () =>
+    queryClient.invalidateQueries({ queryKey: ["suppliers"] })
 
   const creer = useMutation({
     mutationFn: () =>
-      apiFetch("/api/v1/warehouses", {
+      apiFetch("/api/v1/suppliers", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           name: nom,
-          type,
-          address: adresse || undefined,
+          contact: contact || undefined,
+          phone: telephone || undefined,
         }),
       }),
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["warehouses"] })
+      await invalider()
       setDialogOuvert(false)
       setNom("")
-      setAdresse("")
+      setContact("")
+      setTelephone("")
       setErreur(null)
     },
     onError: (err) => setErreur(err instanceof Error ? err.message : "Erreur"),
   })
 
   const basculer = useMutation({
-    mutationFn: (w: Warehouse) =>
-      apiFetch(`/api/v1/warehouses/${w.id}`, {
+    mutationFn: (f: Fournisseur) =>
+      apiFetch(`/api/v1/suppliers/${f.id}`, {
         method: "PATCH",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ isActive: !w.isActive }),
+        body: JSON.stringify({ isActive: !f.isActive }),
       }),
-    onSuccess: () =>
-      queryClient.invalidateQueries({ queryKey: ["warehouses"] }),
+    onSuccess: invalider,
+    onError: (err) => alert(err instanceof Error ? err.message : "Erreur"),
   })
 
   return (
     <div>
       <div className="mb-6 flex items-center justify-between">
-        <h1 className="text-xl font-semibold">Entrepôts &amp; boutiques</h1>
+        <h1 className="text-xl font-semibold">Fournisseurs</h1>
         {peutEcrire && (
           <Dialog open={dialogOuvert} onOpenChange={setDialogOuvert}>
-            <DialogTrigger render={<Button />}>Nouvel entrepôt</DialogTrigger>
+            <DialogTrigger render={<Button />}>
+              Nouveau fournisseur
+            </DialogTrigger>
             <DialogContent>
               <DialogHeader>
-                <DialogTitle>Nouvel entrepôt ou boutique</DialogTitle>
+                <DialogTitle>Nouveau fournisseur</DialogTitle>
               </DialogHeader>
               <form
                 className="flex flex-col gap-4"
                 onSubmit={(e) => {
                   e.preventDefault()
+                  setErreur(null)
                   creer.mutate()
                 }}
               >
                 <div className="flex flex-col gap-1.5">
-                  <Label htmlFor="wh-nom">Nom</Label>
+                  <Label htmlFor="s-nom">Nom</Label>
                   <Input
-                    id="wh-nom"
+                    id="s-nom"
                     required
                     value={nom}
                     onChange={(e) => setNom(e.target.value)}
                   />
                 </div>
                 <div className="flex flex-col gap-1.5">
-                  <Label htmlFor="wh-type">Type</Label>
-                  <select
-                    id="wh-type"
-                    value={type}
-                    onChange={(e) =>
-                      setType(e.target.value as "warehouse" | "store")
-                    }
-                    className="h-10 rounded-md border px-2 text-sm"
-                  >
-                    <option value="store">
-                      Boutique (avec point de vente)
-                    </option>
-                    <option value="warehouse">Entrepôt (réserve)</option>
-                  </select>
+                  <Label htmlFor="s-contact">Contact (optionnel)</Label>
+                  <Input
+                    id="s-contact"
+                    value={contact}
+                    onChange={(e) => setContact(e.target.value)}
+                  />
                 </div>
                 <div className="flex flex-col gap-1.5">
-                  <Label htmlFor="wh-adresse">Adresse (optionnel)</Label>
+                  <Label htmlFor="s-telephone">Téléphone (optionnel)</Label>
                   <Input
-                    id="wh-adresse"
-                    value={adresse}
-                    onChange={(e) => setAdresse(e.target.value)}
+                    id="s-telephone"
+                    value={telephone}
+                    onChange={(e) => setTelephone(e.target.value)}
                   />
                 </div>
                 {erreur && (
@@ -162,21 +155,21 @@ function EntrepotsPage() {
           <TableHeader>
             <TableRow>
               <TableHead>Nom</TableHead>
-              <TableHead>Type</TableHead>
-              <TableHead>Adresse</TableHead>
+              <TableHead>Contact</TableHead>
+              <TableHead>Téléphone</TableHead>
               <TableHead>Statut</TableHead>
               {peutEcrire && <TableHead />}
             </TableRow>
           </TableHeader>
           <TableBody>
-            {(data?.warehouses ?? []).map((w) => (
-              <TableRow key={w.id}>
-                <TableCell className="font-medium">{w.name}</TableCell>
-                <TableCell>{TYPES[w.type]}</TableCell>
-                <TableCell>{w.address ?? "—"}</TableCell>
+            {(data?.suppliers ?? []).map((f) => (
+              <TableRow key={f.id}>
+                <TableCell className="font-medium">{f.name}</TableCell>
+                <TableCell>{f.contact ?? "—"}</TableCell>
+                <TableCell>{f.phone ?? "—"}</TableCell>
                 <TableCell>
-                  <Badge variant={w.isActive ? "default" : "secondary"}>
-                    {w.isActive ? "Actif" : "Inactif"}
+                  <Badge variant={f.isActive ? "default" : "secondary"}>
+                    {f.isActive ? "Actif" : "Inactif"}
                   </Badge>
                 </TableCell>
                 {peutEcrire && (
@@ -184,21 +177,21 @@ function EntrepotsPage() {
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => basculer.mutate(w)}
+                      onClick={() => basculer.mutate(f)}
                     >
-                      {w.isActive ? "Désactiver" : "Réactiver"}
+                      {f.isActive ? "Désactiver" : "Réactiver"}
                     </Button>
                   </TableCell>
                 )}
               </TableRow>
             ))}
-            {data?.warehouses.length === 0 && (
+            {data?.suppliers.length === 0 && (
               <TableRow>
                 <TableCell
                   colSpan={peutEcrire ? 5 : 4}
                   className="text-center text-sm text-gray-500"
                 >
-                  Aucun entrepôt — créez le premier pour démarrer.
+                  Aucun fournisseur.
                 </TableCell>
               </TableRow>
             )}

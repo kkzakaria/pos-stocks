@@ -9,7 +9,7 @@ import { drizzle } from "drizzle-orm/d1"
 
 export const auth = betterAuth({
   database: drizzleAdapter(drizzle({} as D1Database), { provider: "sqlite" }),
-  emailAndPassword: { enabled: true },
+  emailAndPassword: { enabled: true, autoSignIn: false },
   user: {
     additionalFields: {
       mustChangePassword: {

@@ -9,6 +9,11 @@ import { usersRoute } from "./routes/users"
 import { warehouseMembersRoute } from "./routes/warehouse-members"
 import { organizationRoute } from "./routes/organization"
 import { monCompteRoute } from "./routes/mon-compte"
+import { categoriesRoute } from "./routes/categories"
+import { suppliersRoute } from "./routes/suppliers"
+import { productsRoute } from "./routes/products"
+import { variantsRoute } from "./routes/variants"
+import { filesRoute } from "./routes/files"
 
 const app = new Hono<{ Bindings: Env }>()
 
@@ -46,5 +51,15 @@ app.route("/api/v1/warehouse-members", warehouseMembersRoute)
 app.route("/api/v1/organization", organizationRoute)
 
 app.route("/api/v1/mon-compte", monCompteRoute)
+
+app.route("/api/v1/categories", categoriesRoute)
+
+app.route("/api/v1/suppliers", suppliersRoute)
+
+app.route("/api/v1/products", productsRoute)
+
+app.route("/api/v1/variants", variantsRoute)
+
+app.route("/api/v1/files", filesRoute)
 
 export default app

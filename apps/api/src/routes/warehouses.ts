@@ -6,6 +6,7 @@ import * as schema from "../db/schema"
 import { requireAuth } from "../middleware/require-auth"
 import { requireMembership, requireRole } from "../middleware/permissions"
 import type { PermissionVariables } from "../middleware/permissions"
+import { validerCorps } from "../lib/validation"
 import type { Env } from "../env"
 
 export const warehousesRoute = new Hono<{
@@ -32,28 +33,17 @@ warehousesRoute.get(
 )
 
 warehousesRoute.post("/", requireRole("owner", "admin"), async (c) => {
-  const parsed = warehouseCreateSchema.safeParse(
-    await c.req.json().catch(() => null)
-  )
-  if (!parsed.success) {
-    return c.json(
-      {
-        code: "VALIDATION",
-        message: "Données invalides",
-        details: parsed.error.flatten(),
-      },
-      400
-    )
-  }
+  const corps = await validerCorps(c, warehouseCreateSchema)
+  if (!corps.ok) return corps.reponse
   const db = drizzle(c.env.DB, { schema })
   const id = crypto.randomUUID()
   const now = new Date()
   await db.insert(schema.warehouses).values({
     id,
     organizationId: c.get("membership").organizationId,
-    name: parsed.data.name,
-    type: parsed.data.type,
-    address: parsed.data.address ?? null,
+    name: corps.data.name,
+    type: corps.data.type,
+    address: corps.data.address ?? null,
     createdAt: now,
     updatedAt: now,
   })
@@ -61,23 +51,12 @@ warehousesRoute.post("/", requireRole("owner", "admin"), async (c) => {
 })
 
 warehousesRoute.patch("/:id", requireRole("owner", "admin"), async (c) => {
-  const parsed = warehouseUpdateSchema.safeParse(
-    await c.req.json().catch(() => null)
-  )
-  if (!parsed.success) {
-    return c.json(
-      {
-        code: "VALIDATION",
-        message: "Données invalides",
-        details: parsed.error.flatten(),
-      },
-      400
-    )
-  }
+  const corps = await validerCorps(c, warehouseUpdateSchema)
+  if (!corps.ok) return corps.reponse
   const db = drizzle(c.env.DB, { schema })
   const result = await db
     .update(schema.warehouses)
-    .set({ ...parsed.data, updatedAt: new Date() })
+    .set({ ...corps.data, updatedAt: new Date() })
     .where(
       and(
         eq(schema.warehouses.id, c.req.param("id")),

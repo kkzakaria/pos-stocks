@@ -16,5 +16,11 @@
       "database_id": "a95a8921-604f-4373-b4e2-a0091dc5e415",
       "migrations_dir": "drizzle"
     }
+  ],
+  "r2_buckets": [
+    {
+      "binding": "IMAGES",
+      "bucket_name": "pos-stocks-images"
+    }
   ]
 }

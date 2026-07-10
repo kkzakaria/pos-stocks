@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { createFileRoute } from "@tanstack/react-router"
+import { createFileRoute, redirect } from "@tanstack/react-router"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import type { CompanyRole, WarehouseRole } from "shared"
 import { apiFetch } from "@/lib/api"
@@ -25,6 +25,12 @@ import {
 import { ProvisionalPasswordDialog } from "@/components/provisional-password-dialog"
 
 export const Route = createFileRoute("/_app/administration/utilisateurs")({
+  beforeLoad: ({ context }) => {
+    const role = context.me.membership?.role
+    if (role !== "owner" && role !== "admin" && role !== "auditor") {
+      throw redirect({ to: "/" })
+    }
+  },
   component: UtilisateursPage,
 })
 

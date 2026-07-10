@@ -6,6 +6,7 @@ import * as schema from "../db/schema"
 import { requireAuth } from "../middleware/require-auth"
 import { requireMembership, requireRole } from "../middleware/permissions"
 import type { PermissionVariables } from "../middleware/permissions"
+import { validerCorps } from "../lib/validation"
 import type { Env } from "../env"
 
 export const organizationRoute = new Hono<{
@@ -49,19 +50,8 @@ organizationRoute.get("/", async (c) => {
 })
 
 organizationRoute.patch("/", requireRole("owner", "admin"), async (c) => {
-  const parsed = organizationSettingsSchema.safeParse(
-    await c.req.json().catch(() => null)
-  )
-  if (!parsed.success) {
-    return c.json(
-      {
-        code: "VALIDATION",
-        message: "Données invalides",
-        details: parsed.error.flatten(),
-      },
-      400
-    )
-  }
+  const corps = await validerCorps(c, organizationSettingsSchema)
+  if (!corps.ok) return corps.reponse
   const organizationId = c.get("membership").organizationId
   const db = drizzle(c.env.DB, { schema })
   const rows = await db
@@ -73,7 +63,7 @@ organizationRoute.patch("/", requireRole("owner", "admin"), async (c) => {
     .where(eq(schema.organization.id, organizationId))
     .limit(1)
   const meta = lireMeta(rows[0]?.metadata ?? null)
-  const { name, ...metaPatch } = parsed.data
+  const { name, ...metaPatch } = corps.data
   await db
     .update(schema.organization)
     .set({

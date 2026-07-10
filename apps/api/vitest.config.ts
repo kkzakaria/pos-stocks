@@ -13,6 +13,7 @@ export default defineWorkersConfig(async () => {
         workers: {
           wrangler: { configPath: "./wrangler.jsonc" },
           miniflare: {
+            r2Buckets: ["IMAGES"],
             bindings: {
               TEST_MIGRATIONS: migrations,
               BETTER_AUTH_SECRET: "secret-de-test-secret-de-test-32c",

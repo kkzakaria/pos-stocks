@@ -7,6 +7,7 @@ import { requireAuth } from "../middleware/require-auth"
 import { requireMembership, requireRole } from "../middleware/permissions"
 import type { PermissionVariables } from "../middleware/permissions"
 import { estViolationUnicite } from "../lib/db-errors"
+import { validerCorps } from "../lib/validation"
 import type { Env } from "../env"
 
 export const warehouseMembersRoute = new Hono<{
@@ -21,19 +22,8 @@ warehouseMembersRoute.use(
 )
 
 warehouseMembersRoute.post("/", async (c) => {
-  const parsed = assignmentCreateSchema.safeParse(
-    await c.req.json().catch(() => null)
-  )
-  if (!parsed.success) {
-    return c.json(
-      {
-        code: "VALIDATION",
-        message: "Données invalides",
-        details: parsed.error.flatten(),
-      },
-      400
-    )
-  }
+  const corps = await validerCorps(c, assignmentCreateSchema)
+  if (!corps.ok) return corps.reponse
   const { organizationId } = c.get("membership")
   const db = drizzle(c.env.DB, { schema })
 
@@ -43,7 +33,7 @@ warehouseMembersRoute.post("/", async (c) => {
       .from(schema.member)
       .where(
         and(
-          eq(schema.member.userId, parsed.data.userId),
+          eq(schema.member.userId, corps.data.userId),
           eq(schema.member.organizationId, organizationId)
         )
       )
@@ -53,7 +43,7 @@ warehouseMembersRoute.post("/", async (c) => {
       .from(schema.warehouses)
       .where(
         and(
-          eq(schema.warehouses.id, parsed.data.warehouseId),
+          eq(schema.warehouses.id, corps.data.warehouseId),
           eq(schema.warehouses.organizationId, organizationId)
         )
       )
@@ -71,9 +61,9 @@ warehouseMembersRoute.post("/", async (c) => {
     await db.insert(schema.warehouseMembers).values({
       id,
       organizationId,
-      warehouseId: parsed.data.warehouseId,
-      userId: parsed.data.userId,
-      role: parsed.data.role,
+      warehouseId: corps.data.warehouseId,
+      userId: corps.data.userId,
+      role: corps.data.role,
       createdAt: new Date(),
     })
   } catch (err) {
