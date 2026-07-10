@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { createFileRoute } from "@tanstack/react-router"
+import { createFileRoute, redirect } from "@tanstack/react-router"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { apiFetch } from "@/lib/api"
 import { Button } from "@/components/ui/button"
@@ -23,6 +23,12 @@ import {
 } from "@/components/ui/table"
 
 export const Route = createFileRoute("/_app/administration/entrepots")({
+  beforeLoad: ({ context }) => {
+    const role = context.me.membership?.role
+    if (role !== "owner" && role !== "admin" && role !== "auditor") {
+      throw redirect({ to: "/" })
+    }
+  },
   component: EntrepotsPage,
 })
 
@@ -189,7 +195,7 @@ function EntrepotsPage() {
             {data?.warehouses.length === 0 && (
               <TableRow>
                 <TableCell
-                  colSpan={5}
+                  colSpan={peutEcrire ? 5 : 4}
                   className="text-center text-sm text-gray-500"
                 >
                   Aucun entrepôt — créez le premier pour démarrer.

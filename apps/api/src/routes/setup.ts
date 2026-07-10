@@ -7,6 +7,7 @@ import { APIError } from "better-auth/api"
 import { createAuth } from "../lib/auth"
 import { safeTokenEqual } from "../lib/timing-safe"
 import { estViolationUnicite } from "../lib/db-errors"
+import { validerCorps } from "../lib/validation"
 import * as schema from "../db/schema"
 import type { Env } from "../env"
 
@@ -17,17 +18,8 @@ setupRoute.post("/", async (c) => {
     return c.json({ code: "INTERDIT", message: "Jeton de setup invalide" }, 403)
   }
 
-  const parsed = setupSchema.safeParse(await c.req.json().catch(() => null))
-  if (!parsed.success) {
-    return c.json(
-      {
-        code: "VALIDATION",
-        message: "Données invalides",
-        details: parsed.error.flatten(),
-      },
-      400
-    )
-  }
+  const corps = await validerCorps(c, setupSchema)
+  if (!corps.ok) return corps.reponse
 
   const db = drizzle(c.env.DB, { schema })
   const existing = await db
@@ -44,15 +36,35 @@ setupRoute.post("/", async (c) => {
     )
   }
 
+  // Vérification explicite en amont : depuis `autoSignIn: false`, Better Auth
+  // renvoie une réponse "synthétique" (anti-énumération, cf. sign-up.mjs) pour
+  // un email déjà pris au lieu de lever une APIError — l'id retourné n'existe
+  // pas en base, ce qui ferait échouer l'insertion du membre plus bas par une
+  // violation de clé étrangère opaque (500) plutôt que l'erreur métier propre.
+  const emailExistant = await db
+    .select({ id: schema.user.id })
+    .from(schema.user)
+    .where(eq(schema.user.email, corps.data.email))
+    .limit(1)
+  if (emailExistant.length > 0) {
+    return c.json(
+      {
+        code: "CREATION_UTILISATEUR",
+        message: "Impossible de créer le compte utilisateur",
+      },
+      409
+    )
+  }
+
   const auth = createAuth(c.env)
 
   let signUp: Awaited<ReturnType<typeof auth.api.signUpEmail>>
   try {
     signUp = await auth.api.signUpEmail({
       body: {
-        email: parsed.data.email,
-        password: parsed.data.password,
-        name: parsed.data.name,
+        email: corps.data.email,
+        password: corps.data.password,
+        name: corps.data.name,
       },
       headers: new Headers({ "x-setup-token": c.env.SETUP_TOKEN }),
     })
@@ -77,7 +89,7 @@ setupRoute.post("/", async (c) => {
     await db.batch([
       db.insert(schema.organization).values({
         id: organizationId,
-        name: parsed.data.organizationName,
+        name: corps.data.organizationName,
         slug: "principale",
         createdAt: now,
         metadata: JSON.stringify({ currency: "XOF" }),

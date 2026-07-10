@@ -11,6 +11,7 @@ import { generateProvisionalPassword } from "../lib/provisional-password"
 import { requireAuth } from "../middleware/require-auth"
 import { requireMembership, requireRole } from "../middleware/permissions"
 import type { PermissionVariables } from "../middleware/permissions"
+import { validerCorps } from "../lib/validation"
 import type { Env } from "../env"
 
 export const usersRoute = new Hono<{
@@ -28,21 +29,10 @@ const ROLES_GERABLES_PAR_ADMIN: CompanyRole[] = [
 ]
 
 usersRoute.post("/", requireRole("owner", "admin"), async (c) => {
-  const parsed = userCreateSchema.safeParse(
-    await c.req.json().catch(() => null)
-  )
-  if (!parsed.success) {
-    return c.json(
-      {
-        code: "VALIDATION",
-        message: "Données invalides",
-        details: parsed.error.flatten(),
-      },
-      400
-    )
-  }
+  const corps = await validerCorps(c, userCreateSchema)
+  if (!corps.ok) return corps.reponse
   const demandeur = c.get("membership")
-  const roleCible = parsed.data.role as CompanyRole
+  const roleCible = corps.data.role as CompanyRole
   if (
     demandeur.role !== "owner" &&
     !ROLES_GERABLES_PAR_ADMIN.includes(roleCible)
@@ -60,7 +50,7 @@ usersRoute.post("/", requireRole("owner", "admin"), async (c) => {
   const existant = await db
     .select({ id: schema.user.id })
     .from(schema.user)
-    .where(eq(schema.user.email, parsed.data.email))
+    .where(eq(schema.user.email, corps.data.email))
     .limit(1)
   if (existant.length > 0) {
     return c.json(
@@ -79,9 +69,9 @@ usersRoute.post("/", requireRole("owner", "admin"), async (c) => {
   try {
     signUp = await auth.api.signUpEmail({
       body: {
-        email: parsed.data.email,
+        email: corps.data.email,
         password: provisionalPassword,
-        name: parsed.data.name,
+        name: corps.data.name,
       },
       headers: new Headers({ "x-setup-token": c.env.SETUP_TOKEN }),
     })
@@ -196,17 +186,8 @@ async function membershipCible(
 }
 
 usersRoute.patch("/:id/role", requireRole("owner", "admin"), async (c) => {
-  const parsed = userRoleSchema.safeParse(await c.req.json().catch(() => null))
-  if (!parsed.success) {
-    return c.json(
-      {
-        code: "VALIDATION",
-        message: "Données invalides",
-        details: parsed.error.flatten(),
-      },
-      400
-    )
-  }
+  const corps = await validerCorps(c, userRoleSchema)
+  if (!corps.ok) return corps.reponse
   const cibleId = c.req.param("id")
   const demandeur = c.get("membership")
   const cible = await membershipCible(c.env, demandeur.organizationId, cibleId)
@@ -216,7 +197,7 @@ usersRoute.patch("/:id/role", requireRole("owner", "admin"), async (c) => {
       404
     )
 
-  const nouveauRole = parsed.data.role
+  const nouveauRole = corps.data.role
   if (demandeur.role !== "owner") {
     const cibleGerable = ROLES_GERABLES_PAR_ADMIN.includes(
       cible.role as CompanyRole
@@ -258,19 +239,8 @@ usersRoute.patch("/:id/role", requireRole("owner", "admin"), async (c) => {
 })
 
 usersRoute.patch("/:id/statut", requireRole("owner", "admin"), async (c) => {
-  const parsed = userStatusSchema.safeParse(
-    await c.req.json().catch(() => null)
-  )
-  if (!parsed.success) {
-    return c.json(
-      {
-        code: "VALIDATION",
-        message: "Données invalides",
-        details: parsed.error.flatten(),
-      },
-      400
-    )
-  }
+  const corps = await validerCorps(c, userStatusSchema)
+  if (!corps.ok) return corps.reponse
   const cibleId = c.req.param("id")
   if (cibleId === c.get("user").id) {
     return c.json(
@@ -298,9 +268,9 @@ usersRoute.patch("/:id/statut", requireRole("owner", "admin"), async (c) => {
   const db = drizzle(c.env.DB, { schema })
   const updateStatut = db
     .update(schema.user)
-    .set({ isActive: parsed.data.isActive })
+    .set({ isActive: corps.data.isActive })
     .where(eq(schema.user.id, cibleId))
-  if (parsed.data.isActive) {
+  if (corps.data.isActive) {
     await updateStatut
   } else {
     await db.batch([

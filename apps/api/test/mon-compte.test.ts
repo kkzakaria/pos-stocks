@@ -115,4 +115,14 @@ describe("mon compte", () => {
     )
     expect(ancien.status).not.toBe(200)
   })
+
+  it("refuse un nouveau mot de passe de plus de 128 caractères avec le code VALIDATION", async () => {
+    const { ownerCookie } = await bootstrapOwner()
+    const res = await changer(ownerCookie, {
+      currentPassword: MDP,
+      newPassword: "A".repeat(200),
+    })
+    expect(res.status).toBe(400)
+    expect((await res.json<{ code: string }>()).code).toBe("VALIDATION")
+  })
 })

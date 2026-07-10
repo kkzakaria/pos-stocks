@@ -5,11 +5,15 @@
 // trouver.
 export function estViolationUnicite(err: unknown): boolean {
   let current: unknown = err
-  while (current instanceof Error) {
+  let profondeur = 0
+  // Plafond défensif : une chaîne `cause` cyclique ou pathologiquement
+  // profonde ne doit pas bloquer le worker.
+  while (current instanceof Error && profondeur < 10) {
     if (current.message.includes("UNIQUE constraint failed")) {
       return true
     }
     current = current.cause
+    profondeur += 1
   }
   return false
 }

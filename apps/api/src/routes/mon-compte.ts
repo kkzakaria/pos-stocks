@@ -7,6 +7,7 @@ import * as schema from "../db/schema"
 import { createAuth } from "../lib/auth"
 import { requireAuth } from "../middleware/require-auth"
 import type { AuthVariables } from "../middleware/require-auth"
+import { validerCorps } from "../lib/validation"
 import type { Env } from "../env"
 
 export const monCompteRoute = new Hono<{
@@ -15,35 +16,34 @@ export const monCompteRoute = new Hono<{
 }>()
 
 monCompteRoute.post("/mot-de-passe", requireAuth, async (c) => {
-  const parsed = changePasswordSchema.safeParse(
-    await c.req.json().catch(() => null)
-  )
-  if (!parsed.success) {
-    return c.json(
-      {
-        code: "VALIDATION",
-        message: "Données invalides",
-        details: parsed.error.flatten(),
-      },
-      400
-    )
-  }
+  const corps = await validerCorps(c, changePasswordSchema)
+  if (!corps.ok) return corps.reponse
   const auth = createAuth(c.env)
   try {
     await auth.api.changePassword({
       body: {
-        currentPassword: parsed.data.currentPassword,
-        newPassword: parsed.data.newPassword,
+        currentPassword: corps.data.currentPassword,
+        newPassword: corps.data.newPassword,
         revokeOtherSessions: true,
       },
       headers: c.req.raw.headers,
     })
   } catch (err) {
     if (err instanceof APIError) {
+      if (err.body?.code === "INVALID_PASSWORD") {
+        return c.json(
+          {
+            code: "MOT_DE_PASSE_INCORRECT",
+            message: "Mot de passe actuel incorrect",
+          },
+          400
+        )
+      }
       return c.json(
         {
-          code: "MOT_DE_PASSE_INCORRECT",
-          message: "Mot de passe actuel incorrect",
+          code: "VALIDATION",
+          message: "Données invalides",
+          details: err.body?.message ?? err.message,
         },
         400
       )

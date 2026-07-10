@@ -15,7 +15,7 @@ export function createAuth(env: Env) {
     secret: env.BETTER_AUTH_SECRET,
     baseURL: env.BETTER_AUTH_URL,
     trustedOrigins: [env.WEB_ORIGIN],
-    emailAndPassword: { enabled: true },
+    emailAndPassword: { enabled: true, autoSignIn: false },
     user: {
       additionalFields: {
         mustChangePassword: {
