@@ -65,7 +65,7 @@ Le scaffold TanStack Start existant est restructuré : `apps/web` devient une SP
 ### Catalogue
 
 - `categories` — organizationId, nom, parentId (hiérarchie simple)
-- `products` — nom, description, categoryId, sku, code-barres, prix de vente, seuil d'alerte par défaut, `hasVariants`, `trackLots` (péremption activable par produit), `imageKey` (R2), actif
+- `products` — nom, description, categoryId, sku (**auto-généré `PRD-XXXX`, modifiable**), code-barres, prix de vente, **prix plancher optionnel** (`minPrice` — au POS, le vendeur pourra négocier jusqu'au plancher mais jamais en dessous), seuil d'alerte par défaut, `hasVariants`, `trackLots` (péremption activable par produit), `imageKey` (R2), actif
 - `product_variants` — productId, attributs (ex. `{taille: "M", couleur: "rouge"}`), sku, code-barres, surcharge de prix optionnelle. **Un produit sans variantes reçoit une variante implicite unique : tout le stock référence une variante**, ce qui unifie la logique
 - `lots` — variantId, numéro de lot, date de péremption
 
@@ -106,7 +106,7 @@ Application **côté API** par middleware en deux niveaux : rôle d'entreprise (
 **Vente au POS**
 1. Ouverture de session de caisse (fond de caisse) — obligatoire avant de vendre
 2. Recherche par scan code-barres, nom ou catégorie ; stock affiché = celui de la boutique
-3. Panier → paiement (cash avec pavé numérique et calcul de monnaie, mobile money avec référence, ou mixte)
+3. Panier → paiement (cash avec pavé numérique et calcul de monnaie, mobile money avec référence, ou mixte) ; remise par ligne bornée par le **prix plancher** du produit/variante quand il est défini
 4. Validation **atomique** (un `db.batch()` D1) : vente + lignes + paiements + mouvements + décrément des niveaux avec garde `quantity >= demandé` — échec d'une ligne = refus de toute la vente avec détail
 5. Produits à péremption : déduction automatique du lot expirant le premier (**FEFO**)
 6. Ticket 80 mm via impression navigateur, numéro séquentiel par boutique
