@@ -14,6 +14,10 @@ type Ctx = { Bindings: Env; Variables: PermissionVariables }
 export const requireMembership = createMiddleware<Ctx>(async (c, next) => {
   const user = c.get("user")
   const db = drizzle(c.env.DB, { schema })
+  // Un utilisateur n'appartient qu'à une seule organisation : invariant
+  // garanti en base par l'index unique `member_user_uidx` sur member(user_id)
+  // (migration 0002_member_user_unique), donc `.limit(1)` reflète bien
+  // l'unique adhésion possible plutôt qu'un choix arbitraire parmi plusieurs.
   const rows = await db
     .select({
       organizationId: schema.member.organizationId,

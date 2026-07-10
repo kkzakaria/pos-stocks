@@ -15,6 +15,13 @@
       "when": 1783609380968,
       "tag": "0001_normal_luckman",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1783675086142,
+      "tag": "0002_member_user_unique",
+      "breakpoints": true
     }
   ]
 }
