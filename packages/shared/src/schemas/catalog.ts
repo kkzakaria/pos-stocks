@@ -87,9 +87,48 @@ export const productUpdateSchema = z
     }
   )
 
+export const variantCreateSchema = z.object({
+  name: z.string().trim().min(1, "Le nom est requis"),
+  attributes: z.record(z.string(), z.string().trim().min(1)).default({}),
+  barcode: z.string().trim().min(1).optional(),
+  priceOverride: z
+    .number()
+    .int("Le prix doit être un entier")
+    .positive("Le prix doit être positif")
+    .optional(),
+  minPriceOverride: z
+    .number()
+    .int("Le prix plancher doit être un entier")
+    .positive("Le prix plancher doit être positif")
+    .optional(),
+  sku: z.string().trim().min(1).optional(),
+})
+
+export const variantUpdateSchema = z
+  .object({
+    barcode: z.string().trim().min(1).nullable().optional(),
+    priceOverride: z.number().int().positive().nullable().optional(),
+    minPriceOverride: z.number().int().positive().nullable().optional(),
+    isActive: z.boolean().optional(),
+  })
+  .refine((v) => Object.keys(v).length > 0, {
+    message: "Aucun champ à modifier",
+  })
+
+export const lotCreateSchema = z.object({
+  lotNumber: z.string().trim().min(1, "Le numéro de lot est requis"),
+  expiryDate: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, "Date de péremption invalide (AAAA-MM-JJ)")
+    .optional(),
+})
+
 export type CategoryCreateInput = z.infer<typeof categoryCreateSchema>
 export type CategoryUpdateInput = z.infer<typeof categoryUpdateSchema>
 export type SupplierCreateInput = z.infer<typeof supplierCreateSchema>
 export type SupplierUpdateInput = z.infer<typeof supplierUpdateSchema>
 export type ProductCreateInput = z.infer<typeof productCreateSchema>
 export type ProductUpdateInput = z.infer<typeof productUpdateSchema>
+export type VariantCreateInput = z.infer<typeof variantCreateSchema>
+export type VariantUpdateInput = z.infer<typeof variantUpdateSchema>
+export type LotCreateInput = z.infer<typeof lotCreateSchema>

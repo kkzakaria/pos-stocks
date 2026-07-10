@@ -1,11 +1,15 @@
 import { Hono } from "hono"
 import { drizzle } from "drizzle-orm/d1"
 import { and, asc, eq, inArray, like, or } from "drizzle-orm"
-import { productCreateSchema, productUpdateSchema } from "shared"
+import {
+  productCreateSchema,
+  productUpdateSchema,
+  variantCreateSchema,
+} from "shared"
 import * as schema from "../db/schema"
 import { validerCorps } from "../lib/validation"
 import { estViolationUnicite } from "../lib/db-errors"
-import { genererSkuProduit } from "../lib/sku"
+import { genererSkuProduit, genererSkuVariante } from "../lib/sku"
 import { requireAuth } from "../middleware/require-auth"
 import { requireMembership, requireRole } from "../middleware/permissions"
 import type { PermissionVariables } from "../middleware/permissions"
@@ -272,5 +276,96 @@ productsRoute.patch(
       .set({ ...corps.data, updatedAt: new Date() })
       .where(eq(schema.products.id, produit.id))
     return c.json({ ok: true })
+  }
+)
+
+productsRoute.post(
+  "/:id/variants",
+  requireRole("owner", "admin", "stock_manager"),
+  async (c) => {
+    const corps = await validerCorps(c, variantCreateSchema)
+    if (!corps.ok) return corps.reponse
+    const { organizationId } = c.get("membership")
+    const db = drizzle(c.env.DB, { schema })
+    const produits = await db
+      .select()
+      .from(schema.products)
+      .where(
+        and(
+          eq(schema.products.id, c.req.param("id")),
+          eq(schema.products.organizationId, organizationId)
+        )
+      )
+      .limit(1)
+    if (produits.length === 0) {
+      return c.json(
+        { code: "INTROUVABLE", message: "Produit introuvable" },
+        404
+      )
+    }
+    const produit = produits[0]
+    const prixEffectif = corps.data.priceOverride ?? produit.price
+    if (
+      corps.data.minPriceOverride !== undefined &&
+      corps.data.minPriceOverride > prixEffectif
+    ) {
+      return c.json(
+        {
+          code: "VALIDATION",
+          message:
+            "Le prix plancher doit être inférieur ou égal au prix de vente",
+        },
+        400
+      )
+    }
+    const sku =
+      corps.data.sku ?? genererSkuVariante(produit.sku, corps.data.attributes)
+    const id = crypto.randomUUID()
+    const valeurs = {
+      id,
+      organizationId,
+      productId: produit.id,
+      name: corps.data.name,
+      attributes: JSON.stringify(corps.data.attributes),
+      sku,
+      barcode: corps.data.barcode ?? null,
+      priceOverride: corps.data.priceOverride ?? null,
+      minPriceOverride: corps.data.minPriceOverride ?? null,
+      createdAt: new Date(),
+    }
+    try {
+      if (produit.hasVariants) {
+        await db.insert(schema.productVariants).values(valeurs)
+      } else {
+        // Première variante explicite : retirer la variante implicite
+        // « -STD » et basculer le produit, atomiquement (batch hétérogène :
+        // tableau construit directement).
+        await db.batch([
+          db
+            .update(schema.productVariants)
+            .set({ isActive: false })
+            .where(
+              and(
+                eq(schema.productVariants.productId, produit.id),
+                eq(schema.productVariants.sku, `${produit.sku}-STD`)
+              )
+            ),
+          db.insert(schema.productVariants).values(valeurs),
+          db
+            .update(schema.products)
+            .set({ hasVariants: true, updatedAt: new Date() })
+            .where(eq(schema.products.id, produit.id)),
+        ])
+      }
+    } catch (err) {
+      if (estViolationUnicite(err)) {
+        return c.json(
+          { code: "SKU_EXISTANT", message: "Ce SKU existe déjà" },
+          409
+        )
+      }
+      throw err
+    }
+    return c.json({ id, sku }, 201)
   }
 )

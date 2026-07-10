@@ -12,6 +12,7 @@ import { monCompteRoute } from "./routes/mon-compte"
 import { categoriesRoute } from "./routes/categories"
 import { suppliersRoute } from "./routes/suppliers"
 import { productsRoute } from "./routes/products"
+import { variantsRoute } from "./routes/variants"
 
 const app = new Hono<{ Bindings: Env }>()
 
@@ -55,5 +56,7 @@ app.route("/api/v1/categories", categoriesRoute)
 app.route("/api/v1/suppliers", suppliersRoute)
 
 app.route("/api/v1/products", productsRoute)
+
+app.route("/api/v1/variants", variantsRoute)
 
 export default app
