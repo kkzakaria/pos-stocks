@@ -53,6 +53,29 @@ describe("compte désactivé", () => {
     expect(res.status).toBe(403)
   })
 
+  it("refuse la connexion d'un compte désactivé même avec l'email en majuscules", async () => {
+    const { userId } = await bootstrap()
+    const db = drizzle(env.DB, { schema })
+    await db
+      .update(schema.user)
+      .set({ isActive: false })
+      .where(eq(schema.user.id, userId))
+
+    const res = await app.request(
+      "/api/auth/sign-in/email",
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          email: owner.email.toUpperCase(),
+          password: owner.password,
+        }),
+      },
+      env
+    )
+    expect(res.status).toBe(403)
+  })
+
   it("rejette une session existante après désactivation", async () => {
     const { userId } = await bootstrap()
     const cookie = (await signIn()).headers.get("set-cookie") ?? ""

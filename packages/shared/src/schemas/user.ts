@@ -5,7 +5,11 @@ const assignableRoles = COMPANY_ROLES.filter((r) => r !== "owner")
 
 export const userCreateSchema = z.object({
   name: z.string().trim().min(1, "Le nom est requis"),
-  email: z.string().trim().email("Adresse email invalide"),
+  email: z
+    .string()
+    .trim()
+    .email("Adresse email invalide")
+    .transform((v) => v.toLowerCase()),
   role: z.enum(assignableRoles as [string, ...string[]], {
     message: "Rôle invalide",
   }),

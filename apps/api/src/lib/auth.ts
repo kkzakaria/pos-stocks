@@ -43,7 +43,9 @@ export function createAuth(env: Env) {
           })
         }
         if (ctx.path === "/sign-in/email") {
-          const email = (ctx.body as { email?: string } | undefined)?.email
+          const email = (
+            ctx.body as { email?: string } | undefined
+          )?.email?.toLowerCase()
           if (email) {
             const rows = await db
               .select({ isActive: schema.user.isActive })
@@ -55,6 +57,14 @@ export function createAuth(env: Env) {
             }
           }
         }
+        // Surface HTTP du plugin organization bloquée : l'app gère les
+        // organisations exclusivement via l'API d'administration /api/v1.
+        if (ctx.path.startsWith("/organization")) {
+          throw new APIError("FORBIDDEN", {
+            message:
+              "La gestion des organisations passe par l'API d'administration",
+          })
+        }
       }),
     },
     advanced: env.COOKIE_DOMAIN
@@ -63,7 +73,7 @@ export function createAuth(env: Env) {
           useSecureCookies: true,
         }
       : {},
-    plugins: [organization()],
+    plugins: [organization({ allowUserToCreateOrganization: false })],
   })
 }
 

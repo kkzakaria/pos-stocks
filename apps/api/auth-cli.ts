@@ -20,5 +20,5 @@ export const auth = betterAuth({
       isActive: { type: "boolean", defaultValue: true, input: false },
     },
   },
-  plugins: [organization()],
+  plugins: [organization({ allowUserToCreateOrganization: false })],
 })
