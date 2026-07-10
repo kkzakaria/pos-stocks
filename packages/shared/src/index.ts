@@ -34,8 +34,12 @@ export {
   categoryUpdateSchema,
   supplierCreateSchema,
   supplierUpdateSchema,
+  productCreateSchema,
+  productUpdateSchema,
   type CategoryCreateInput,
   type CategoryUpdateInput,
   type SupplierCreateInput,
   type SupplierUpdateInput,
+  type ProductCreateInput,
+  type ProductUpdateInput,
 } from "./schemas/catalog"
