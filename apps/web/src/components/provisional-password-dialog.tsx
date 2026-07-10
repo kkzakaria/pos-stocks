@@ -1,3 +1,4 @@
+import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -9,6 +10,18 @@ import {
 type Props = { password: string; email: string; onClose: () => void }
 
 export function ProvisionalPasswordDialog({ password, email, onClose }: Props) {
+  const [copie, setCopie] = useState<"copié" | "échec" | null>(null)
+
+  async function copier() {
+    try {
+      // navigator.clipboard peut être absent hors HTTPS : le TypeError tombe dans le catch
+      await navigator.clipboard.writeText(password)
+      setCopie("copié")
+    } catch {
+      setCopie("échec")
+    }
+  }
+
   return (
     <Dialog open onOpenChange={() => {}}>
       <DialogContent showCloseButton={false}>
@@ -23,13 +36,20 @@ export function ProvisionalPasswordDialog({ password, email, onClose }: Props) {
         <p className="my-2 rounded-md bg-gray-100 px-4 py-3 text-center font-mono text-lg tracking-widest select-all">
           {password}
         </p>
-        <div className="flex justify-end gap-2">
-          <Button
-            variant="outline"
-            onClick={() => {
-              void navigator.clipboard.writeText(password)
-            }}
+        {copie && (
+          <p
+            role="status"
+            className={`text-center text-sm font-medium ${
+              copie === "copié" ? "text-green-700" : "text-red-700"
+            }`}
           >
+            {copie === "copié"
+              ? "Copié !"
+              : "Échec de la copie — notez le mot de passe manuellement."}
+          </p>
+        )}
+        <div className="flex justify-end gap-2">
+          <Button variant="outline" onClick={() => void copier()}>
             Copier
           </Button>
           <Button onClick={onClose}>J'ai transmis le mot de passe</Button>
