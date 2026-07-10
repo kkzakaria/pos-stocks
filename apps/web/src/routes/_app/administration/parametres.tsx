@@ -25,7 +25,7 @@ function ParametresPage() {
   const [form, setForm] = useState<Reglages | null>(null)
   const [message, setMessage] = useState<string | null>(null)
 
-  const { data } = useQuery({
+  const { data, isError, error } = useQuery({
     queryKey: ["organization"],
     queryFn: () => apiFetch<Reglages>("/api/v1/organization"),
   })
@@ -47,6 +47,15 @@ function ParametresPage() {
     },
     onError: (err) => setMessage(err instanceof Error ? err.message : "Erreur"),
   })
+
+  if (isError) {
+    return (
+      <p role="alert" className="text-sm text-red-600">
+        Impossible de charger les paramètres :{" "}
+        {error instanceof Error ? error.message : "Erreur inconnue"}
+      </p>
+    )
+  }
 
   if (!form) return <p className="text-sm text-gray-500">Chargement…</p>
 

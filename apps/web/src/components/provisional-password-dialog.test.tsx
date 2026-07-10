@@ -19,4 +19,17 @@ describe("ProvisionalPasswordDialog", () => {
     )
     expect(onClose).toHaveBeenCalled()
   })
+
+  it("ne se ferme pas avec la touche Échap", () => {
+    const onClose = vi.fn()
+    render(
+      <ProvisionalPasswordDialog
+        password="ABCD-EFGH-JKMN"
+        email="emp@exemple.com"
+        onClose={onClose}
+      />
+    )
+    fireEvent.keyDown(document, { key: "Escape" })
+    expect(onClose).not.toHaveBeenCalled()
+  })
 })

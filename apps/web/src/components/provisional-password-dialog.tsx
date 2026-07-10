@@ -10,8 +10,8 @@ type Props = { password: string; email: string; onClose: () => void }
 
 export function ProvisionalPasswordDialog({ password, email, onClose }: Props) {
   return (
-    <Dialog open onOpenChange={(open) => !open && onClose()}>
-      <DialogContent>
+    <Dialog open onOpenChange={() => {}}>
+      <DialogContent showCloseButton={false}>
         <DialogHeader>
           <DialogTitle>Compte créé</DialogTitle>
         </DialogHeader>

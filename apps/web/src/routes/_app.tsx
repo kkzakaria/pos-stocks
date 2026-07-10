@@ -1,12 +1,18 @@
 import { Outlet, Link, createFileRoute, redirect } from "@tanstack/react-router"
 import { authClient } from "@/lib/auth-client"
-import { fetchMe } from "@/lib/me"
+import { fetchMe  } from "@/lib/me"
+import type {Me} from "@/lib/me";
 
 export const Route = createFileRoute("/_app")({
   beforeLoad: async ({ location }) => {
     const { data } = await authClient.getSession()
     if (!data) throw redirect({ to: "/login" })
-    const me = await fetchMe()
+    let me: Me
+    try {
+      me = await fetchMe()
+    } catch {
+      throw redirect({ to: "/login" })
+    }
     if (me.user.mustChangePassword && location.pathname !== "/mon-compte") {
       throw redirect({ to: "/mon-compte" })
     }
