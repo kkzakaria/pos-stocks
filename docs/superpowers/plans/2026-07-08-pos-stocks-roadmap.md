@@ -10,7 +10,7 @@
 |---|---|---|---|
 | 1 | Fondations : monorepo, API Hono + D1 + Drizzle, Better Auth + organisation, login, CI | `2026-07-08-phase-1-fondations.md` | ✅ terminée (2026-07-08, PR #1) |
 | 2 | Administration : entrepôts, utilisateurs, affectations, middleware de permissions complet | `2026-07-09-phase-2-administration.md` | ✅ terminée (2026-07-10, PR #3 mergée) |
-| 3 | Catalogue : catégories, fournisseurs, produits, variantes, images R2, lots | `2026-07-10-phase-3-catalogue.md` | ✅ PR ouverte (2026-07-10) |
+| 3 | Catalogue : catégories, fournisseurs, produits, variantes, images R2, lots | `2026-07-10-phase-3-catalogue.md` | ✅ terminée (2026-07-10, PR #4 mergée) |
 | 4 | Moteur de stock : journal + niveaux, service atomique, réceptions, ajustements, alertes | à rédiger | — |
 | 5 | Transferts inter-entrepôts et inventaires physiques | à rédiger | — |
 | 6 | POS : sessions de caisse, vente atomique, paiements, ticket 80 mm, FEFO, dépannage — **mini-brainstorming UI avant le plan** | à rédiger | — |
