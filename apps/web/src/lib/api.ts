@@ -25,8 +25,23 @@ export async function apiFetch<T>(
   if (!res.ok) {
     const body = (await res.json().catch(() => null)) as {
       message?: string
+      details?: {
+        fieldErrors?: Record<string, string[]>
+        formErrors?: string[]
+      }
     } | null
-    throw new Error(body?.message ?? `Erreur ${res.status}`)
+    // Message de validation détaillé (fieldErrors/formErrors) en priorité,
+    // sinon le message générique de l'enveloppe, sinon le statut HTTP.
+    const premierChampErreur = Object.values(
+      body?.details?.fieldErrors ?? {}
+    ).find((messages) => messages.length > 0)?.[0]
+    const premierFormErreur = body?.details?.formErrors?.[0]
+    throw new Error(
+      premierChampErreur ??
+        premierFormErreur ??
+        body?.message ??
+        `Erreur ${res.status}`
+    )
   }
   const text = await res.text()
   return (text ? JSON.parse(text) : undefined) as T

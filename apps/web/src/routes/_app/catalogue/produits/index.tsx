@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react"
 import { createFileRoute, useNavigate } from "@tanstack/react-router"
-import { useMutation, useQuery } from "@tanstack/react-query"
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { apiFetch, apiUrl } from "@/lib/api"
 import { formaterMontant } from "@/lib/format"
 import { Button } from "@/components/ui/button"
@@ -43,6 +43,7 @@ type Reglages = { currency: string }
 function ProduitsPage() {
   const { me } = Route.useRouteContext()
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const role = me.membership?.role
   const peutEcrire =
     role === "owner" || role === "admin" || role === "stock_manager"
@@ -104,7 +105,8 @@ function ProduitsPage() {
           trackLots: suiviLots,
         }),
       }),
-    onSuccess: (res) => {
+    onSuccess: async (res) => {
+      await queryClient.invalidateQueries({ queryKey: ["products"] })
       setDialogOuvert(false)
       void navigate({
         to: "/catalogue/produits/$productId",
