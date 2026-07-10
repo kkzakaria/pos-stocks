@@ -1,7 +1,7 @@
 import { Outlet, Link, createFileRoute, redirect } from "@tanstack/react-router"
 import { authClient } from "@/lib/auth-client"
-import { fetchMe  } from "@/lib/me"
-import type {Me} from "@/lib/me";
+import { fetchMe } from "@/lib/me"
+import type { Me } from "@/lib/me"
 
 export const Route = createFileRoute("/_app")({
   beforeLoad: async ({ location }) => {
@@ -45,6 +45,18 @@ function AppLayout() {
           <nav className="flex flex-col gap-1">
             <Link to="/" className={lienClasses}>
               Tableau de bord
+            </Link>
+            <p className="mt-4 mb-1 px-2 text-[11px] font-medium tracking-widest text-gray-400 uppercase">
+              Catalogue
+            </p>
+            <Link to="/catalogue/produits" className={lienClasses}>
+              Produits
+            </Link>
+            <Link to="/catalogue/categories" className={lienClasses}>
+              Catégories
+            </Link>
+            <Link to="/catalogue/fournisseurs" className={lienClasses}>
+              Fournisseurs
             </Link>
             {estAdmin && (
               <>

@@ -31,3 +31,8 @@ export async function apiFetch<T>(
   const text = await res.text()
   return (text ? JSON.parse(text) : undefined) as T
 }
+
+// URL absolue vers l'API (les <img> ne passent pas par apiFetch)
+export function apiUrl(path: string): string {
+  return `${base}${path}`
+}

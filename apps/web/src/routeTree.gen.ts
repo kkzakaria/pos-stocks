@@ -13,9 +13,13 @@ import { Route as LoginRouteImport } from './routes/login'
 import { Route as AppRouteImport } from './routes/_app'
 import { Route as AppIndexRouteImport } from './routes/_app/index'
 import { Route as AppMonCompteRouteImport } from './routes/_app/mon-compte'
+import { Route as AppCatalogueFournisseursRouteImport } from './routes/_app/catalogue/fournisseurs'
+import { Route as AppCatalogueCategoriesRouteImport } from './routes/_app/catalogue/categories'
 import { Route as AppAdministrationUtilisateursRouteImport } from './routes/_app/administration/utilisateurs'
 import { Route as AppAdministrationParametresRouteImport } from './routes/_app/administration/parametres'
 import { Route as AppAdministrationEntrepotsRouteImport } from './routes/_app/administration/entrepots'
+import { Route as AppCatalogueProduitsIndexRouteImport } from './routes/_app/catalogue/produits/index'
+import { Route as AppCatalogueProduitsProductIdRouteImport } from './routes/_app/catalogue/produits/$productId'
 
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
@@ -36,6 +40,17 @@ const AppMonCompteRoute = AppMonCompteRouteImport.update({
   path: '/mon-compte',
   getParentRoute: () => AppRoute,
 } as any)
+const AppCatalogueFournisseursRoute =
+  AppCatalogueFournisseursRouteImport.update({
+    id: '/catalogue/fournisseurs',
+    path: '/catalogue/fournisseurs',
+    getParentRoute: () => AppRoute,
+  } as any)
+const AppCatalogueCategoriesRoute = AppCatalogueCategoriesRouteImport.update({
+  id: '/catalogue/categories',
+  path: '/catalogue/categories',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppAdministrationUtilisateursRoute =
   AppAdministrationUtilisateursRouteImport.update({
     id: '/administration/utilisateurs',
@@ -54,6 +69,18 @@ const AppAdministrationEntrepotsRoute =
     path: '/administration/entrepots',
     getParentRoute: () => AppRoute,
   } as any)
+const AppCatalogueProduitsIndexRoute =
+  AppCatalogueProduitsIndexRouteImport.update({
+    id: '/catalogue/produits/',
+    path: '/catalogue/produits/',
+    getParentRoute: () => AppRoute,
+  } as any)
+const AppCatalogueProduitsProductIdRoute =
+  AppCatalogueProduitsProductIdRouteImport.update({
+    id: '/catalogue/produits/$productId',
+    path: '/catalogue/produits/$productId',
+    getParentRoute: () => AppRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof AppIndexRoute
@@ -62,6 +89,10 @@ export interface FileRoutesByFullPath {
   '/administration/entrepots': typeof AppAdministrationEntrepotsRoute
   '/administration/parametres': typeof AppAdministrationParametresRoute
   '/administration/utilisateurs': typeof AppAdministrationUtilisateursRoute
+  '/catalogue/categories': typeof AppCatalogueCategoriesRoute
+  '/catalogue/fournisseurs': typeof AppCatalogueFournisseursRoute
+  '/catalogue/produits/$productId': typeof AppCatalogueProduitsProductIdRoute
+  '/catalogue/produits/': typeof AppCatalogueProduitsIndexRoute
 }
 export interface FileRoutesByTo {
   '/login': typeof LoginRoute
@@ -70,6 +101,10 @@ export interface FileRoutesByTo {
   '/administration/entrepots': typeof AppAdministrationEntrepotsRoute
   '/administration/parametres': typeof AppAdministrationParametresRoute
   '/administration/utilisateurs': typeof AppAdministrationUtilisateursRoute
+  '/catalogue/categories': typeof AppCatalogueCategoriesRoute
+  '/catalogue/fournisseurs': typeof AppCatalogueFournisseursRoute
+  '/catalogue/produits/$productId': typeof AppCatalogueProduitsProductIdRoute
+  '/catalogue/produits': typeof AppCatalogueProduitsIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -80,6 +115,10 @@ export interface FileRoutesById {
   '/_app/administration/entrepots': typeof AppAdministrationEntrepotsRoute
   '/_app/administration/parametres': typeof AppAdministrationParametresRoute
   '/_app/administration/utilisateurs': typeof AppAdministrationUtilisateursRoute
+  '/_app/catalogue/categories': typeof AppCatalogueCategoriesRoute
+  '/_app/catalogue/fournisseurs': typeof AppCatalogueFournisseursRoute
+  '/_app/catalogue/produits/$productId': typeof AppCatalogueProduitsProductIdRoute
+  '/_app/catalogue/produits/': typeof AppCatalogueProduitsIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -90,6 +129,10 @@ export interface FileRouteTypes {
     | '/administration/entrepots'
     | '/administration/parametres'
     | '/administration/utilisateurs'
+    | '/catalogue/categories'
+    | '/catalogue/fournisseurs'
+    | '/catalogue/produits/$productId'
+    | '/catalogue/produits/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/login'
@@ -98,6 +141,10 @@ export interface FileRouteTypes {
     | '/administration/entrepots'
     | '/administration/parametres'
     | '/administration/utilisateurs'
+    | '/catalogue/categories'
+    | '/catalogue/fournisseurs'
+    | '/catalogue/produits/$productId'
+    | '/catalogue/produits'
   id:
     | '__root__'
     | '/_app'
@@ -107,6 +154,10 @@ export interface FileRouteTypes {
     | '/_app/administration/entrepots'
     | '/_app/administration/parametres'
     | '/_app/administration/utilisateurs'
+    | '/_app/catalogue/categories'
+    | '/_app/catalogue/fournisseurs'
+    | '/_app/catalogue/produits/$productId'
+    | '/_app/catalogue/produits/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -144,6 +195,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppMonCompteRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/catalogue/fournisseurs': {
+      id: '/_app/catalogue/fournisseurs'
+      path: '/catalogue/fournisseurs'
+      fullPath: '/catalogue/fournisseurs'
+      preLoaderRoute: typeof AppCatalogueFournisseursRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/catalogue/categories': {
+      id: '/_app/catalogue/categories'
+      path: '/catalogue/categories'
+      fullPath: '/catalogue/categories'
+      preLoaderRoute: typeof AppCatalogueCategoriesRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/administration/utilisateurs': {
       id: '/_app/administration/utilisateurs'
       path: '/administration/utilisateurs'
@@ -165,6 +230,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppAdministrationEntrepotsRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/catalogue/produits/': {
+      id: '/_app/catalogue/produits/'
+      path: '/catalogue/produits'
+      fullPath: '/catalogue/produits/'
+      preLoaderRoute: typeof AppCatalogueProduitsIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/catalogue/produits/$productId': {
+      id: '/_app/catalogue/produits/$productId'
+      path: '/catalogue/produits/$productId'
+      fullPath: '/catalogue/produits/$productId'
+      preLoaderRoute: typeof AppCatalogueProduitsProductIdRouteImport
+      parentRoute: typeof AppRoute
+    }
   }
 }
 
@@ -174,6 +253,10 @@ interface AppRouteChildren {
   AppAdministrationEntrepotsRoute: typeof AppAdministrationEntrepotsRoute
   AppAdministrationParametresRoute: typeof AppAdministrationParametresRoute
   AppAdministrationUtilisateursRoute: typeof AppAdministrationUtilisateursRoute
+  AppCatalogueCategoriesRoute: typeof AppCatalogueCategoriesRoute
+  AppCatalogueFournisseursRoute: typeof AppCatalogueFournisseursRoute
+  AppCatalogueProduitsProductIdRoute: typeof AppCatalogueProduitsProductIdRoute
+  AppCatalogueProduitsIndexRoute: typeof AppCatalogueProduitsIndexRoute
 }
 
 const AppRouteChildren: AppRouteChildren = {
@@ -182,6 +265,10 @@ const AppRouteChildren: AppRouteChildren = {
   AppAdministrationEntrepotsRoute: AppAdministrationEntrepotsRoute,
   AppAdministrationParametresRoute: AppAdministrationParametresRoute,
   AppAdministrationUtilisateursRoute: AppAdministrationUtilisateursRoute,
+  AppCatalogueCategoriesRoute: AppCatalogueCategoriesRoute,
+  AppCatalogueFournisseursRoute: AppCatalogueFournisseursRoute,
+  AppCatalogueProduitsProductIdRoute: AppCatalogueProduitsProductIdRoute,
+  AppCatalogueProduitsIndexRoute: AppCatalogueProduitsIndexRoute,
 }
 
 const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)
