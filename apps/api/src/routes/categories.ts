@@ -35,6 +35,42 @@ async function categorieExiste(
   return rows.length > 0
 }
 
+const PROFONDEUR_MAX_ANCETRES = 20
+
+// Détecte un cycle indirect (ex. A → B → A) en remontant la chaîne de
+// parents du parent proposé. Le cas trivial « parentId === id » est déjà
+// filtré avant l'appel ; ici on couvre les cycles à 2 niveaux et plus,
+// bornés en profondeur pour éviter une boucle infinie sur des données
+// corrompues.
+async function parentCreeraitUnCycle(
+  env: Env,
+  organizationId: string,
+  id: string,
+  parentId: string
+): Promise<boolean> {
+  const db = drizzle(env.DB, { schema })
+  let curseur: string | null = parentId
+  for (
+    let profondeur = 0;
+    profondeur < PROFONDEUR_MAX_ANCETRES && curseur !== null;
+    profondeur++
+  ) {
+    if (curseur === id) return true
+    const rows = await db
+      .select({ parentId: schema.categories.parentId })
+      .from(schema.categories)
+      .where(
+        and(
+          eq(schema.categories.id, curseur),
+          eq(schema.categories.organizationId, organizationId)
+        )
+      )
+      .limit(1)
+    curseur = rows[0]?.parentId ?? null
+  }
+  return false
+}
+
 // Lecture : TOUS les membres (le staff consulte le catalogue)
 categoriesRoute.get("/", async (c) => {
   const db = drizzle(c.env.DB, { schema })
@@ -101,6 +137,23 @@ categoriesRoute.patch(
       return c.json(
         { code: "INTROUVABLE", message: "Catégorie parente introuvable" },
         404
+      )
+    }
+    if (
+      typeof corps.data.parentId === "string" &&
+      (await parentCreeraitUnCycle(
+        c.env,
+        organizationId,
+        id,
+        corps.data.parentId
+      ))
+    ) {
+      return c.json(
+        {
+          code: "CYCLE_CATEGORIE",
+          message: "Ce parent créerait un cycle dans la hiérarchie",
+        },
+        400
       )
     }
     const db = drizzle(c.env.DB, { schema })
