@@ -4,12 +4,8 @@ import { eq } from "drizzle-orm"
 import { organizationSettingsSchema } from "shared"
 import * as schema from "../db/schema"
 import { requireAuth } from "../middleware/require-auth"
-import {
-  requireMembership,
-  requireRole
-  
-} from "../middleware/permissions"
-import type {PermissionVariables} from "../middleware/permissions";
+import { requireMembership, requireRole } from "../middleware/permissions"
+import type { PermissionVariables } from "../middleware/permissions"
 import type { Env } from "../env"
 
 export const organizationRoute = new Hono<{

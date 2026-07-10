@@ -5,8 +5,8 @@ import { APIError } from "better-auth/api"
 import { changePasswordSchema } from "shared"
 import * as schema from "../db/schema"
 import { createAuth } from "../lib/auth"
-import { requireAuth  } from "../middleware/require-auth"
-import type {AuthVariables} from "../middleware/require-auth";
+import { requireAuth } from "../middleware/require-auth"
+import type { AuthVariables } from "../middleware/require-auth"
 import type { Env } from "../env"
 
 export const monCompteRoute = new Hono<{
