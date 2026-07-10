@@ -29,4 +29,11 @@ describe("GET /api/v1/health", () => {
     expect(objet).not.toBeNull()
     expect(await objet?.text()).toBe("bonjour")
   })
+
+  it("les tables du catalogue (Phase 3) existent", async () => {
+    const { results } = await env.DB.prepare(
+      "SELECT name FROM sqlite_master WHERE type='table' AND name IN ('categories','suppliers','products','product_variants','lots')"
+    ).all()
+    expect(results).toHaveLength(5)
+  })
 })
