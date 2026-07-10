@@ -16,7 +16,12 @@ function LoginPage() {
 
   async function handleSubmit(values: { email: string; password: string }) {
     const { error } = await authClient.signIn.email(values)
-    if (error) return "Identifiants invalides"
+    if (error) {
+      if (error.status === 403) {
+        return "Compte désactivé — contactez votre administrateur"
+      }
+      return "Identifiants invalides"
+    }
     await navigate({ to: "/" })
     return null
   }
