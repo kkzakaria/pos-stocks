@@ -1,6 +1,8 @@
 import { describe, it, expect } from "vitest"
 import { env } from "cloudflare:test"
+import { drizzle } from "drizzle-orm/d1"
 import app from "../src/index"
+import * as schema from "../src/db/schema"
 import { bootstrapOwner, createUserWithRole } from "./helpers"
 
 function post(cookie: string, body: unknown) {
@@ -90,6 +92,34 @@ describe("API fournisseurs", () => {
 
     expect(
       (await patch(ownerCookie, crypto.randomUUID(), { name: "X" })).status
+    ).toBe(404)
+  })
+
+  it("auditor ne peut pas créer un fournisseur (403)", async () => {
+    const { organizationId } = await bootstrapOwner()
+    const auditeur = await createUserWithRole(organizationId, "auditor")
+    expect((await post(auditeur.cookie, { name: "Interdit" })).status).toBe(403)
+  })
+
+  it("cross-org : un fournisseur d'une autre organisation est introuvable (404)", async () => {
+    const { ownerCookie } = await bootstrapOwner()
+    const db = drizzle(env.DB, { schema })
+    const autreOrgId = crypto.randomUUID()
+    await db.insert(schema.organization).values({
+      id: autreOrgId,
+      name: "Autre Société",
+      slug: "autre-fournisseurs",
+      createdAt: new Date(),
+    })
+    const supplierId = crypto.randomUUID()
+    await db.insert(schema.suppliers).values({
+      id: supplierId,
+      organizationId: autreOrgId,
+      name: "Fournisseur caché",
+      createdAt: new Date(),
+    })
+    expect(
+      (await patch(ownerCookie, supplierId, { name: "Piraté" })).status
     ).toBe(404)
   })
 })

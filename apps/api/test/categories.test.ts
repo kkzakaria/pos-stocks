@@ -82,6 +82,22 @@ describe("API catégories", () => {
     ).toBe(404)
   })
 
+  it("PATCH : refuse un cycle indirect (A parent de B, puis A reparenté sous B) (400 CYCLE_CATEGORIE)", async () => {
+    const { ownerCookie } = await bootstrapOwner()
+    const { id: idA } = await (
+      await post(ownerCookie, { name: "A" })
+    ).json<{ id: string }>()
+    const { id: idB } = await (
+      await post(ownerCookie, { name: "B", parentId: idA })
+    ).json<{ id: string }>()
+
+    const res = await patch(ownerCookie, idA, { parentId: idB })
+    expect(res.status).toBe(400)
+    const corps = await res.json<{ code: string; message: string }>()
+    expect(corps.code).toBe("CYCLE_CATEGORIE")
+    expect(corps.message).toBe("Ce parent créerait un cycle dans la hiérarchie")
+  })
+
   it("cross-org : une catégorie d'une autre organisation est introuvable (404)", async () => {
     const { ownerCookie } = await bootstrapOwner()
     const db = drizzle(env.DB, { schema })

@@ -166,4 +166,32 @@ describe("API produits", () => {
     const detail = await (await fiche(ownerCookie, id)).json<Fiche>()
     expect(detail.product.isActive).toBe(false)
   })
+
+  it("cross-org : un produit d'une autre organisation est introuvable (404 en GET et PATCH)", async () => {
+    const { ownerCookie } = await bootstrapOwner()
+    const db = drizzle(env.DB, { schema })
+    const autreOrgId = crypto.randomUUID()
+    await db.insert(schema.organization).values({
+      id: autreOrgId,
+      name: "Autre Société",
+      slug: "autre-produits",
+      createdAt: new Date(),
+    })
+    const produitId = crypto.randomUUID()
+    const maintenant = new Date()
+    await db.insert(schema.products).values({
+      id: produitId,
+      organizationId: autreOrgId,
+      name: "Produit caché",
+      sku: "AUTRE-0001",
+      price: 100,
+      createdAt: maintenant,
+      updatedAt: maintenant,
+    })
+
+    expect((await fiche(ownerCookie, produitId)).status).toBe(404)
+    expect(
+      (await patch(ownerCookie, produitId, { name: "Piraté" })).status
+    ).toBe(404)
+  })
 })

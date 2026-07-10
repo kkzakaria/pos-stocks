@@ -68,6 +68,33 @@ describe("API images produits", () => {
     expect(corps.message).toBe("L'image dépasse 2 Mo")
   })
 
+  it("refuse précocement via Content-Length mensonger, avant même de lire le corps (IMAGE_TROP_LOURDE)", async () => {
+    const { ownerCookie } = await bootstrapOwner()
+    const { id } = await creerProduit(ownerCookie)
+
+    const donnees = new FormData()
+    donnees.append("image", petiteImage())
+    // Le corps réel est minuscule, mais l'en-tête Content-Length prétend
+    // dépasser largement la limite : la route doit rejeter avant parseBody()
+    // sans avoir besoin de lire/bufferiser le corps.
+    const requete = new Request(
+      `http://localhost/api/v1/products/${id}/image`,
+      {
+        method: "POST",
+        headers: {
+          cookie: ownerCookie,
+          "content-length": String(10 * 1024 * 1024),
+        },
+        body: donnees,
+      }
+    )
+    const res = await app.request(requete, undefined, env)
+    expect(res.status).toBe(400)
+    const corps = await res.json<{ code: string; message: string }>()
+    expect(corps.code).toBe("IMAGE_TROP_LOURDE")
+    expect(corps.message).toBe("L'image dépasse 2 Mo")
+  })
+
   it("refuse un format non supporté (FORMAT_IMAGE) et le staff en écriture (403)", async () => {
     const { organizationId, ownerCookie } = await bootstrapOwner()
     const { id } = await creerProduit(ownerCookie)
