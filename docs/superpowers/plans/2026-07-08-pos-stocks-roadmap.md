@@ -10,7 +10,7 @@
 |---|---|---|---|
 | 1 | Fondations : monorepo, API Hono + D1 + Drizzle, Better Auth + organisation, login, CI | `2026-07-08-phase-1-fondations.md` | ✅ terminée (2026-07-08, PR #1) |
 | 2 | Administration : entrepôts, utilisateurs, affectations, middleware de permissions complet | `2026-07-09-phase-2-administration.md` | ✅ terminée (2026-07-10, PR #3 mergée) |
-| 3 | Catalogue : catégories, fournisseurs, produits, variantes, images R2, lots | `2026-07-10-phase-3-catalogue.md` | ⏳ à exécuter |
+| 3 | Catalogue : catégories, fournisseurs, produits, variantes, images R2, lots | `2026-07-10-phase-3-catalogue.md` | 🔎 en revue finale |
 | 4 | Moteur de stock : journal + niveaux, service atomique, réceptions, ajustements, alertes | à rédiger | — |
 | 5 | Transferts inter-entrepôts et inventaires physiques | à rédiger | — |
 | 6 | POS : sessions de caisse, vente atomique, paiements, ticket 80 mm, FEFO, dépannage — **mini-brainstorming UI avant le plan** | à rédiger | — |
@@ -42,11 +42,11 @@ Notes de fin de phase : API `https://pos-stocks-api.koffiz2110.workers.dev`, SPA
 **Livrable** : l'admin gère entrepôts et équipe ; chaque rôle ne voit que ce qu'il doit.
 
 ### Phase 3 — Catalogue
-- [ ] Catégories (hiérarchie simple), fournisseurs
-- [ ] Produits + variante implicite unique ; variantes explicites (attributs, sku, code-barres, prix)
-- [ ] Upload d'images vers R2 + route de service avec contrôle d'accès
-- [ ] Lots (activables par produit via `trackLots`)
-- [ ] Écrans catalogue (liste, fiche produit, recherche, code-barres)
+- [x] Catégories (hiérarchie simple), fournisseurs
+- [x] Produits + variante implicite unique ; variantes explicites (attributs, sku, code-barres, prix)
+- [x] Upload d'images vers R2 + route de service avec contrôle d'accès
+- [x] Lots (activables par produit via `trackLots`)
+- [x] Écrans catalogue (liste, fiche produit, recherche, code-barres)
 
 **Livrable** : catalogue complet consultable et administrable.
 
