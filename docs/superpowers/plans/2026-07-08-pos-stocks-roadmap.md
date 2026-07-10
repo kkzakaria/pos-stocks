@@ -9,7 +9,7 @@
 | Phase | Contenu | Plan détaillé | Statut |
 |---|---|---|---|
 | 1 | Fondations : monorepo, API Hono + D1 + Drizzle, Better Auth + organisation, login, CI | `2026-07-08-phase-1-fondations.md` | ✅ terminée (2026-07-08, PR #1) |
-| 2 | Administration : entrepôts, utilisateurs, affectations, middleware de permissions complet | `2026-07-09-phase-2-administration.md` | ✅ PR ouverte (2026-07-10) |
+| 2 | Administration : entrepôts, utilisateurs, affectations, middleware de permissions complet | `2026-07-09-phase-2-administration.md` | ✅ terminée (2026-07-10, PR #3 mergée) |
 | 3 | Catalogue : catégories, fournisseurs, produits, variantes, images R2, lots | à rédiger | — |
 | 4 | Moteur de stock : journal + niveaux, service atomique, réceptions, ajustements, alertes | à rédiger | — |
 | 5 | Transferts inter-entrepôts et inventaires physiques | à rédiger | — |
