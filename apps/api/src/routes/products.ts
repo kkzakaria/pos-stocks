@@ -454,10 +454,8 @@ productsRoute.post(
     }
 
     const cle = `produits/${produit.id}.${extension}`
-    // L'extension peut changer (jpg → png) : purger l'ancienne clé orpheline
-    if (produit.imageKey && produit.imageKey !== cle) {
-      await c.env.IMAGES.delete(produit.imageKey)
-    }
+    // On uploade la nouvelle image AVANT de toucher à l'ancienne : si le put
+    // échoue, product.imageKey reste valide (jamais de référence cassée).
     await c.env.IMAGES.put(cle, fichier, {
       httpMetadata: { contentType: fichier.type },
     })
@@ -465,6 +463,16 @@ productsRoute.post(
       .update(schema.products)
       .set({ imageKey: cle, updatedAt: new Date() })
       .where(eq(schema.products.id, produit.id))
+    // L'extension peut changer (jpg → png) : purger l'ancienne clé orpheline
+    // en best-effort — un échec de nettoyage ne doit pas faire échouer la
+    // requête (on préfère un objet orphelin à une fiche cassée).
+    if (produit.imageKey && produit.imageKey !== cle) {
+      try {
+        await c.env.IMAGES.delete(produit.imageKey)
+      } catch {
+        // Nettoyage best-effort : on ignore l'échec, l'objet devient orphelin.
+      }
+    }
     return c.json({ imageKey: cle })
   }
 )
