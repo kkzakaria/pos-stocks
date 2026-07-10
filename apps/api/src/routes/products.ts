@@ -89,10 +89,21 @@ productsRoute.get("/", async (c) => {
     .from(schema.products)
     .where(and(...conditions))
     .orderBy(asc(schema.products.name))
-  const variantes = await db
-    .select()
-    .from(schema.productVariants)
-    .where(eq(schema.productVariants.organizationId, organizationId))
+  const idsProduits = produits.map((p) => p.id)
+  // inArray([]) génère un SQL invalide : garde explicite (même motif que
+  // GET /:id) — évite aussi de charger les variantes de tout l'org.
+  const variantes =
+    idsProduits.length > 0
+      ? await db
+          .select()
+          .from(schema.productVariants)
+          .where(
+            and(
+              eq(schema.productVariants.organizationId, organizationId),
+              inArray(schema.productVariants.productId, idsProduits)
+            )
+          )
+      : []
   const products = produits.map((p) => ({
     ...p,
     variants: variantes.filter((v) => v.productId === p.id),
@@ -338,8 +349,10 @@ productsRoute.post(
         await db.insert(schema.productVariants).values(valeurs)
       } else {
         // Première variante explicite : retirer la variante implicite
-        // « -STD » et basculer le produit, atomiquement (batch hétérogène :
-        // tableau construit directement).
+        // (attributes "{}", encore active) et basculer le produit,
+        // atomiquement (batch hétérogène : tableau construit directement).
+        // Repérage par attributs plutôt que par SKU reconstruit (`-STD`) :
+        // le SKU n'est plus garanti de suivre ce format.
         await db.batch([
           db
             .update(schema.productVariants)
@@ -347,7 +360,8 @@ productsRoute.post(
             .where(
               and(
                 eq(schema.productVariants.productId, produit.id),
-                eq(schema.productVariants.sku, `${produit.sku}-STD`)
+                eq(schema.productVariants.attributes, "{}"),
+                eq(schema.productVariants.isActive, true)
               )
             ),
           db.insert(schema.productVariants).values(valeurs),
@@ -378,10 +392,25 @@ const EXTENSIONS_IMAGE: Record<string, string> = {
   "image/webp": "webp",
 }
 
+const MARGE_ENTETES_MULTIPART = 4096
+
 productsRoute.post(
   "/:id/image",
   requireRole("owner", "admin", "stock_manager"),
   async (c) => {
+    // Rejet précoce avant tampon complet du corps par parseBody() : le
+    // Content-Length déclaré peut mentir (absent, erroné, chunked), d'où le
+    // contrôle post-parse conservé plus bas en défense en profondeur — mais
+    // quand il est présent et manifestement excessif, on évite de bufferiser
+    // pour rien un gros fichier. La marge couvre l'overhead des limites et
+    // en-têtes multipart autour du contenu utile.
+    const longueurDeclaree = Number(c.req.header("content-length") ?? 0)
+    if (longueurDeclaree > TAILLE_MAX_IMAGE + MARGE_ENTETES_MULTIPART) {
+      return c.json(
+        { code: "IMAGE_TROP_LOURDE", message: "L'image dépasse 2 Mo" },
+        400
+      )
+    }
     const { organizationId } = c.get("membership")
     const db = drizzle(c.env.DB, { schema })
     const produits = await db
