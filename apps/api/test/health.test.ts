@@ -22,4 +22,11 @@ describe("GET /api/v1/health", () => {
     ).all()
     expect(results).toHaveLength(2)
   })
+
+  it("le binding R2 IMAGES fonctionne (put/get)", async () => {
+    await env.IMAGES.put("test/cle.txt", "bonjour")
+    const objet = await env.IMAGES.get("test/cle.txt")
+    expect(objet).not.toBeNull()
+    expect(await objet?.text()).toBe("bonjour")
+  })
 })
