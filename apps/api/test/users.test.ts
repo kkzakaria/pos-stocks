@@ -81,6 +81,17 @@ describe("API utilisateurs", () => {
     expect(dbl.status).toBe(409)
     expect((await dbl.json<{ code: string }>()).code).toBe("EMAIL_EXISTANT")
 
+    // Normalisation de la casse : même email avec majuscules → même conflit
+    const dblCasse = await createUser(ownerCookie, {
+      name: "B2",
+      email: "Double@Exemple.com",
+      role: "staff",
+    })
+    expect(dblCasse.status).toBe(409)
+    expect((await dblCasse.json<{ code: string }>()).code).toBe(
+      "EMAIL_EXISTANT"
+    )
+
     const admin = await createUserWithRole(organizationId, "admin")
     const ko = await createUser(admin.cookie, {
       name: "C",
@@ -189,6 +200,19 @@ describe("API utilisateurs", () => {
     expect((await self.json<{ code: string }>()).code).toBe(
       "AUTO_DESACTIVATION"
     )
+  })
+
+  it("admin ne peut pas désactiver le owner", async () => {
+    const { organizationId, ownerId } = await bootstrapOwner()
+    const admin = await createUserWithRole(organizationId, "admin")
+
+    const res = await patchJson(
+      admin.cookie,
+      `/api/v1/users/${ownerId}/statut`,
+      { isActive: false }
+    )
+    expect(res.status).toBe(403)
+    expect((await res.json<{ code: string }>()).code).toBe("ACCES_REFUSE")
   })
 })
 

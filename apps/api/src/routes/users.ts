@@ -1,8 +1,10 @@
 import { Hono } from "hono"
+import type { ContentfulStatusCode } from "hono/utils/http-status"
 import { drizzle } from "drizzle-orm/d1"
 import { and, asc, eq, ne } from "drizzle-orm"
 import { userCreateSchema, userRoleSchema, userStatusSchema } from "shared"
 import type { CompanyRole } from "shared"
+import { APIError } from "better-auth/api"
 import * as schema from "../db/schema"
 import { createAuth } from "../lib/auth"
 import { generateProvisionalPassword } from "../lib/provisional-password"
@@ -73,28 +75,55 @@ usersRoute.post("/", requireRole("owner", "admin"), async (c) => {
   const provisionalPassword = generateProvisionalPassword()
   const auth = createAuth(c.env)
   // Le hook sign-up n'autorise la création que munie du jeton interne (SETUP_TOKEN)
-  const signUp = await auth.api.signUpEmail({
-    body: {
-      email: parsed.data.email,
-      password: provisionalPassword,
-      name: parsed.data.name,
-    },
-    headers: new Headers({ "x-setup-token": c.env.SETUP_TOKEN }),
-  })
+  let signUp: Awaited<ReturnType<typeof auth.api.signUpEmail>>
+  try {
+    signUp = await auth.api.signUpEmail({
+      body: {
+        email: parsed.data.email,
+        password: provisionalPassword,
+        name: parsed.data.name,
+      },
+      headers: new Headers({ "x-setup-token": c.env.SETUP_TOKEN }),
+    })
+  } catch (err) {
+    if (err instanceof APIError) {
+      const status = err.statusCode as ContentfulStatusCode
+      return c.json(
+        {
+          code: "CREATION_UTILISATEUR",
+          message: "Impossible de créer le compte utilisateur",
+          details: err.message,
+        },
+        status
+      )
+    }
+    throw err
+  }
 
-  await db.batch([
-    db
-      .update(schema.user)
-      .set({ mustChangePassword: true })
-      .where(eq(schema.user.id, signUp.user.id)),
-    db.insert(schema.member).values({
-      id: crypto.randomUUID(),
-      organizationId: demandeur.organizationId,
-      userId: signUp.user.id,
-      role: roleCible,
-      createdAt: new Date(),
-    }),
-  ])
+  try {
+    await db.batch([
+      db
+        .update(schema.user)
+        .set({ mustChangePassword: true })
+        .where(eq(schema.user.id, signUp.user.id)),
+      db.insert(schema.member).values({
+        id: crypto.randomUUID(),
+        organizationId: demandeur.organizationId,
+        userId: signUp.user.id,
+        role: roleCible,
+        createdAt: new Date(),
+      }),
+    ])
+  } catch (err) {
+    // Nettoyage best-effort de l'utilisateur Better Auth orphelin (account/session
+    // cascadent via FK) : ne doit jamais masquer l'erreur d'origine ci-dessous.
+    try {
+      await db.delete(schema.user).where(eq(schema.user.id, signUp.user.id))
+    } catch (cleanupErr) {
+      console.error("Échec du nettoyage de l'utilisateur orphelin", cleanupErr)
+    }
+    throw err
+  }
 
   return c.json({ userId: signUp.user.id, provisionalPassword }, 201)
 })
