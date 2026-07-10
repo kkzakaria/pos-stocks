@@ -29,3 +29,13 @@ export {
   changePasswordSchema,
   type ChangePasswordInput,
 } from "./schemas/account"
+export {
+  categoryCreateSchema,
+  categoryUpdateSchema,
+  supplierCreateSchema,
+  supplierUpdateSchema,
+  type CategoryCreateInput,
+  type CategoryUpdateInput,
+  type SupplierCreateInput,
+  type SupplierUpdateInput,
+} from "./schemas/catalog"
