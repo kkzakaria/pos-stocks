@@ -9,7 +9,7 @@
 | Phase | Contenu | Plan détaillé | Statut |
 |---|---|---|---|
 | 1 | Fondations : monorepo, API Hono + D1 + Drizzle, Better Auth + organisation, login, CI | `2026-07-08-phase-1-fondations.md` | ✅ terminée (2026-07-08, PR #1) |
-| 2 | Administration : entrepôts, utilisateurs, affectations, middleware de permissions complet | `2026-07-09-phase-2-administration.md` | ⏳ à exécuter |
+| 2 | Administration : entrepôts, utilisateurs, affectations, middleware de permissions complet | `2026-07-09-phase-2-administration.md` | ✅ PR ouverte (2026-07-10) |
 | 3 | Catalogue : catégories, fournisseurs, produits, variantes, images R2, lots | à rédiger | — |
 | 4 | Moteur de stock : journal + niveaux, service atomique, réceptions, ajustements, alertes | à rédiger | — |
 | 5 | Transferts inter-entrepôts et inventaires physiques | à rédiger | — |
@@ -33,11 +33,11 @@ Notes de fin de phase : API `https://pos-stocks-api.koffiz2110.workers.dev`, SPA
 
 ### Phase 2 — Administration
 - [ ] Reprise Phase 1 (partiel — reste : évaluer défaut SQL updatedAt à la régénération du schéma, voir P2-T2) : ~~étape de migration D1 dans deploy.yml~~ (✅ fait le 2026-07-09, avec bascule wrangler-action → bunx wrangler), ~~message français sur `CREATION_UTILISATEUR`~~ (✅ 2026-07-09), ~~suppression de `--passWithNoTests`~~ (✅ 2026-07-09), dépendances web inutilisées **conservées volontairement** : les composants shadcn/ui ajoutés en Phase 2 requièrent `@base-ui/react`, `class-variance-authority`, `clsx`, `tailwind-merge` (et `lucide-react` est utilisé depuis la refonte login), ~~redirection /login si déjà connecté~~ et ~~`role="alert"` sur l'erreur de connexion~~ (✅ 2026-07-09, refonte UI login), drop de l'index dupliqué `organization_slug_uidx` **non traité volontairement** : le schéma est régénéré par la CLI Better Auth qui ré-émettrait l'index à chaque régénération (drift schéma/DB) ; quirk upstream accepté, sans impact fonctionnel, ~~`COOKIE_DOMAIN` documenté dans .dev.vars.example~~ (✅ 2026-07-09), évaluer un défaut SQL pour session/account.updatedAt lors de la prochaine régénération du schéma Better Auth
-- [ ] CRUD entrepôts/boutiques (`warehouses`)
-- [ ] Création de comptes par l'admin, rôles d'entreprise (owner, admin, auditor, stock_manager, staff)
-- [ ] Affectations aux entrepôts (`warehouse_members` : manager, auditor, cashier)
-- [ ] Middleware de permissions à deux niveaux (rôle entreprise + rôle entrepôt) — matrice de la spec §4
-- [ ] Écrans d'administration (entrepôts, utilisateurs, affectations, paramètres devise/ticket)
+- [x] CRUD entrepôts/boutiques (`warehouses`)
+- [x] Création de comptes par l'admin, rôles d'entreprise (owner, admin, auditor, stock_manager, staff)
+- [x] Affectations aux entrepôts (`warehouse_members` : manager, auditor, cashier)
+- [x] Middleware de permissions à deux niveaux (rôle entreprise + rôle entrepôt) — matrice de la spec §4
+- [x] Écrans d'administration (entrepôts, utilisateurs, affectations, paramètres devise/ticket)
 
 **Livrable** : l'admin gère entrepôts et équipe ; chaque rôle ne voit que ce qu'il doit.
 
