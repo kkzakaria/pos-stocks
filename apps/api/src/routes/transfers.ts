@@ -14,6 +14,9 @@ import { validerCorps } from "../lib/validation"
 import { estErreurDeclencheur } from "../lib/db-errors"
 import { entrepotExiste, varianteScope } from "../lib/org-scope"
 import { porteeLectureStock } from "../lib/stock-acces"
+import { applyMovements, ErreurStockInsuffisant } from "../services/stock"
+import type { InstructionBatch, MouvementStock } from "../services/stock"
+import { reponseStockInsuffisant } from "../lib/stock-erreurs"
 import { requireAuth } from "../middleware/require-auth"
 import {
   requireMembership,
@@ -389,6 +392,151 @@ transfersRoute.post("/:id/items", async (c) => {
     throw err
   }
   return c.json({ id }, 201)
+})
+
+transfersRoute.post("/:id/send", async (c) => {
+  const { organizationId } = c.get("membership")
+  const db = drizzle(c.env.DB, { schema })
+  const transfert = await transfertScope(db, organizationId, c.req.param("id"))
+  if (!transfert) {
+    return c.json(
+      { code: "INTROUVABLE", message: "Transfert introuvable" },
+      404
+    )
+  }
+  // Expédition = rôle sur l'ORIGINE (décision de phase)
+  const refus = await verifierAccesEntrepot(c, transfert.fromWarehouseId, [
+    "manager",
+  ])
+  if (refus) return refus
+  if (transfert.status !== "pending") {
+    return c.json(
+      {
+        code: "STATUT_INVALIDE",
+        message: "Ce transfert a déjà été expédié ou annulé",
+      },
+      409
+    )
+  }
+  const items = await db
+    .select()
+    .from(schema.transferItems)
+    .where(eq(schema.transferItems.transferId, transfert.id))
+  if (items.length === 0) {
+    return c.json(
+      {
+        code: "VALIDATION",
+        message: "Impossible d'expédier un transfert sans ligne",
+      },
+      400
+    )
+  }
+
+  // LOT_REQUIS à l'expédition : chaque ligne d'un produit trackLots doit
+  // porter son lot (choisi en brouillon) AVANT de sortir du stock — le lot
+  // suit la ligne jusqu'au transfer_in de destination.
+  const variantIds = [...new Set(items.map((i) => i.variantId))]
+  const suivis = await db
+    .select({
+      variantId: schema.productVariants.id,
+      trackLots: schema.products.trackLots,
+    })
+    .from(schema.productVariants)
+    .innerJoin(
+      schema.products,
+      eq(schema.productVariants.productId, schema.products.id)
+    )
+    .where(inArray(schema.productVariants.id, variantIds))
+  const lignesSansLot = items.filter(
+    (i) =>
+      i.lotId === null &&
+      suivis.find((s) => s.variantId === i.variantId)?.trackLots === true
+  )
+  if (lignesSansLot.length > 0) {
+    return c.json(
+      {
+        code: "LOT_REQUIS",
+        message:
+          "Le numéro de lot est requis pour expédier un produit suivi par lots",
+        details: lignesSansLot.map((i) => ({
+          itemId: i.id,
+          variantId: i.variantId,
+        })),
+      },
+      400
+    )
+  }
+
+  const maintenant = new Date()
+  // CMP de l'origine FIGÉ sur chaque ligne PAR SOUS-REQUÊTE, dans le batch :
+  // la valeur est photographiée au moment exact de la transaction (jamais la
+  // valeur lue côté JS — même principe que la réconciliation P4). Ces UPDATE
+  // passent AVANT le changement de statut : le trigger
+  // transfer_items_expedie_update ne s'applique pas (parent encore pending) ;
+  // en cas de double expédition concurrente, le premier statement du second
+  // batch voit le parent 'sent' et échoue si le CMP a bougé — et de toute
+  // façon la mise à jour de statut (sent -> sent) tue le batch entier.
+  const gelsCmp = items.map((item) =>
+    db
+      .update(schema.transferItems)
+      .set({
+        unitCost: sql`COALESCE((SELECT avg_cost FROM stock_levels
+          WHERE warehouse_id = ${transfert.fromWarehouseId}
+            AND variant_id = ${item.variantId}), 0)`,
+      })
+      .where(eq(schema.transferItems.id, item.id))
+  )
+  // Passage sent SANS filtre de statut : le trigger transfers_expedie_fige /
+  // transfers_termine_immuable fait échouer CE batch ENTIER en cas de course.
+  const majStatut = db
+    .update(schema.transfers)
+    .set({
+      status: "sent",
+      sentBy: c.get("user").id,
+      sentAt: maintenant,
+      updatedAt: maintenant,
+    })
+    .where(eq(schema.transfers.id, transfert.id))
+
+  const mouvements: MouvementStock[] = items.map((item) => ({
+    warehouseId: transfert.fromWarehouseId,
+    variantId: item.variantId,
+    lotId: item.lotId,
+    delta: -item.quantity,
+    type: "transfer_out",
+    refType: "transfer",
+    refId: transfert.id,
+  }))
+
+  // Batch hétérogène construit directement (spread, pas de push + cast)
+  const instructionsAvant: InstructionBatch[] = [...gelsCmp, majStatut]
+  try {
+    await applyMovements(db, {
+      organizationId,
+      userId: c.get("user").id,
+      mouvements,
+      instructionsAvant,
+      date: maintenant,
+    })
+  } catch (err) {
+    if (err instanceof ErreurStockInsuffisant) {
+      return reponseStockInsuffisant(c, db, err)
+    }
+    if (
+      estErreurDeclencheur(err, "TRANSFERT_EXPEDIE") ||
+      estErreurDeclencheur(err, "TRANSFERT_TERMINE")
+    ) {
+      return c.json(
+        {
+          code: "STATUT_INVALIDE",
+          message: "Ce transfert a déjà été expédié ou annulé",
+        },
+        409
+      )
+    }
+    throw err
+  }
+  return c.json({ ok: true })
 })
 
 transfersRoute.patch("/:id/items/:itemId", async (c) => {
