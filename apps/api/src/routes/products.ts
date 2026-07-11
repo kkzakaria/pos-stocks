@@ -1,6 +1,6 @@
 import { Hono } from "hono"
 import { drizzle } from "drizzle-orm/d1"
-import { and, asc, eq, inArray, like, or } from "drizzle-orm"
+import { and, asc, eq, gt, inArray, isNull, or } from "drizzle-orm"
 import {
   productCreateSchema,
   productUpdateSchema,
@@ -9,7 +9,10 @@ import {
 import * as schema from "../db/schema"
 import { validerCorps } from "../lib/validation"
 import { estViolationUnicite } from "../lib/db-errors"
+import { barcodeDejaUtilise } from "../lib/barcode"
 import { genererSkuProduit, genererSkuVariante } from "../lib/sku"
+import { categorieExiste, produitScope } from "../lib/org-scope"
+import { likeEchappe } from "../lib/recherche"
 import { requireAuth } from "../middleware/require-auth"
 import { requireMembership, requireRole } from "../middleware/permissions"
 import type { PermissionVariables } from "../middleware/permissions"
@@ -21,25 +24,6 @@ export const productsRoute = new Hono<{
 }>()
 
 productsRoute.use(requireAuth, requireMembership)
-
-async function categorieValide(
-  env: Env,
-  organizationId: string,
-  categoryId: string
-): Promise<boolean> {
-  const db = drizzle(env.DB, { schema })
-  const rows = await db
-    .select({ id: schema.categories.id })
-    .from(schema.categories)
-    .where(
-      and(
-        eq(schema.categories.id, categoryId),
-        eq(schema.categories.organizationId, organizationId)
-      )
-    )
-    .limit(1)
-  return rows.length > 0
-}
 
 // Lecture : TOUS les membres (le staff/caissier consulte le catalogue)
 productsRoute.get("/", async (c) => {
@@ -55,13 +39,14 @@ productsRoute.get("/", async (c) => {
   }
   if (actifs === "true") {
     conditions.push(eq(schema.products.isActive, true))
+  } else if (actifs === "false") {
+    conditions.push(eq(schema.products.isActive, false))
   }
   if (recherche) {
-    const motif = `%${recherche}%`
     const filtre = or(
-      like(schema.products.name, motif),
-      like(schema.products.sku, motif),
-      like(schema.products.barcode, motif),
+      likeEchappe(schema.products.name, recherche),
+      likeEchappe(schema.products.sku, recherche),
+      likeEchappe(schema.products.barcode, recherche),
       // La recherche atteint aussi les SKU/code-barres des variantes
       inArray(
         schema.products.id,
@@ -72,8 +57,8 @@ productsRoute.get("/", async (c) => {
             and(
               eq(schema.productVariants.organizationId, organizationId),
               or(
-                like(schema.productVariants.sku, motif),
-                like(schema.productVariants.barcode, motif)
+                likeEchappe(schema.productVariants.sku, recherche),
+                likeEchappe(schema.productVariants.barcode, recherche)
               )
             )
           )
@@ -114,20 +99,10 @@ productsRoute.get("/", async (c) => {
 productsRoute.get("/:id", async (c) => {
   const { organizationId } = c.get("membership")
   const db = drizzle(c.env.DB, { schema })
-  const produits = await db
-    .select()
-    .from(schema.products)
-    .where(
-      and(
-        eq(schema.products.id, c.req.param("id")),
-        eq(schema.products.organizationId, organizationId)
-      )
-    )
-    .limit(1)
-  if (produits.length === 0) {
+  const produit = await produitScope(db, organizationId, c.req.param("id"))
+  if (!produit) {
     return c.json({ code: "INTROUVABLE", message: "Produit introuvable" }, 404)
   }
-  const produit = produits[0]
   const variantes = await db
     .select()
     .from(schema.productVariants)
@@ -165,11 +140,24 @@ productsRoute.post(
 
     if (
       corps.data.categoryId &&
-      !(await categorieValide(c.env, organizationId, corps.data.categoryId))
+      !(await categorieExiste(db, organizationId, corps.data.categoryId))
     ) {
       return c.json(
         { code: "INTROUVABLE", message: "Catégorie introuvable" },
         404
+      )
+    }
+
+    if (
+      corps.data.barcode &&
+      (await barcodeDejaUtilise(db, organizationId, corps.data.barcode))
+    ) {
+      return c.json(
+        {
+          code: "BARCODE_EXISTANT",
+          message: "Ce code-barres est déjà utilisé",
+        },
+        409
       )
     }
 
@@ -210,6 +198,15 @@ productsRoute.post(
           }),
         ])
       } catch (err) {
+        if (estViolationUnicite(err, "barcode")) {
+          return c.json(
+            {
+              code: "BARCODE_EXISTANT",
+              message: "Ce code-barres est déjà utilisé",
+            },
+            409
+          )
+        }
         if (estViolationUnicite(err)) {
           if (skuFourni) {
             return c.json(
@@ -241,26 +238,16 @@ productsRoute.patch(
     if (!corps.ok) return corps.reponse
     const { organizationId } = c.get("membership")
     const db = drizzle(c.env.DB, { schema })
-    const produits = await db
-      .select()
-      .from(schema.products)
-      .where(
-        and(
-          eq(schema.products.id, c.req.param("id")),
-          eq(schema.products.organizationId, organizationId)
-        )
-      )
-      .limit(1)
-    if (produits.length === 0) {
+    const produit = await produitScope(db, organizationId, c.req.param("id"))
+    if (!produit) {
       return c.json(
         { code: "INTROUVABLE", message: "Produit introuvable" },
         404
       )
     }
-    const produit = produits[0]
     if (
       corps.data.categoryId &&
-      !(await categorieValide(c.env, organizationId, corps.data.categoryId))
+      !(await categorieExiste(db, organizationId, corps.data.categoryId))
     ) {
       return c.json(
         { code: "INTROUVABLE", message: "Catégorie introuvable" },
@@ -282,10 +269,64 @@ productsRoute.patch(
         400
       )
     }
-    await db
-      .update(schema.products)
-      .set({ ...corps.data, updatedAt: new Date() })
-      .where(eq(schema.products.id, produit.id))
+    // Baisse de prix : une variante SANS priceOverride hérite du prix produit ;
+    // son minPriceOverride ne doit pas devenir supérieur au nouveau prix.
+    if (corps.data.price !== undefined && corps.data.price !== produit.price) {
+      const variantesIncoherentes = await db
+        .select({ id: schema.productVariants.id })
+        .from(schema.productVariants)
+        .where(
+          and(
+            eq(schema.productVariants.productId, produit.id),
+            eq(schema.productVariants.isActive, true),
+            isNull(schema.productVariants.priceOverride),
+            gt(schema.productVariants.minPriceOverride, corps.data.price)
+          )
+        )
+        .limit(1)
+      if (variantesIncoherentes.length > 0) {
+        return c.json(
+          {
+            code: "VALIDATION",
+            message:
+              "Le nouveau prix est inférieur au prix plancher d'une variante",
+          },
+          400
+        )
+      }
+    }
+    if (
+      typeof corps.data.barcode === "string" &&
+      corps.data.barcode !== produit.barcode &&
+      (await barcodeDejaUtilise(db, organizationId, corps.data.barcode, {
+        produitId: produit.id,
+      }))
+    ) {
+      return c.json(
+        {
+          code: "BARCODE_EXISTANT",
+          message: "Ce code-barres est déjà utilisé",
+        },
+        409
+      )
+    }
+    try {
+      await db
+        .update(schema.products)
+        .set({ ...corps.data, updatedAt: new Date() })
+        .where(eq(schema.products.id, produit.id))
+    } catch (err) {
+      if (estViolationUnicite(err, "barcode")) {
+        return c.json(
+          {
+            code: "BARCODE_EXISTANT",
+            message: "Ce code-barres est déjà utilisé",
+          },
+          409
+        )
+      }
+      throw err
+    }
     return c.json({ ok: true })
   }
 )
@@ -298,23 +339,13 @@ productsRoute.post(
     if (!corps.ok) return corps.reponse
     const { organizationId } = c.get("membership")
     const db = drizzle(c.env.DB, { schema })
-    const produits = await db
-      .select()
-      .from(schema.products)
-      .where(
-        and(
-          eq(schema.products.id, c.req.param("id")),
-          eq(schema.products.organizationId, organizationId)
-        )
-      )
-      .limit(1)
-    if (produits.length === 0) {
+    const produit = await produitScope(db, organizationId, c.req.param("id"))
+    if (!produit) {
       return c.json(
         { code: "INTROUVABLE", message: "Produit introuvable" },
         404
       )
     }
-    const produit = produits[0]
     const prixEffectif = corps.data.priceOverride ?? produit.price
     if (
       corps.data.minPriceOverride !== undefined &&
@@ -327,6 +358,18 @@ productsRoute.post(
             "Le prix plancher doit être inférieur ou égal au prix de vente",
         },
         400
+      )
+    }
+    if (
+      corps.data.barcode &&
+      (await barcodeDejaUtilise(db, organizationId, corps.data.barcode))
+    ) {
+      return c.json(
+        {
+          code: "BARCODE_EXISTANT",
+          message: "Ce code-barres est déjà utilisé",
+        },
+        409
       )
     }
     const sku =
@@ -372,6 +415,15 @@ productsRoute.post(
         ])
       }
     } catch (err) {
+      if (estViolationUnicite(err, "barcode")) {
+        return c.json(
+          {
+            code: "BARCODE_EXISTANT",
+            message: "Ce code-barres est déjà utilisé",
+          },
+          409
+        )
+      }
       if (estViolationUnicite(err)) {
         return c.json(
           { code: "SKU_EXISTANT", message: "Ce SKU existe déjà" },
@@ -413,23 +465,13 @@ productsRoute.post(
     }
     const { organizationId } = c.get("membership")
     const db = drizzle(c.env.DB, { schema })
-    const produits = await db
-      .select({ id: schema.products.id, imageKey: schema.products.imageKey })
-      .from(schema.products)
-      .where(
-        and(
-          eq(schema.products.id, c.req.param("id")),
-          eq(schema.products.organizationId, organizationId)
-        )
-      )
-      .limit(1)
-    if (produits.length === 0) {
+    const produit = await produitScope(db, organizationId, c.req.param("id"))
+    if (!produit) {
       return c.json(
         { code: "INTROUVABLE", message: "Produit introuvable" },
         404
       )
     }
-    const produit = produits[0]
 
     const form = await c.req.parseBody()
     const fichier = form["image"]

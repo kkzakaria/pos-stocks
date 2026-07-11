@@ -4,6 +4,7 @@ import { and, asc, eq } from "drizzle-orm"
 import { categoryCreateSchema, categoryUpdateSchema } from "shared"
 import * as schema from "../db/schema"
 import { validerCorps } from "../lib/validation"
+import { categorieExiste } from "../lib/org-scope"
 import { requireAuth } from "../middleware/require-auth"
 import { requireMembership, requireRole } from "../middleware/permissions"
 import type { PermissionVariables } from "../middleware/permissions"
@@ -15,25 +16,6 @@ export const categoriesRoute = new Hono<{
 }>()
 
 categoriesRoute.use(requireAuth, requireMembership)
-
-async function categorieExiste(
-  env: Env,
-  organizationId: string,
-  id: string
-): Promise<boolean> {
-  const db = drizzle(env.DB, { schema })
-  const rows = await db
-    .select({ id: schema.categories.id })
-    .from(schema.categories)
-    .where(
-      and(
-        eq(schema.categories.id, id),
-        eq(schema.categories.organizationId, organizationId)
-      )
-    )
-    .limit(1)
-  return rows.length > 0
-}
 
 const PROFONDEUR_MAX_ANCETRES = 20
 
@@ -91,16 +73,16 @@ categoriesRoute.post(
     const corps = await validerCorps(c, categoryCreateSchema)
     if (!corps.ok) return corps.reponse
     const { organizationId } = c.get("membership")
+    const db = drizzle(c.env.DB, { schema })
     if (
       corps.data.parentId &&
-      !(await categorieExiste(c.env, organizationId, corps.data.parentId))
+      !(await categorieExiste(db, organizationId, corps.data.parentId))
     ) {
       return c.json(
         { code: "INTROUVABLE", message: "Catégorie parente introuvable" },
         404
       )
     }
-    const db = drizzle(c.env.DB, { schema })
     const id = crypto.randomUUID()
     await db.insert(schema.categories).values({
       id,
@@ -121,6 +103,7 @@ categoriesRoute.patch(
     if (!corps.ok) return corps.reponse
     const id = c.req.param("id")
     const { organizationId } = c.get("membership")
+    const db = drizzle(c.env.DB, { schema })
     if (corps.data.parentId === id) {
       return c.json(
         {
@@ -132,7 +115,7 @@ categoriesRoute.patch(
     }
     if (
       typeof corps.data.parentId === "string" &&
-      !(await categorieExiste(c.env, organizationId, corps.data.parentId))
+      !(await categorieExiste(db, organizationId, corps.data.parentId))
     ) {
       return c.json(
         { code: "INTROUVABLE", message: "Catégorie parente introuvable" },
@@ -156,7 +139,6 @@ categoriesRoute.patch(
         400
       )
     }
-    const db = drizzle(c.env.DB, { schema })
     const result = await db
       .update(schema.categories)
       .set({

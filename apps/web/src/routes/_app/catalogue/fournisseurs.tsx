@@ -2,6 +2,7 @@ import { useState } from "react"
 import { createFileRoute } from "@tanstack/react-router"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { apiFetch } from "@/lib/api"
+import { usePeutEcrire } from "@/lib/permissions"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -35,10 +36,7 @@ type Fournisseur = {
 }
 
 function FournisseursPage() {
-  const { me } = Route.useRouteContext()
-  const role = me.membership?.role
-  const peutEcrire =
-    role === "owner" || role === "admin" || role === "stock_manager"
+  const peutEcrire = usePeutEcrire()
   const queryClient = useQueryClient()
 
   const { data, isPending } = useQuery({

@@ -65,14 +65,14 @@ Le scaffold TanStack Start existant est restructuré : `apps/web` devient une SP
 ### Catalogue
 
 - `categories` — organizationId, nom, parentId (hiérarchie simple)
-- `products` — nom, description, categoryId, sku (**auto-généré `PRD-XXXX`, ou saisi à la création ; non modifiable ensuite en v1** — la logique de bascule des variantes s'appuie sur sa stabilité), code-barres, prix de vente, **prix plancher optionnel** (`minPrice` — au POS, le vendeur pourra négocier jusqu'au plancher mais jamais en dessous), seuil d'alerte par défaut, `hasVariants`, `trackLots` (péremption activable par produit), `imageKey` (R2), actif
-- `product_variants` — productId, attributs (ex. `{taille: "M", couleur: "rouge"}`), sku, code-barres, surcharge de prix optionnelle. **Un produit sans variantes reçoit une variante implicite unique : tout le stock référence une variante**, ce qui unifie la logique
+- `products` — nom, description, categoryId, sku (**auto-généré `PRD-XXXX`, ou saisi à la création ; non modifiable ensuite en v1** — la logique de bascule des variantes s'appuie sur sa stabilité), code-barres (**unique par organisation, produits et variantes confondus** — un scan POS résout toujours vers un seul article ; erreur `BARCODE_EXISTANT` sinon), prix de vente, **prix plancher optionnel** (`minPrice` — au POS, le vendeur pourra négocier jusqu'au plancher mais jamais en dessous), seuil d'alerte par défaut, `hasVariants`, `trackLots` (péremption activable par produit), `imageKey` (R2), actif
+- `product_variants` — productId, attributs (ex. `{taille: "M", couleur: "rouge"}`), sku, code-barres (même unicité par organisation que les produits), surcharge de prix optionnelle. **Un produit sans variantes reçoit une variante implicite unique : tout le stock référence une variante**, ce qui unifie la logique
 - `lots` — variantId, numéro de lot, date de péremption
 
 ### Stock — journal + niveaux matérialisés
 
 - `stock_movements` — **journal immuable append-only** : warehouseId, variantId, lotId?, delta (+/−), type (`purchase`, `sale`, `transfer_out`, `transfer_in`, `adjustment`, `count`), référence au document source (type + id), userId, date. Source de vérité et piste d'audit complète
-- `stock_levels` — quantité courante par (warehouseId, variantId, lotId?) + seuil d'alerte spécifique par entrepôt. Mise à jour **dans le même batch D1** que l'insertion du mouvement — jamais l'un sans l'autre. Recalculable depuis le journal (commande de réconciliation)
+- `stock_levels` — quantité courante par (warehouseId, variantId) — les quantités par lot restent dérivables du journal (`lotId` sur chaque mouvement) ; une matérialisation par lot sera tranchée en Phase 6 si le FEFO l'exige — + seuil d'alerte spécifique par entrepôt + **coût moyen pondéré** (`avgCost` — valorisation **CMP** par variante et par entrepôt, recalculé à chaque réception dans le même batch ; base des marges et de la valorisation en Phase 7). Mise à jour **dans le même batch D1** que l'insertion du mouvement — jamais l'un sans l'autre. Recalculable depuis le journal (commande de réconciliation)
 
 ### Approvisionnement et opérations
 
@@ -115,7 +115,7 @@ Application **côté API** par middleware en deux niveaux : rôle d'entreprise (
 
 **Transfert** : création (`pending`) → expédition (`sent`, stock sort de l'origine) → réception (`received`, stock entre à destination). Stock « en transit » visible. Annulation possible avant expédition ; écart à la réception tracé en ajustement.
 
-**Réception fournisseur** : brouillon modifiable → validation (`received`) : création des lots (produits à péremption) + mouvements d'entrée. Coût d'achat enregistré par ligne.
+**Réception fournisseur** : brouillon modifiable → validation (`received`) : création des lots (produits à péremption) + mouvements d'entrée + mise à jour du **coût moyen pondéré** de chaque variante dans l'entrepôt. Coût d'achat enregistré par ligne.
 
 **Inventaire** : ouverture (fige les quantités attendues) → saisies de comptage (plusieurs sessions) → clôture : écarts → mouvements d'ajustement. Les ventes restent possibles pendant l'inventaire (écart calculé sur le mouvement net).
 
@@ -147,7 +147,7 @@ Deux univers dans la même SPA, selon le rôle (caissier → POS direct) :
 **Cohérence du stock (risque n° 1)** :
 - Toute écriture de stock passe par un service unique (`stockService.applyMovements`) — aucune route ne touche `stock_levels` directement
 - Chaque opération métier = un seul `db.batch()` D1 atomique : document + mouvements + niveaux réussissent ou échouent ensemble
-- Décréments protégés : `UPDATE … SET quantity = quantity − ? WHERE … AND quantity >= ?` ; 0 ligne affectée → rejet de l'opération entière (`409 STOCK_INSUFFISANT` avec détail). Le stock ne devient jamais négatif, même avec des caisses concurrentes
+- Décréments protégés par contrainte `CHECK (quantity >= 0)` sur `stock_levels` : une ligne qui rendrait le stock négatif fait échouer son statement et D1 **annule le batch entier** → rejet de l'opération (`409 STOCK_INSUFFISANT` avec détail reconstruit). (Un garde `UPDATE … WHERE quantity >= ?` ne suffit pas sur D1 : 0 ligne affectée n'est pas une erreur SQL, le batch serait déjà commité au moment de lire `meta.changes`.) Le stock ne devient jamais négatif, même avec des caisses concurrentes
 - `stock_levels` recalculable depuis le journal (commande de réconciliation)
 
 **Erreurs** :

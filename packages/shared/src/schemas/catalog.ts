@@ -20,9 +20,15 @@ export const supplierCreateSchema = z.object({
   phone: z.string().trim().min(1).optional(),
 })
 
-export const supplierUpdateSchema = supplierCreateSchema
-  .partial()
-  .extend({ isActive: z.boolean().optional() })
+// Objet explicite (et non .partial() du create) : contact et phone doivent
+// accepter null pour pouvoir être VIDÉS via PATCH.
+export const supplierUpdateSchema = z
+  .object({
+    name: z.string().trim().min(1, "Le nom est requis").optional(),
+    contact: z.string().trim().min(1).nullable().optional(),
+    phone: z.string().trim().min(1).nullable().optional(),
+    isActive: z.boolean().optional(),
+  })
   .refine((v) => Object.keys(v).length > 0, {
     message: "Aucun champ à modifier",
   })
