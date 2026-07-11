@@ -38,12 +38,24 @@ function TransfertsPage() {
   const queryClient = useQueryClient()
 
   // Origines où l'utilisateur peut CRÉER un transfert (rôle sur l'ORIGINE).
-  // Destinations proposées : les entrepôts visibles (limitation v1
-  // documentée — l'API accepte toute destination de l'organisation).
   const entrepotsOrigine = acces.ecritureTous
     ? entrepots
     : entrepots.filter((w) => acces.entrepotsEcriture.includes(w.id))
   const peutCreer = entrepotsOrigine.length > 0
+
+  // Destinations : l'API accepte toute destination de l'organisation, donc
+  // le sélecteur ne doit pas se limiter aux entrepôts visibles de
+  // l'utilisateur (qui, pour un staff manager local, ne contiennent que
+  // ses propres entrepôts). GET /warehouses/destinations est accessible à
+  // tout membre de l'organisation, y compris sans affectation.
+  const destinations = useQuery({
+    queryKey: ["warehouses-destinations"],
+    queryFn: () =>
+      apiFetch<{ warehouses: Array<{ id: string; name: string }> }>(
+        "/api/v1/warehouses/destinations"
+      ),
+  })
+  const entrepotsDestination = destinations.data?.warehouses ?? []
 
   const [statut, setStatut] = useState("")
   const transferts = useQuery({
@@ -128,7 +140,7 @@ function TransfertsPage() {
                     className="h-10 rounded-md border px-2 text-sm"
                   >
                     <option value="">— choisir —</option>
-                    {entrepots
+                    {entrepotsDestination
                       .filter((w) => w.id !== origineId)
                       .map((w) => (
                         <option key={w.id} value={w.id}>
