@@ -21,8 +21,10 @@ import { Route as AppCatalogueCategoriesRouteImport } from './routes/_app/catalo
 import { Route as AppAdministrationUtilisateursRouteImport } from './routes/_app/administration/utilisateurs'
 import { Route as AppAdministrationParametresRouteImport } from './routes/_app/administration/parametres'
 import { Route as AppAdministrationEntrepotsRouteImport } from './routes/_app/administration/entrepots'
+import { Route as AppStockTransfertsIndexRouteImport } from './routes/_app/stock/transferts/index'
 import { Route as AppStockReceptionsIndexRouteImport } from './routes/_app/stock/receptions/index'
 import { Route as AppCatalogueProduitsIndexRouteImport } from './routes/_app/catalogue/produits/index'
+import { Route as AppStockTransfertsTransferIdRouteImport } from './routes/_app/stock/transferts/$transferId'
 import { Route as AppStockReceptionsPurchaseIdRouteImport } from './routes/_app/stock/receptions/$purchaseId'
 import { Route as AppCatalogueProduitsProductIdRouteImport } from './routes/_app/catalogue/produits/$productId'
 
@@ -89,6 +91,11 @@ const AppAdministrationEntrepotsRoute =
     path: '/administration/entrepots',
     getParentRoute: () => AppRoute,
   } as any)
+const AppStockTransfertsIndexRoute = AppStockTransfertsIndexRouteImport.update({
+  id: '/transferts/',
+  path: '/transferts/',
+  getParentRoute: () => AppStockRoute,
+} as any)
 const AppStockReceptionsIndexRoute = AppStockReceptionsIndexRouteImport.update({
   id: '/receptions/',
   path: '/receptions/',
@@ -99,6 +106,12 @@ const AppCatalogueProduitsIndexRoute =
     id: '/catalogue/produits/',
     path: '/catalogue/produits/',
     getParentRoute: () => AppRoute,
+  } as any)
+const AppStockTransfertsTransferIdRoute =
+  AppStockTransfertsTransferIdRouteImport.update({
+    id: '/transferts/$transferId',
+    path: '/transferts/$transferId',
+    getParentRoute: () => AppStockRoute,
   } as any)
 const AppStockReceptionsPurchaseIdRoute =
   AppStockReceptionsPurchaseIdRouteImport.update({
@@ -127,8 +140,10 @@ export interface FileRoutesByFullPath {
   '/stock/': typeof AppStockIndexRoute
   '/catalogue/produits/$productId': typeof AppCatalogueProduitsProductIdRoute
   '/stock/receptions/$purchaseId': typeof AppStockReceptionsPurchaseIdRoute
+  '/stock/transferts/$transferId': typeof AppStockTransfertsTransferIdRoute
   '/catalogue/produits/': typeof AppCatalogueProduitsIndexRoute
   '/stock/receptions/': typeof AppStockReceptionsIndexRoute
+  '/stock/transferts/': typeof AppStockTransfertsIndexRoute
 }
 export interface FileRoutesByTo {
   '/login': typeof LoginRoute
@@ -143,8 +158,10 @@ export interface FileRoutesByTo {
   '/stock': typeof AppStockIndexRoute
   '/catalogue/produits/$productId': typeof AppCatalogueProduitsProductIdRoute
   '/stock/receptions/$purchaseId': typeof AppStockReceptionsPurchaseIdRoute
+  '/stock/transferts/$transferId': typeof AppStockTransfertsTransferIdRoute
   '/catalogue/produits': typeof AppCatalogueProduitsIndexRoute
   '/stock/receptions': typeof AppStockReceptionsIndexRoute
+  '/stock/transferts': typeof AppStockTransfertsIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -162,8 +179,10 @@ export interface FileRoutesById {
   '/_app/stock/': typeof AppStockIndexRoute
   '/_app/catalogue/produits/$productId': typeof AppCatalogueProduitsProductIdRoute
   '/_app/stock/receptions/$purchaseId': typeof AppStockReceptionsPurchaseIdRoute
+  '/_app/stock/transferts/$transferId': typeof AppStockTransfertsTransferIdRoute
   '/_app/catalogue/produits/': typeof AppCatalogueProduitsIndexRoute
   '/_app/stock/receptions/': typeof AppStockReceptionsIndexRoute
+  '/_app/stock/transferts/': typeof AppStockTransfertsIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -181,8 +200,10 @@ export interface FileRouteTypes {
     | '/stock/'
     | '/catalogue/produits/$productId'
     | '/stock/receptions/$purchaseId'
+    | '/stock/transferts/$transferId'
     | '/catalogue/produits/'
     | '/stock/receptions/'
+    | '/stock/transferts/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/login'
@@ -197,8 +218,10 @@ export interface FileRouteTypes {
     | '/stock'
     | '/catalogue/produits/$productId'
     | '/stock/receptions/$purchaseId'
+    | '/stock/transferts/$transferId'
     | '/catalogue/produits'
     | '/stock/receptions'
+    | '/stock/transferts'
   id:
     | '__root__'
     | '/_app'
@@ -215,8 +238,10 @@ export interface FileRouteTypes {
     | '/_app/stock/'
     | '/_app/catalogue/produits/$productId'
     | '/_app/stock/receptions/$purchaseId'
+    | '/_app/stock/transferts/$transferId'
     | '/_app/catalogue/produits/'
     | '/_app/stock/receptions/'
+    | '/_app/stock/transferts/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -310,6 +335,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppAdministrationEntrepotsRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/stock/transferts/': {
+      id: '/_app/stock/transferts/'
+      path: '/transferts'
+      fullPath: '/stock/transferts/'
+      preLoaderRoute: typeof AppStockTransfertsIndexRouteImport
+      parentRoute: typeof AppStockRoute
+    }
     '/_app/stock/receptions/': {
       id: '/_app/stock/receptions/'
       path: '/receptions'
@@ -323,6 +355,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/catalogue/produits/'
       preLoaderRoute: typeof AppCatalogueProduitsIndexRouteImport
       parentRoute: typeof AppRoute
+    }
+    '/_app/stock/transferts/$transferId': {
+      id: '/_app/stock/transferts/$transferId'
+      path: '/transferts/$transferId'
+      fullPath: '/stock/transferts/$transferId'
+      preLoaderRoute: typeof AppStockTransfertsTransferIdRouteImport
+      parentRoute: typeof AppStockRoute
     }
     '/_app/stock/receptions/$purchaseId': {
       id: '/_app/stock/receptions/$purchaseId'
@@ -345,14 +384,18 @@ interface AppStockRouteChildren {
   AppStockMouvementsRoute: typeof AppStockMouvementsRoute
   AppStockIndexRoute: typeof AppStockIndexRoute
   AppStockReceptionsPurchaseIdRoute: typeof AppStockReceptionsPurchaseIdRoute
+  AppStockTransfertsTransferIdRoute: typeof AppStockTransfertsTransferIdRoute
   AppStockReceptionsIndexRoute: typeof AppStockReceptionsIndexRoute
+  AppStockTransfertsIndexRoute: typeof AppStockTransfertsIndexRoute
 }
 
 const AppStockRouteChildren: AppStockRouteChildren = {
   AppStockMouvementsRoute: AppStockMouvementsRoute,
   AppStockIndexRoute: AppStockIndexRoute,
   AppStockReceptionsPurchaseIdRoute: AppStockReceptionsPurchaseIdRoute,
+  AppStockTransfertsTransferIdRoute: AppStockTransfertsTransferIdRoute,
   AppStockReceptionsIndexRoute: AppStockReceptionsIndexRoute,
+  AppStockTransfertsIndexRoute: AppStockTransfertsIndexRoute,
 }
 
 const AppStockRouteWithChildren = AppStockRoute._addFileChildren(
