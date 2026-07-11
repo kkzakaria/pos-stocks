@@ -3,6 +3,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { apiFetch, apiUrl } from "@/lib/api"
 import { formaterMontant } from "@/lib/format"
+import { usePeutEcrire } from "@/lib/permissions"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -35,18 +36,16 @@ type Produit = {
   price: number
   imageKey: string | null
   isActive: boolean
+  updatedAt: string
   variants: Variante[]
 }
 type Categorie = { id: string; name: string }
 type Reglages = { currency: string }
 
 function ProduitsPage() {
-  const { me } = Route.useRouteContext()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
-  const role = me.membership?.role
-  const peutEcrire =
-    role === "owner" || role === "admin" || role === "stock_manager"
+  const peutEcrire = usePeutEcrire()
 
   const [recherche, setRecherche] = useState("")
   const [rechercheDebouncee, setRechercheDebouncee] = useState("")
@@ -284,8 +283,8 @@ function ProduitsPage() {
                 <TableCell>
                   {p.imageKey ? (
                     <img
-                      src={apiUrl(`/api/v1/files/${p.imageKey}`)}
-                      alt=""
+                      src={`${apiUrl(`/api/v1/files/${p.imageKey}`)}?v=${encodeURIComponent(p.updatedAt)}`}
+                      alt={p.name}
                       crossOrigin="use-credentials"
                       className="h-10 w-10 rounded object-cover"
                     />
