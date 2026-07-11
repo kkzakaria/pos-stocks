@@ -22,6 +22,7 @@ import { Route as AppAdministrationParametresRouteImport } from './routes/_app/a
 import { Route as AppAdministrationEntrepotsRouteImport } from './routes/_app/administration/entrepots'
 import { Route as AppStockReceptionsIndexRouteImport } from './routes/_app/stock/receptions/index'
 import { Route as AppCatalogueProduitsIndexRouteImport } from './routes/_app/catalogue/produits/index'
+import { Route as AppStockReceptionsPurchaseIdRouteImport } from './routes/_app/stock/receptions/$purchaseId'
 import { Route as AppCatalogueProduitsProductIdRouteImport } from './routes/_app/catalogue/produits/$productId'
 
 const LoginRoute = LoginRouteImport.update({
@@ -93,6 +94,12 @@ const AppCatalogueProduitsIndexRoute =
     path: '/catalogue/produits/',
     getParentRoute: () => AppRoute,
   } as any)
+const AppStockReceptionsPurchaseIdRoute =
+  AppStockReceptionsPurchaseIdRouteImport.update({
+    id: '/stock/receptions/$purchaseId',
+    path: '/stock/receptions/$purchaseId',
+    getParentRoute: () => AppRoute,
+  } as any)
 const AppCatalogueProduitsProductIdRoute =
   AppCatalogueProduitsProductIdRouteImport.update({
     id: '/catalogue/produits/$productId',
@@ -112,6 +119,7 @@ export interface FileRoutesByFullPath {
   '/stock/mouvements': typeof AppStockMouvementsRoute
   '/stock/': typeof AppStockIndexRoute
   '/catalogue/produits/$productId': typeof AppCatalogueProduitsProductIdRoute
+  '/stock/receptions/$purchaseId': typeof AppStockReceptionsPurchaseIdRoute
   '/catalogue/produits/': typeof AppCatalogueProduitsIndexRoute
   '/stock/receptions/': typeof AppStockReceptionsIndexRoute
 }
@@ -127,6 +135,7 @@ export interface FileRoutesByTo {
   '/stock/mouvements': typeof AppStockMouvementsRoute
   '/stock': typeof AppStockIndexRoute
   '/catalogue/produits/$productId': typeof AppCatalogueProduitsProductIdRoute
+  '/stock/receptions/$purchaseId': typeof AppStockReceptionsPurchaseIdRoute
   '/catalogue/produits': typeof AppCatalogueProduitsIndexRoute
   '/stock/receptions': typeof AppStockReceptionsIndexRoute
 }
@@ -144,6 +153,7 @@ export interface FileRoutesById {
   '/_app/stock/mouvements': typeof AppStockMouvementsRoute
   '/_app/stock/': typeof AppStockIndexRoute
   '/_app/catalogue/produits/$productId': typeof AppCatalogueProduitsProductIdRoute
+  '/_app/stock/receptions/$purchaseId': typeof AppStockReceptionsPurchaseIdRoute
   '/_app/catalogue/produits/': typeof AppCatalogueProduitsIndexRoute
   '/_app/stock/receptions/': typeof AppStockReceptionsIndexRoute
 }
@@ -161,6 +171,7 @@ export interface FileRouteTypes {
     | '/stock/mouvements'
     | '/stock/'
     | '/catalogue/produits/$productId'
+    | '/stock/receptions/$purchaseId'
     | '/catalogue/produits/'
     | '/stock/receptions/'
   fileRoutesByTo: FileRoutesByTo
@@ -176,6 +187,7 @@ export interface FileRouteTypes {
     | '/stock/mouvements'
     | '/stock'
     | '/catalogue/produits/$productId'
+    | '/stock/receptions/$purchaseId'
     | '/catalogue/produits'
     | '/stock/receptions'
   id:
@@ -192,6 +204,7 @@ export interface FileRouteTypes {
     | '/_app/stock/mouvements'
     | '/_app/stock/'
     | '/_app/catalogue/produits/$productId'
+    | '/_app/stock/receptions/$purchaseId'
     | '/_app/catalogue/produits/'
     | '/_app/stock/receptions/'
   fileRoutesById: FileRoutesById
@@ -294,6 +307,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppCatalogueProduitsIndexRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/stock/receptions/$purchaseId': {
+      id: '/_app/stock/receptions/$purchaseId'
+      path: '/stock/receptions/$purchaseId'
+      fullPath: '/stock/receptions/$purchaseId'
+      preLoaderRoute: typeof AppStockReceptionsPurchaseIdRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/catalogue/produits/$productId': {
       id: '/_app/catalogue/produits/$productId'
       path: '/catalogue/produits/$productId'
@@ -315,6 +335,7 @@ interface AppRouteChildren {
   AppStockMouvementsRoute: typeof AppStockMouvementsRoute
   AppStockIndexRoute: typeof AppStockIndexRoute
   AppCatalogueProduitsProductIdRoute: typeof AppCatalogueProduitsProductIdRoute
+  AppStockReceptionsPurchaseIdRoute: typeof AppStockReceptionsPurchaseIdRoute
   AppCatalogueProduitsIndexRoute: typeof AppCatalogueProduitsIndexRoute
   AppStockReceptionsIndexRoute: typeof AppStockReceptionsIndexRoute
 }
@@ -330,6 +351,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppStockMouvementsRoute: AppStockMouvementsRoute,
   AppStockIndexRoute: AppStockIndexRoute,
   AppCatalogueProduitsProductIdRoute: AppCatalogueProduitsProductIdRoute,
+  AppStockReceptionsPurchaseIdRoute: AppStockReceptionsPurchaseIdRoute,
   AppCatalogueProduitsIndexRoute: AppCatalogueProduitsIndexRoute,
   AppStockReceptionsIndexRoute: AppStockReceptionsIndexRoute,
 }
