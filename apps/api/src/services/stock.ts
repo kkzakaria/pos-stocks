@@ -381,24 +381,52 @@ export async function reconcilier(
   }
 
   const maintenant = new Date()
-  const corrections = corrigeables.map((e) =>
-    db
+  const cible = [schema.stockLevels.warehouseId, schema.stockLevels.variantId]
+
+  // `e.quantiteJournal` vient de la lecture `sommes` ci-dessus : un
+  // instantané qui peut être périmé au moment de l'écriture (un mouvement
+  // commité entre-temps serait sinon écrasé — lost update). L'ÉCRITURE ne
+  // doit donc JAMAIS réutiliser cette valeur JS : chaque correction
+  // recalcule la somme du journal DANS le statement SQL, au moment du
+  // batch. Même stratégie en deux temps qu'applyMovements : 1) garantir
+  // l'existence de la ligne avec des valeurs par défaut sûres (jamais
+  // négatif, ne peut jamais violer le CHECK) via `onConflictDoNothing`,
+  // puis 2) un `UPDATE` dont le SET est une sous-requête corrélée sur
+  // stock_movements — jamais la valeur lue plus haut. Le rapport `ecarts`
+  // (dry-run) reste basé sur `sommes`/`niveaux` ; lui peut être approché.
+  const corrections = corrigeables.flatMap((e) => {
+    const assurerLigne = db
       .insert(schema.stockLevels)
       .values({
         id: crypto.randomUUID(),
         organizationId: params.organizationId,
         warehouseId: e.warehouseId,
         variantId: e.variantId,
-        quantity: e.quantiteJournal,
+        quantity: 0,
         avgCost: 0,
         minStock: null,
         updatedAt: maintenant,
       })
-      .onConflictDoUpdate({
-        target: [schema.stockLevels.warehouseId, schema.stockLevels.variantId],
-        set: { quantity: e.quantiteJournal, updatedAt: maintenant },
+      .onConflictDoNothing({ target: cible })
+
+    const corrigerQuantite = db
+      .update(schema.stockLevels)
+      .set({
+        quantity: sql`(SELECT COALESCE(SUM(delta), 0) FROM stock_movements
+          WHERE organization_id = ${params.organizationId}
+            AND warehouse_id = ${e.warehouseId}
+            AND variant_id = ${e.variantId})`,
+        updatedAt: maintenant,
       })
-  )
+      .where(
+        and(
+          eq(schema.stockLevels.warehouseId, e.warehouseId),
+          eq(schema.stockLevels.variantId, e.variantId)
+        )
+      )
+
+    return [assurerLigne, corrigerQuantite]
+  })
   const [premiere, ...reste] = corrections
   await db.batch([premiere, ...reste])
   return { ecarts, applique: true }

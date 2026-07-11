@@ -645,7 +645,7 @@ purchasesRoute.post("/:id/receive", async (c) => {
         409
       )
     }
-    if (estViolationUnicite(err, "lots_variant_lot_uidx")) {
+    if (estViolationUnicite(err, "lots.variant_id")) {
       // Course rarissime : un lot de même numéro créé entre notre lecture et
       // le batch. Rejouable sans risque : au retry, le lot sera réutilisé.
       return c.json(

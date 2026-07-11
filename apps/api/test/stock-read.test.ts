@@ -267,6 +267,16 @@ describe("GET /api/v1/stock/movements", () => {
       (await get(ownerCookie, "/api/v1/stock/movements?type=inconnu")).status
     ).toBe(400)
 
+    // "2024-02-30" passe le format AAAA-MM-JJ mais n'est pas une date
+    // calendaire réelle (février n'a jamais 30 jours) — doit être rejetée,
+    // pas silencieusement décalée sur mars.
+    expect(
+      (await get(ownerCookie, "/api/v1/stock/movements?du=2024-02-30")).status
+    ).toBe(400)
+    expect(
+      (await get(ownerCookie, "/api/v1/stock/movements?au=2024-02-30")).status
+    ).toBe(400)
+
     // staff auditor du dépôt : ne voit que le dépôt, même sans filtre
     const auditeur = await createUserWithRole(organizationId, "staff")
     await affecterEntrepot(organizationId, auditeur.userId, depotId, "auditor")

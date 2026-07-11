@@ -96,4 +96,37 @@ describe("gardes du moteur de stock (migrations 0004/0005)", () => {
     await creerProduitSimple(organizationId, { barcode: null })
     await creerProduitSimple(organizationId, { barcode: null })
   })
+
+  it("index unique lots_variant_lot_uidx : SQLite rapporte les COLONNES, pas le nom de l'index", async () => {
+    const { organizationId } = await bootstrapOwner()
+    const { variantId } = await creerProduitSimple(organizationId)
+    const db = drizzle(env.DB, { schema })
+    await db.insert(schema.lots).values({
+      id: crypto.randomUUID(),
+      organizationId,
+      variantId,
+      lotNumber: "LOT-1",
+      expiryDate: null,
+      createdAt: new Date(),
+    })
+    let erreur: unknown = null
+    try {
+      await db.insert(schema.lots).values({
+        id: crypto.randomUUID(),
+        organizationId,
+        variantId,
+        lotNumber: "LOT-1",
+        expiryDate: null,
+        createdAt: new Date(),
+      })
+    } catch (err) {
+      erreur = err
+    }
+    expect(estViolationUnicite(erreur)).toBe(true)
+    // Format réel du message SQLite : "UNIQUE constraint failed:
+    // lots.variant_id, lots.lot_number" — les noms de colonnes qualifiés,
+    // jamais le nom de l'index déclaré en migration.
+    expect(estViolationUnicite(erreur, "lots.variant_id")).toBe(true)
+    expect(estViolationUnicite(erreur, "lots_variant_lot_uidx")).toBe(false)
+  })
 })

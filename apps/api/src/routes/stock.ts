@@ -34,6 +34,25 @@ stockRoute.use(requireAuth, requireMembership)
 
 const MOTIF_JOUR = /^\d{4}-\d{2}-\d{2}$/
 
+// Le format AAAA-MM-JJ ne suffit pas : "2024-02-30" passe MOTIF_JOUR mais
+// n'existe pas — Date normalise silencieusement en débordant sur le mois
+// suivant, ce qui décale les bornes du/au sans jamais échouer. Round-trip
+// year/month/day pour rejeter les dates calendaires impossibles.
+function dateCalendaireValide(chaine: string): boolean {
+  if (!MOTIF_JOUR.test(chaine)) return false
+  const [annee, mois, jour] = chaine.split("-").map(Number) as [
+    number,
+    number,
+    number,
+  ]
+  const date = new Date(Date.UTC(annee, mois - 1, jour))
+  return (
+    date.getUTCFullYear() === annee &&
+    date.getUTCMonth() === mois - 1 &&
+    date.getUTCDate() === jour
+  )
+}
+
 // Seuil effectif d'une ligne de niveau : surcharge entrepôt sinon défaut produit
 const seuilEffectif = sql<
   number | null
@@ -153,7 +172,7 @@ stockRoute.get("/movements", async (c) => {
       400
     )
   }
-  if ((du && !MOTIF_JOUR.test(du)) || (au && !MOTIF_JOUR.test(au))) {
+  if ((du && !dateCalendaireValide(du)) || (au && !dateCalendaireValide(au))) {
     return c.json(
       { code: "VALIDATION", message: "Dates invalides (AAAA-MM-JJ)" },
       400
