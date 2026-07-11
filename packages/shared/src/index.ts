@@ -52,6 +52,12 @@ export {
 export {
   adjustmentCreateSchema,
   minStockSchema,
+  purchaseCreateSchema,
+  purchaseItemCreateSchema,
+  purchaseItemUpdateSchema,
   type AdjustmentCreateInput,
   type MinStockInput,
+  type PurchaseCreateInput,
+  type PurchaseItemCreateInput,
+  type PurchaseItemUpdateInput,
 } from "./schemas/stock"

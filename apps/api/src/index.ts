@@ -15,6 +15,7 @@ import { productsRoute } from "./routes/products"
 import { variantsRoute } from "./routes/variants"
 import { filesRoute } from "./routes/files"
 import { stockRoute } from "./routes/stock"
+import { purchasesRoute } from "./routes/purchases"
 
 const app = new Hono<{ Bindings: Env }>()
 
@@ -64,5 +65,7 @@ app.route("/api/v1/variants", variantsRoute)
 app.route("/api/v1/files", filesRoute)
 
 app.route("/api/v1/stock", stockRoute)
+
+app.route("/api/v1/purchases", purchasesRoute)
 
 export default app
