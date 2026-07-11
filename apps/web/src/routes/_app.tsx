@@ -41,7 +41,8 @@ function AppLayout() {
 
   return (
     <div className="flex min-h-screen">
-      <aside className="flex w-60 flex-col justify-between border-r p-4">
+      {/* h-screen + sticky : le bloc déconnexion reste visible, la nav défile si elle déborde */}
+      <aside className="sticky top-0 flex h-screen w-60 flex-col justify-between overflow-y-auto border-r p-4">
         <div>
           <h2 className="mb-1 text-lg font-semibold">pos-stocks</h2>
           <p className="mb-6 truncate text-xs text-gray-500">
