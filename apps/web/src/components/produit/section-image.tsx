@@ -65,8 +65,17 @@ export function SectionImage({
             onChange={(e) => {
               // e.target.files est nullable (FileList | null) : l'optional
               // chain est légitime ici pour no-unnecessary-condition
-              const fichier = e.target.files?.[0]
-              if (fichier) envoyerImage.mutate(fichier)
+              const input = e.target
+              const fichier = input.files?.[0]
+              if (!fichier) return
+              // Réinitialise après chaque tentative (succès ou échec) :
+              // sinon re-sélectionner EXACTEMENT le même fichier ne déclenche
+              // pas onChange (la value de l'input n'a pas changé).
+              envoyerImage.mutate(fichier, {
+                onSettled: () => {
+                  input.value = ""
+                },
+              })
             }}
             className="text-sm"
           />

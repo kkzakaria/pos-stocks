@@ -1,7 +1,7 @@
 import { useState } from "react"
 import { useMutation } from "@tanstack/react-query"
 import { apiFetch } from "@/lib/api"
-import { estDateExpiree } from "@/lib/dates"
+import { estDateExpiree, formatDateJour } from "@/lib/dates"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -74,7 +74,7 @@ export function SectionLots({ produit, peutEcrire, onModifie }: Props) {
                     <span className="font-mono">{lot.lotNumber}</span>
                     <span className="text-gray-500">
                       {lot.expiryDate
-                        ? new Date(lot.expiryDate).toLocaleDateString("fr-FR")
+                        ? formatDateJour(lot.expiryDate)
                         : "sans péremption"}
                     </span>
                     {estDateExpiree(lot.expiryDate) && (

@@ -10,3 +10,13 @@ export function estDateExpiree(expiryDate: string | null): boolean {
   const aujourdHui = new Date().toLocaleDateString("fr-CA")
   return jourPeremption < aujourdHui
 }
+
+// Formate une date AAAA-MM-JJ (ou un ISO complet "AAAA-MM-JJT...Z") en
+// JJ/MM/AAAA SANS passer par `Date` : `new Date(date).toLocaleDateString()`
+// interprète le "Z" en UTC puis affiche dans le fuseau LOCAL, ce qui peut
+// reculer d'un jour (ex. en soirée dans un fuseau UTC-x). Un découpage
+// direct de la chaîne évite tout décalage de fuseau.
+export function formatDateJour(date: string): string {
+  const [annee = "", mois = "", jour = ""] = date.slice(0, 10).split("-")
+  return `${jour}/${mois}/${annee}`
+}

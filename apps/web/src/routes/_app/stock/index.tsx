@@ -213,6 +213,8 @@ function NiveauxStockPage() {
                         size="sm"
                         onClick={() => {
                           setErreurAjustement(null)
+                          setDelta("")
+                          setMotif("")
                           setAjustementPour(n)
                         }}
                       >

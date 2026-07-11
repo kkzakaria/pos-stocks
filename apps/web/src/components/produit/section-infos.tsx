@@ -59,11 +59,11 @@ export function SectionInfos({
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           name: values.name,
-          description: values.description || undefined,
-          categoryId: values.categoryId || undefined,
-          barcode: values.barcode || undefined,
+          description: values.description === "" ? null : values.description,
+          categoryId: values.categoryId === "" ? null : values.categoryId,
+          barcode: values.barcode === "" ? null : values.barcode,
           price: Number(values.price),
-          minPrice: values.minPrice ? Number(values.minPrice) : undefined,
+          minPrice: values.minPrice === "" ? null : Number(values.minPrice),
           defaultMinStock:
             values.defaultMinStock === ""
               ? null
