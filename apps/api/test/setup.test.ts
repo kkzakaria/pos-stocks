@@ -63,7 +63,7 @@ describe("POST /api/v1/setup", () => {
     await db.delete(schema.organization)
 
     const retry = await setup(orphanPayload, env.SETUP_TOKEN)
-    expect(retry.status).not.toBe(500)
+    expect(retry.status).toBe(422)
     const body = await retry.json<{ code: string; message: string }>()
     expect(body.code).toBe("CREATION_UTILISATEUR")
     expect(body.message).toBe("Impossible de créer le compte utilisateur")

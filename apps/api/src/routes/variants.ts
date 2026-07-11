@@ -1,10 +1,11 @@
 import { Hono } from "hono"
 import { drizzle } from "drizzle-orm/d1"
-import { and, eq, ne } from "drizzle-orm"
+import { and, eq, sql } from "drizzle-orm"
 import { variantUpdateSchema, lotCreateSchema } from "shared"
 import * as schema from "../db/schema"
 import { validerCorps } from "../lib/validation"
 import { estViolationUnicite } from "../lib/db-errors"
+import { varianteScope } from "../lib/org-scope"
 import { requireAuth } from "../middleware/require-auth"
 import { requireMembership, requireRole } from "../middleware/permissions"
 import type { PermissionVariables } from "../middleware/permissions"
@@ -21,41 +22,15 @@ variantsRoute.use(
   requireRole("owner", "admin", "stock_manager")
 )
 
-// Retour explicitement nullable : sans l'annotation, TS élide `| null`
-// (indexation de tableau) et eslint no-unnecessary-condition se déclenche
-// chez les appelants (même piège que membershipCible dans users.ts).
-async function varianteScopee(
-  env: Env,
-  organizationId: string,
-  id: string
-): Promise<typeof schema.productVariants.$inferSelect | null> {
-  const db = drizzle(env.DB, { schema })
-  const rows = await db
-    .select()
-    .from(schema.productVariants)
-    .where(
-      and(
-        eq(schema.productVariants.id, id),
-        eq(schema.productVariants.organizationId, organizationId)
-      )
-    )
-    .limit(1)
-  return rows[0] ?? null
-}
-
 variantsRoute.patch("/:id", async (c) => {
   const corps = await validerCorps(c, variantUpdateSchema)
   if (!corps.ok) return corps.reponse
   const { organizationId } = c.get("membership")
-  const variante = await varianteScopee(
-    c.env,
-    organizationId,
-    c.req.param("id")
-  )
+  const db = drizzle(c.env.DB, { schema })
+  const variante = await varianteScope(db, organizationId, c.req.param("id"))
   if (!variante) {
     return c.json({ code: "INTROUVABLE", message: "Variante introuvable" }, 404)
   }
-  const db = drizzle(c.env.DB, { schema })
   const produits = await db
     .select({
       price: schema.products.price,
@@ -88,18 +63,27 @@ variantsRoute.patch("/:id", async (c) => {
     )
   }
 
-  if (corps.data.isActive === false && variante.isActive && produit.isActive) {
-    const autresActives = await db
-      .select({ id: schema.productVariants.id })
-      .from(schema.productVariants)
+  const desactivation =
+    corps.data.isActive === false && variante.isActive && produit.isActive
+  if (desactivation) {
+    // Garde atomique anti-course : la condition « il reste au moins une autre
+    // variante active » est vérifiée DANS le même UPDATE. Deux désactivations
+    // concurrentes ne peuvent plus laisser un produit actif sans variante
+    // (l'ancien pré-comptage séparé laissait une fenêtre).
+    const result = await db
+      .update(schema.productVariants)
+      .set(corps.data)
       .where(
         and(
-          eq(schema.productVariants.productId, variante.productId),
-          eq(schema.productVariants.isActive, true),
-          ne(schema.productVariants.id, variante.id)
+          eq(schema.productVariants.id, variante.id),
+          sql`EXISTS (SELECT 1 FROM product_variants autre
+            WHERE autre.product_id = ${variante.productId}
+              AND autre.is_active = 1
+              AND autre.id <> ${variante.id})`
         )
       )
-    if (autresActives.length === 0) {
+      .returning({ id: schema.productVariants.id })
+    if (result.length === 0) {
       return c.json(
         {
           code: "DERNIERE_VARIANTE",
@@ -109,6 +93,7 @@ variantsRoute.patch("/:id", async (c) => {
         409
       )
     }
+    return c.json({ ok: true })
   }
 
   await db
@@ -122,15 +107,11 @@ variantsRoute.post("/:id/lots", async (c) => {
   const corps = await validerCorps(c, lotCreateSchema)
   if (!corps.ok) return corps.reponse
   const { organizationId } = c.get("membership")
-  const variante = await varianteScopee(
-    c.env,
-    organizationId,
-    c.req.param("id")
-  )
+  const db = drizzle(c.env.DB, { schema })
+  const variante = await varianteScope(db, organizationId, c.req.param("id"))
   if (!variante) {
     return c.json({ code: "INTROUVABLE", message: "Variante introuvable" }, 404)
   }
-  const db = drizzle(c.env.DB, { schema })
   const produits = await db
     .select({ trackLots: schema.products.trackLots })
     .from(schema.products)

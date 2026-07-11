@@ -47,12 +47,15 @@ setupRoute.post("/", async (c) => {
     .where(eq(schema.user.email, corps.data.email))
     .limit(1)
   if (emailExistant.length > 0) {
+    // 422 : même statut que l'APIError USER_ALREADY_EXISTS de Better Auth
+    // (relayé via err.statusCode plus bas) — le pré-contrôle ne doit pas
+    // inventer un statut différent du chemin d'erreur qu'il court-circuite.
     return c.json(
       {
         code: "CREATION_UTILISATEUR",
         message: "Impossible de créer le compte utilisateur",
       },
-      409
+      422
     )
   }
 
