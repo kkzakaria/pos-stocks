@@ -27,9 +27,16 @@ export function estViolationUnicite(err: unknown, fragment?: string): boolean {
 }
 
 // Contrainte CHECK violée (ex. stock_levels_quantity_positive : la garde
-// anti-stock-négatif du service de stock).
-export function estViolationCheck(err: unknown): boolean {
-  return messageDansCauses(err, "CHECK constraint failed")
+// anti-stock-négatif du service de stock). `fragment` optionnel : nom de la
+// contrainte, pour discriminer QUEL CHECK a sauté — indispensable quand
+// plusieurs statements de tables différentes cohabitent dans le même batch
+// (ex. instructionsAvant de stockService.applyMovements) : un CHECK sans
+// rapport avec stock_levels ne doit pas être classé en stock insuffisant.
+export function estViolationCheck(err: unknown, fragment?: string): boolean {
+  if (!messageDansCauses(err, "CHECK constraint failed")) {
+    return false
+  }
+  return fragment ? messageDansCauses(err, fragment) : true
 }
 
 // RAISE(ABORT, code) émis par un trigger de 0005_stock_guards

@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest"
 import { env } from "cloudflare:test"
 import { drizzle } from "drizzle-orm/d1"
-import { and, eq } from "drizzle-orm"
+import { and, eq, sql } from "drizzle-orm"
 import * as schema from "../src/db/schema"
 import {
   applyMovements,
@@ -177,6 +177,88 @@ describe("stockService.applyMovements", () => {
     // La ligne « ok » n'a pas été appliquée non plus
     expect((await niveau(db, warehouseId, variantId))?.quantity).toBe(10)
     expect((await niveau(db, warehouseId, autre.variantId))?.quantity).toBe(2)
+  })
+
+  it("premier mouvement négatif sur une paire jamais stockée : rejeté sans ligne fantôme", async () => {
+    const { organizationId, ownerId, warehouseId, variantId, db } = await seed()
+
+    // Aucun stock_levels préexistant pour (warehouseId, variantId) : le
+    // batch pose d'abord le guard-INSERT (quantity 0), puis l'UPDATE porte
+    // la quantité à -3, ce qui viole le CHECK et doit annuler LE BATCH
+    // ENTIER — y compris le guard-INSERT, qui ne doit pas persister seul.
+    let erreur: unknown = null
+    try {
+      await applyMovements(db, {
+        organizationId,
+        userId: ownerId,
+        mouvements: [
+          {
+            warehouseId,
+            variantId,
+            delta: -3,
+            type: "adjustment",
+            reason: "casse",
+          },
+        ],
+      })
+    } catch (err) {
+      erreur = err
+    }
+    expect(erreur).toBeInstanceOf(ErreurStockInsuffisant)
+    if (erreur instanceof ErreurStockInsuffisant) {
+      expect(erreur.details).toEqual([
+        { warehouseId, variantId, disponible: 0, demande: 3 },
+      ])
+    }
+    // Aucune ligne fantôme : le guard-INSERT a bien été annulé avec le reste
+    // du batch.
+    expect(await niveau(db, warehouseId, variantId)).toBeNull()
+  })
+
+  it("un CHECK d'une AUTRE table dans instructionsAvant n'est jamais classé en stock insuffisant", async () => {
+    const { organizationId, ownerId, warehouseId, variantId, db } = await seed()
+
+    // Table auxiliaire portant SA PROPRE contrainte CHECK, sans rapport avec
+    // stock_levels_quantity_positive — simule un futur appelant (Tasks
+    // 7/9/10) dont l'instructionsAvant fait échouer un CHECK non lié au
+    // stock, dans le MÊME batch.
+    await db.run(
+      sql`CREATE TABLE aux_check_test (
+        id INTEGER PRIMARY KEY,
+        val INTEGER NOT NULL,
+        CONSTRAINT aux_val_positive CHECK (val >= 0)
+      )`
+    )
+
+    let erreur: unknown = null
+    try {
+      await applyMovements(db, {
+        organizationId,
+        userId: ownerId,
+        mouvements: [
+          {
+            warehouseId,
+            variantId,
+            delta: 10,
+            type: "adjustment",
+            reason: "init",
+          },
+        ],
+        instructionsAvant: [
+          db.run(sql`INSERT INTO aux_check_test (val) VALUES (-1)`),
+        ],
+      })
+    } catch (err) {
+      erreur = err
+    }
+    // L'erreur doit remonter TELLE QUELLE (pas ErreurStockInsuffisant, qui
+    // porterait un détail vide/trompeur puisqu'aucune ligne n'est réellement
+    // en rupture de stock ici).
+    expect(erreur).not.toBeNull()
+    expect(erreur).not.toBeInstanceOf(ErreurStockInsuffisant)
+    // Atomicité : le CHECK non lié a bien annulé le batch ENTIER, le
+    // mouvement adjustment n'a pas non plus été appliqué.
+    expect(await niveau(db, warehouseId, variantId)).toBeNull()
   })
 
   it("CMP : pondération, arrondi à l'entier, et cas qtyAvant <= 0", async () => {

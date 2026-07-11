@@ -264,7 +264,12 @@ export async function applyMovements(
   try {
     await db.batch([premiere, ...reste])
   } catch (err) {
-    if (estViolationCheck(err)) {
+    // Fragment discriminant : instructionsAvant peut faire échouer un CHECK
+    // d'une AUTRE table dans ce même batch (ex. Tasks 7/9/10). Seule une
+    // violation de stock_levels_quantity_positive est du stock insuffisant —
+    // toute autre erreur (y compris un autre CHECK) doit remonter telle
+    // quelle, pas être maquillée en ErreurStockInsuffisant.
+    if (estViolationCheck(err, "stock_levels_quantity_positive")) {
       throw new ErreurStockInsuffisant(await calculerDeficits(db, mouvements))
     }
     throw err

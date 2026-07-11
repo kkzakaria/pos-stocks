@@ -31,6 +31,15 @@ describe("gardes du moteur de stock (migrations 0004/0005)", () => {
       erreur = err
     }
     expect(estViolationCheck(erreur)).toBe(true)
+    // Fragment discriminant : la vraie violation matche son propre nom de
+    // contrainte, mais pas le nom d'une contrainte différente — c'est ce qui
+    // permet à stockService.applyMovements de ne classer en
+    // ErreurStockInsuffisant QUE stock_levels_quantity_positive, même si
+    // instructionsAvant fait échouer un autre CHECK dans le même batch.
+    expect(estViolationCheck(erreur, "stock_levels_quantity_positive")).toBe(
+      true
+    )
+    expect(estViolationCheck(erreur, "une_autre_contrainte")).toBe(false)
   })
 
   it("triggers : le journal refuse UPDATE et DELETE", async () => {
