@@ -2,7 +2,7 @@ import { env } from "cloudflare:test"
 import { drizzle } from "drizzle-orm/d1"
 import app from "../src/index"
 import * as schema from "../src/db/schema"
-import type { CompanyRole } from "shared"
+import type { CompanyRole, WarehouseRole } from "shared"
 
 export const MDP = "MotDePasseTresSolide1"
 
@@ -72,4 +72,83 @@ export async function createUserWithRole(
     createdAt: new Date(),
   })
   return { userId: user.id, email, cookie: await signInCookie(email) }
+}
+
+export async function creerEntrepot(
+  organizationId: string,
+  nom = "Dépôt central",
+  type: "warehouse" | "store" = "warehouse"
+): Promise<string> {
+  const db = drizzle(env.DB, { schema })
+  const id = crypto.randomUUID()
+  const now = new Date()
+  await db.insert(schema.warehouses).values({
+    id,
+    organizationId,
+    name: nom,
+    type,
+    createdAt: now,
+    updatedAt: now,
+  })
+  return id
+}
+
+export async function affecterEntrepot(
+  organizationId: string,
+  userId: string,
+  warehouseId: string,
+  role: WarehouseRole
+): Promise<void> {
+  const db = drizzle(env.DB, { schema })
+  await db.insert(schema.warehouseMembers).values({
+    id: crypto.randomUUID(),
+    organizationId,
+    warehouseId,
+    userId,
+    role,
+    createdAt: new Date(),
+  })
+}
+
+// Produit + variante implicite « Standard », insérés directement en base
+// (plus rapide et plus stable que de passer par l'API dans les seeds).
+export async function creerProduitSimple(
+  organizationId: string,
+  options: {
+    nom?: string
+    prix?: number
+    trackLots?: boolean
+    defaultMinStock?: number | null
+    barcode?: string | null
+  } = {}
+): Promise<{ productId: string; variantId: string }> {
+  const db = drizzle(env.DB, { schema })
+  const productId = crypto.randomUUID()
+  const variantId = crypto.randomUUID()
+  const now = new Date()
+  const suffixe = productId.slice(0, 8)
+  await db.batch([
+    db.insert(schema.products).values({
+      id: productId,
+      organizationId,
+      name: options.nom ?? `Produit ${suffixe}`,
+      sku: `TST-${suffixe}`,
+      barcode: options.barcode ?? null,
+      price: options.prix ?? 1000,
+      defaultMinStock: options.defaultMinStock ?? null,
+      trackLots: options.trackLots ?? false,
+      createdAt: now,
+      updatedAt: now,
+    }),
+    db.insert(schema.productVariants).values({
+      id: variantId,
+      organizationId,
+      productId,
+      name: "Standard",
+      attributes: "{}",
+      sku: `TST-${suffixe}-STD`,
+      createdAt: now,
+    }),
+  ])
+  return { productId, variantId }
 }
