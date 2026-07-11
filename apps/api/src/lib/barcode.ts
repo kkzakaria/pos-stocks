@@ -10,6 +10,13 @@ type Db = DrizzleD1Database<typeof schema>
 // partiels org-scopés couvrent chaque table ; cette vérification couvre le
 // croisement inter-tables, impossible à indexer en SQLite. `exclure` permet
 // à un PATCH de re-poser son propre code-barres.
+//
+// LIMITE ASSUMÉE (v1) : entre tables, la garantie est best-effort — deux
+// écritures concurrentes (produit + variante, même code) passant chacune ce
+// pré-contrôle avant l'insert de l'autre peuvent toutes deux aboutir, sans
+// rattrapage possible en base. Fenêtre jugée négligeable (saisie back-office
+// humaine) ; le POS Phase 6 devra tolérer un scan multi-résultats résiduel
+// ou une réconciliation corrigera le doublon.
 export async function barcodeDejaUtilise(
   db: Db,
   organizationId: string,
