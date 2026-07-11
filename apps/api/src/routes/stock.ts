@@ -2,13 +2,26 @@ import { Hono } from "hono"
 import { drizzle } from "drizzle-orm/d1"
 import { and, asc, desc, eq, gte, inArray, lt, or, sql } from "drizzle-orm"
 import type { SQL } from "drizzle-orm"
+import { adjustmentCreateSchema, minStockSchema } from "shared"
 import * as schema from "../db/schema"
 import { likeEchappe } from "../lib/recherche"
 import { porteeLectureStock } from "../lib/stock-acces"
+import { validerCorps } from "../lib/validation"
+import { varianteScope } from "../lib/org-scope"
 import { requireAuth } from "../middleware/require-auth"
-import { requireMembership } from "../middleware/permissions"
+import {
+  requireMembership,
+  requireWarehouseRole,
+} from "../middleware/permissions"
 import type { PermissionVariables } from "../middleware/permissions"
+import {
+  applyMovements,
+  definirSeuil,
+  ErreurStockInsuffisant,
+} from "../services/stock"
 import type { Env } from "../env"
+import type { Context } from "hono"
+import type { DrizzleD1Database } from "drizzle-orm/d1"
 
 export const stockRoute = new Hono<{
   Bindings: Env
@@ -312,3 +325,127 @@ stockRoute.get("/alerts", async (c) => {
     .orderBy(asc(schema.warehouses.name), asc(schema.products.name))
   return c.json({ alerts, total: alerts.length })
 })
+
+// Enrichit l'erreur du service avec le SKU et le nom de variante pour un
+// message actionnable côté écran.
+async function reponseStockInsuffisant(
+  c: Context,
+  db: DrizzleD1Database<typeof schema>,
+  err: ErreurStockInsuffisant
+) {
+  const variantIds = err.details.map((d) => d.variantId)
+  const variantes =
+    variantIds.length > 0
+      ? await db
+          .select({
+            id: schema.productVariants.id,
+            sku: schema.productVariants.sku,
+            name: schema.productVariants.name,
+          })
+          .from(schema.productVariants)
+          .where(inArray(schema.productVariants.id, variantIds))
+      : []
+  return c.json(
+    {
+      code: "STOCK_INSUFFISANT",
+      message: "Stock insuffisant pour valider l'opération",
+      details: err.details.map((d) => {
+        const variante = variantes.find((v) => v.id === d.variantId)
+        return {
+          ...d,
+          sku: variante?.sku ?? null,
+          variantName: variante?.name ?? null,
+        }
+      }),
+    },
+    409
+  )
+}
+
+stockRoute.post(
+  "/warehouses/:warehouseId/adjustments",
+  requireWarehouseRole(["manager"]),
+  async (c) => {
+    const corps = await validerCorps(c, adjustmentCreateSchema)
+    if (!corps.ok) return corps.reponse
+    const { organizationId } = c.get("membership")
+    const db = drizzle(c.env.DB, { schema })
+    const variante = await varianteScope(
+      db,
+      organizationId,
+      corps.data.variantId
+    )
+    if (!variante) {
+      return c.json(
+        { code: "INTROUVABLE", message: "Variante introuvable" },
+        404
+      )
+    }
+    if (corps.data.lotId) {
+      const lot = await db
+        .select({ id: schema.lots.id })
+        .from(schema.lots)
+        .where(
+          and(
+            eq(schema.lots.id, corps.data.lotId),
+            eq(schema.lots.variantId, variante.id)
+          )
+        )
+        .limit(1)
+      if (lot.length === 0) {
+        return c.json({ code: "INTROUVABLE", message: "Lot introuvable" }, 404)
+      }
+    }
+    try {
+      const { movementIds } = await applyMovements(db, {
+        organizationId,
+        userId: c.get("user").id,
+        mouvements: [
+          {
+            warehouseId: c.req.param("warehouseId"),
+            variantId: variante.id,
+            lotId: corps.data.lotId ?? null,
+            delta: corps.data.delta,
+            type: "adjustment",
+            reason: corps.data.reason,
+          },
+        ],
+      })
+      return c.json({ id: movementIds[0] }, 201)
+    } catch (err) {
+      if (err instanceof ErreurStockInsuffisant) {
+        return reponseStockInsuffisant(c, db, err)
+      }
+      throw err
+    }
+  }
+)
+
+stockRoute.patch(
+  "/warehouses/:warehouseId/levels/:variantId",
+  requireWarehouseRole(["manager"]),
+  async (c) => {
+    const corps = await validerCorps(c, minStockSchema)
+    if (!corps.ok) return corps.reponse
+    const { organizationId } = c.get("membership")
+    const db = drizzle(c.env.DB, { schema })
+    const variante = await varianteScope(
+      db,
+      organizationId,
+      c.req.param("variantId")
+    )
+    if (!variante) {
+      return c.json(
+        { code: "INTROUVABLE", message: "Variante introuvable" },
+        404
+      )
+    }
+    await definirSeuil(db, {
+      organizationId,
+      warehouseId: c.req.param("warehouseId"),
+      variantId: variante.id,
+      minStock: corps.data.minStock,
+    })
+    return c.json({ ok: true })
+  }
+)

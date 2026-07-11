@@ -49,3 +49,9 @@ export {
   type VariantUpdateInput,
   type LotCreateInput,
 } from "./schemas/catalog"
+export {
+  adjustmentCreateSchema,
+  minStockSchema,
+  type AdjustmentCreateInput,
+  type MinStockInput,
+} from "./schemas/stock"
