@@ -58,6 +58,28 @@ const seuilEffectif = sql<
   number | null
 >`COALESCE(${schema.stockLevels.minStock}, ${schema.products.defaultMinStock})`
 
+// Garde partagée /levels, /movements, /alerts, /transit (Phase 5) : un
+// warehouseId explicitement demandé doit exister dans l'organisation —
+// contrat 404 cross-org identique aux autres ressources. S'applique APRÈS
+// le contrôle de portée (403 prioritaire pour un staff hors portée).
+async function entrepotDansOrganisation(
+  db: DrizzleD1Database<typeof schema>,
+  organizationId: string,
+  warehouseId: string
+): Promise<boolean> {
+  const rows = await db
+    .select({ id: schema.warehouses.id })
+    .from(schema.warehouses)
+    .where(
+      and(
+        eq(schema.warehouses.id, warehouseId),
+        eq(schema.warehouses.organizationId, organizationId)
+      )
+    )
+    .limit(1)
+  return rows.length > 0
+}
+
 stockRoute.get("/levels", async (c) => {
   const { organizationId, role } = c.get("membership")
   const db = drizzle(c.env.DB, { schema })
@@ -77,17 +99,7 @@ stockRoute.get("/levels", async (c) => {
   if (!portee.tous && !portee.warehouseIds.includes(warehouseId)) {
     return c.json({ code: "ACCES_REFUSE", message: "Accès refusé" }, 403)
   }
-  const entrepots = await db
-    .select({ id: schema.warehouses.id })
-    .from(schema.warehouses)
-    .where(
-      and(
-        eq(schema.warehouses.id, warehouseId),
-        eq(schema.warehouses.organizationId, organizationId)
-      )
-    )
-    .limit(1)
-  if (entrepots.length === 0) {
+  if (!(await entrepotDansOrganisation(db, organizationId, warehouseId))) {
     return c.json({ code: "INTROUVABLE", message: "Entrepôt introuvable" }, 404)
   }
 
@@ -185,6 +197,12 @@ stockRoute.get("/movements", async (c) => {
   if (warehouseId) {
     if (!portee.tous && !portee.warehouseIds.includes(warehouseId)) {
       return c.json({ code: "ACCES_REFUSE", message: "Accès refusé" }, 403)
+    }
+    if (!(await entrepotDansOrganisation(db, organizationId, warehouseId))) {
+      return c.json(
+        { code: "INTROUVABLE", message: "Entrepôt introuvable" },
+        404
+      )
     }
     conditions.push(eq(schema.stockMovements.warehouseId, warehouseId))
   } else if (!portee.tous) {
@@ -309,7 +327,19 @@ stockRoute.get("/alerts", async (c) => {
     eq(schema.productVariants.isActive, true),
     eq(schema.warehouses.isActive, true),
   ]
-  if (!portee.tous) {
+  const warehouseId = c.req.query("warehouseId")
+  if (warehouseId) {
+    if (!portee.tous && !portee.warehouseIds.includes(warehouseId)) {
+      return c.json({ code: "ACCES_REFUSE", message: "Accès refusé" }, 403)
+    }
+    if (!(await entrepotDansOrganisation(db, organizationId, warehouseId))) {
+      return c.json(
+        { code: "INTROUVABLE", message: "Entrepôt introuvable" },
+        404
+      )
+    }
+    conditions.push(eq(schema.stockLevels.warehouseId, warehouseId))
+  } else if (!portee.tous) {
     if (portee.warehouseIds.length === 0) {
       return c.json({ alerts: [], total: 0 })
     }

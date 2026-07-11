@@ -534,6 +534,30 @@ purchasesRoute.post("/:id/receive", async (c) => {
     )
   }
 
+  // Décision métier (Phase 5) : deux lignes du même couple (variantId,
+  // lotNumber) portant des dates de péremption différentes sont un conflit
+  // de saisie — on refuse la validation plutôt que de laisser la première
+  // ligne gagner silencieusement (comportement hérité de la Phase 4).
+  const peremptionParLot = new Map<string, number | null>()
+  for (const item of items) {
+    if (item.lotNumber === null) continue
+    const cle = `${item.variantId} ${item.lotNumber}`
+    const valeur = item.expiryDate ? item.expiryDate.getTime() : null
+    if (!peremptionParLot.has(cle)) {
+      peremptionParLot.set(cle, valeur)
+      continue
+    }
+    if (peremptionParLot.get(cle) !== valeur) {
+      return c.json(
+        {
+          code: "VALIDATION",
+          message: `Dates de péremption incohérentes pour le lot ${item.lotNumber}`,
+        },
+        400
+      )
+    }
+  }
+
   const maintenant = new Date()
 
   // Lots : réutiliser le lot existant (variantId, lotNumber), sinon en créer

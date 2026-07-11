@@ -136,6 +136,7 @@ usersRoute.get("/", requireRole("owner", "admin", "auditor"), async (c) => {
 
   const affectations = await db
     .select({
+      id: schema.warehouseMembers.id,
       userId: schema.warehouseMembers.userId,
       warehouseId: schema.warehouseMembers.warehouseId,
       warehouseName: schema.warehouses.name,
@@ -152,7 +153,8 @@ usersRoute.get("/", requireRole("owner", "admin", "auditor"), async (c) => {
     ...u,
     assignments: affectations
       .filter((a) => a.userId === u.id)
-      .map(({ warehouseId, warehouseName, role }) => ({
+      .map(({ id, warehouseId, warehouseName, role }) => ({
+        id,
         warehouseId,
         warehouseName,
         role,
