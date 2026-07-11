@@ -15,6 +15,7 @@ type FormulaireProduit = {
   barcode: string
   price: string
   minPrice: string
+  defaultMinStock: string
   isActive: boolean
 }
 
@@ -40,6 +41,8 @@ export function SectionInfos({
     barcode: produit.barcode ?? "",
     price: String(produit.price),
     minPrice: produit.minPrice === null ? "" : String(produit.minPrice),
+    defaultMinStock:
+      produit.defaultMinStock === null ? "" : String(produit.defaultMinStock),
     isActive: produit.isActive,
   })
   const [message, setMessage] = useState<string | null>(null)
@@ -61,6 +64,10 @@ export function SectionInfos({
           barcode: values.barcode || undefined,
           price: Number(values.price),
           minPrice: values.minPrice ? Number(values.minPrice) : undefined,
+          defaultMinStock:
+            values.defaultMinStock === ""
+              ? null
+              : Number(values.defaultMinStock),
           isActive: values.isActive,
         }),
       }),
@@ -118,6 +125,24 @@ export function SectionInfos({
               onChange={(e) => setForm({ ...form, minPrice: e.target.value })}
             />
           </div>
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="f-seuil-alerte">Seuil d'alerte par défaut</Label>
+          <Input
+            id="f-seuil-alerte"
+            type="number"
+            min={0}
+            step={1}
+            disabled={!peutEcrire}
+            value={form.defaultMinStock}
+            onChange={(e) =>
+              setForm({ ...form, defaultMinStock: e.target.value })
+            }
+          />
+          <p className="text-xs text-gray-500">
+            Alerte quand le stock d'un entrepôt passe sous ce seuil —
+            surchargeable par entrepôt.
+          </p>
         </div>
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="f-categorie">Catégorie</Label>

@@ -21,6 +21,7 @@ export type Produit = {
   barcode: string | null
   price: number
   minPrice: number | null
+  defaultMinStock: number | null
   hasVariants: boolean
   trackLots: boolean
   imageKey: string | null

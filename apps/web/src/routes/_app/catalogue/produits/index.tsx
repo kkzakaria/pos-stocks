@@ -83,6 +83,7 @@ function ProduitsPage() {
   const [nom, setNom] = useState("")
   const [prix, setPrix] = useState("")
   const [plancher, setPlancher] = useState("")
+  const [seuilAlerte, setSeuilAlerte] = useState("")
   const [categorieProduit, setCategorieProduit] = useState("")
   const [codeBarres, setCodeBarres] = useState("")
   const [description, setDescription] = useState("")
@@ -98,6 +99,7 @@ function ProduitsPage() {
           name: nom,
           price: Number(prix),
           minPrice: plancher ? Number(plancher) : undefined,
+          defaultMinStock: seuilAlerte ? Number(seuilAlerte) : undefined,
           categoryId: categorieProduit || undefined,
           barcode: codeBarres || undefined,
           description: description || undefined,
@@ -169,6 +171,23 @@ function ProduitsPage() {
                       onChange={(e) => setPlancher(e.target.value)}
                     />
                   </div>
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="p-seuil-alerte">
+                    Seuil d'alerte par défaut (optionnel)
+                  </Label>
+                  <Input
+                    id="p-seuil-alerte"
+                    type="number"
+                    min={0}
+                    step={1}
+                    value={seuilAlerte}
+                    onChange={(e) => setSeuilAlerte(e.target.value)}
+                  />
+                  <p className="text-xs text-gray-500">
+                    Alerte quand le stock d'un entrepôt passe sous ce seuil —
+                    surchargeable par entrepôt.
+                  </p>
                 </div>
                 <div className="flex flex-col gap-1.5">
                   <Label htmlFor="p-categorie">Catégorie</Label>
