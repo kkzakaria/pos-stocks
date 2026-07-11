@@ -11,6 +11,7 @@ import { varianteScope } from "../lib/org-scope"
 import { requireAuth } from "../middleware/require-auth"
 import {
   requireMembership,
+  requireRole,
   requireWarehouseRole,
 } from "../middleware/permissions"
 import type { PermissionVariables } from "../middleware/permissions"
@@ -18,6 +19,7 @@ import {
   applyMovements,
   definirSeuil,
   ErreurStockInsuffisant,
+  reconcilier,
 } from "../services/stock"
 import type { Env } from "../env"
 import type { Context } from "hono"
@@ -449,3 +451,14 @@ stockRoute.patch(
     return c.json({ ok: true })
   }
 )
+
+// Commande d'exploitation : recalcul des quantités depuis le journal.
+// Dry-run par défaut ; POST /reconcile?appliquer=true pour corriger.
+stockRoute.post("/reconcile", requireRole("owner", "admin"), async (c) => {
+  const db = drizzle(c.env.DB, { schema })
+  const resultat = await reconcilier(db, {
+    organizationId: c.get("membership").organizationId,
+    appliquer: c.req.query("appliquer") === "true",
+  })
+  return c.json(resultat)
+})

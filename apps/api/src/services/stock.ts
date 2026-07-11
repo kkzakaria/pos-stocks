@@ -308,3 +308,98 @@ export async function definirSeuil(
       set: { minStock: params.minStock, updatedAt: maintenant },
     })
 }
+
+export type EcartReconciliation = {
+  warehouseId: string
+  variantId: string
+  quantiteJournal: number
+  quantiteNiveaux: number
+  ecart: number
+  // false si la somme du journal est négative (données corrompues) : on la
+  // rapporte mais on refuse de l'appliquer (le CHECK la rejetterait).
+  applicable: boolean
+}
+
+// Recalcule les QUANTITÉS de stock_levels depuis le journal — jamais le CMP :
+// rejouer la valorisation historique exigerait de rejouer chaque réception
+// dans l'ordre, hors périmètre. Le CMP courant reste la référence.
+// Dry-run par défaut ; l'application est demandée explicitement.
+export async function reconcilier(
+  db: Db,
+  params: { organizationId: string; appliquer: boolean }
+): Promise<{ ecarts: EcartReconciliation[]; applique: boolean }> {
+  const sommes = await db
+    .select({
+      warehouseId: schema.stockMovements.warehouseId,
+      variantId: schema.stockMovements.variantId,
+      quantiteJournal: sql<number>`COALESCE(SUM(${schema.stockMovements.delta}), 0)`,
+    })
+    .from(schema.stockMovements)
+    .where(eq(schema.stockMovements.organizationId, params.organizationId))
+    .groupBy(schema.stockMovements.warehouseId, schema.stockMovements.variantId)
+  const niveaux = await db
+    .select({
+      warehouseId: schema.stockLevels.warehouseId,
+      variantId: schema.stockLevels.variantId,
+      quantity: schema.stockLevels.quantity,
+    })
+    .from(schema.stockLevels)
+    .where(eq(schema.stockLevels.organizationId, params.organizationId))
+
+  const journalParCle = new Map(
+    sommes.map((s) => [`${s.warehouseId}|${s.variantId}`, s.quantiteJournal])
+  )
+  const niveauParCle = new Map(
+    niveaux.map((n) => [`${n.warehouseId}|${n.variantId}`, n.quantity])
+  )
+  const cles = new Set([...journalParCle.keys(), ...niveauParCle.keys()])
+
+  const ecarts: EcartReconciliation[] = []
+  for (const cle of cles) {
+    const quantiteJournal = journalParCle.get(cle) ?? 0
+    const quantiteNiveaux = niveauParCle.get(cle) ?? 0
+    if (quantiteJournal === quantiteNiveaux) continue
+    const [warehouseId = "", variantId = ""] = cle.split("|")
+    ecarts.push({
+      warehouseId,
+      variantId,
+      quantiteJournal,
+      quantiteNiveaux,
+      ecart: quantiteNiveaux - quantiteJournal,
+      applicable: quantiteJournal >= 0,
+    })
+  }
+  ecarts.sort((a, b) =>
+    `${a.warehouseId}|${a.variantId}` < `${b.warehouseId}|${b.variantId}`
+      ? -1
+      : 1
+  )
+
+  const corrigeables = ecarts.filter((e) => e.applicable)
+  if (!params.appliquer || corrigeables.length === 0) {
+    return { ecarts, applique: false }
+  }
+
+  const maintenant = new Date()
+  const corrections = corrigeables.map((e) =>
+    db
+      .insert(schema.stockLevels)
+      .values({
+        id: crypto.randomUUID(),
+        organizationId: params.organizationId,
+        warehouseId: e.warehouseId,
+        variantId: e.variantId,
+        quantity: e.quantiteJournal,
+        avgCost: 0,
+        minStock: null,
+        updatedAt: maintenant,
+      })
+      .onConflictDoUpdate({
+        target: [schema.stockLevels.warehouseId, schema.stockLevels.variantId],
+        set: { quantity: e.quantiteJournal, updatedAt: maintenant },
+      })
+  )
+  const [premiere, ...reste] = corrections
+  await db.batch([premiere, ...reste])
+  return { ecarts, applique: true }
+}
