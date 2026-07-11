@@ -18,6 +18,9 @@ import {
 } from "../middleware/permissions"
 import type { PermissionVariables } from "../middleware/permissions"
 import type { Env } from "../env"
+import { applyMovements, ErreurStockInsuffisant } from "../services/stock"
+import type { MouvementStock } from "../services/stock"
+import { reponseStockInsuffisant } from "../lib/stock-erreurs"
 
 export const inventoryCountsRoute = new Hono<{
   Bindings: Env
@@ -385,4 +388,166 @@ inventoryCountsRoute.patch("/:id/items/:itemId", async (c) => {
     throw err
   }
   return c.json({ ok: true })
+})
+
+inventoryCountsRoute.post("/:id/close", async (c) => {
+  const { organizationId } = c.get("membership")
+  const db = drizzle(c.env.DB, { schema })
+  const inventaire = await inventaireScope(
+    db,
+    organizationId,
+    c.req.param("id")
+  )
+  if (!inventaire) {
+    return c.json(
+      { code: "INTROUVABLE", message: "Inventaire introuvable" },
+      404
+    )
+  }
+  const refus = await verifierAccesEntrepot(c, inventaire.warehouseId, [
+    "manager",
+  ])
+  if (refus) return refus
+  if (inventaire.status !== "open") {
+    return c.json(REPONSE_INVENTAIRE_CLOS, 409)
+  }
+  const items = await db
+    .select()
+    .from(schema.inventoryCountItems)
+    .where(eq(schema.inventoryCountItems.countId, inventaire.id))
+  const niveaux = await db
+    .select({
+      variantId: schema.stockLevels.variantId,
+      quantity: schema.stockLevels.quantity,
+    })
+    .from(schema.stockLevels)
+    .where(
+      and(
+        eq(schema.stockLevels.organizationId, organizationId),
+        eq(schema.stockLevels.warehouseId, inventaire.warehouseId)
+      )
+    )
+  const quantiteParVariante = new Map(
+    niveaux.map((n) => [n.variantId, n.quantity])
+  )
+
+  // Écart calculé contre la quantité COURANTE (= attendu à l'ouverture +
+  // mouvement net depuis — spec §5) : les ventes pendant l'inventaire ne
+  // créent pas de faux écarts. LIMITE ASSUMÉE (v1) : la quantité courante
+  // est lue juste avant le batch — un mouvement commité dans cette fenêtre
+  // de quelques millisecondes fausserait l'écart d'autant ; l'invariant
+  // journal = niveaux reste, lui, garanti (le delta est appliqué
+  // RELATIVEMENT par applyMovements), et /stock/reconcile permet de
+  // vérifier. Les lignes non comptées (countedQuantity null) sont ignorées.
+  type Ecart = {
+    variantId: string
+    attendu: number
+    compte: number
+    quantiteAvantCloture: number
+    delta: number
+  }
+  const ecarts: Ecart[] = []
+  let nonComptes = 0
+  for (const item of items) {
+    if (item.countedQuantity === null) {
+      nonComptes += 1
+      continue
+    }
+    const quantiteAvantCloture = quantiteParVariante.get(item.variantId) ?? 0
+    const delta = item.countedQuantity - quantiteAvantCloture
+    if (delta === 0) continue
+    ecarts.push({
+      variantId: item.variantId,
+      attendu: item.expectedQuantity,
+      compte: item.countedQuantity,
+      quantiteAvantCloture,
+      delta,
+    })
+  }
+
+  const maintenant = new Date()
+  // Passage closed SANS filtre de statut : une clôture concurrente est tuée
+  // par le trigger inventory_counts_clos_immuable, batch entier annulé.
+  const majStatut = db
+    .update(schema.inventoryCounts)
+    .set({
+      status: "closed",
+      closedBy: c.get("user").id,
+      closedAt: maintenant,
+      updatedAt: maintenant,
+    })
+    .where(eq(schema.inventoryCounts.id, inventaire.id))
+
+  if (ecarts.length === 0) {
+    // Aucun mouvement à écrire : applyMovements exige au moins un mouvement,
+    // on clôt le document seul (le trigger protège toujours la course).
+    try {
+      await db.batch([majStatut])
+    } catch (err) {
+      if (estErreurDeclencheur(err, "INVENTAIRE_CLOS")) {
+        return c.json(REPONSE_INVENTAIRE_CLOS, 409)
+      }
+      throw err
+    }
+    return c.json({ ok: true, ecarts: [], nonComptes, mouvements: 0 })
+  }
+
+  const mouvements: MouvementStock[] = ecarts.map((e) => ({
+    warehouseId: inventaire.warehouseId,
+    variantId: e.variantId,
+    delta: e.delta,
+    type: "count",
+    reason: "Clôture d'inventaire",
+    refType: "inventory_count",
+    refId: inventaire.id,
+  }))
+  try {
+    await applyMovements(db, {
+      organizationId,
+      userId: c.get("user").id,
+      mouvements,
+      instructionsAvant: [majStatut],
+      date: maintenant,
+    })
+  } catch (err) {
+    if (estErreurDeclencheur(err, "INVENTAIRE_CLOS")) {
+      return c.json(REPONSE_INVENTAIRE_CLOS, 409)
+    }
+    if (err instanceof ErreurStockInsuffisant) {
+      // Course rarissime : un mouvement concurrent a rendu un delta négatif
+      // inapplicable entre notre lecture et le batch. Rejouable sans risque.
+      return reponseStockInsuffisant(c, db, err)
+    }
+    throw err
+  }
+
+  // Récapitulatif enrichi (noms, SKU) pour l'écran de clôture
+  const variantIds = ecarts.map((e) => e.variantId)
+  const variantes = await db
+    .select({
+      id: schema.productVariants.id,
+      sku: schema.productVariants.sku,
+      variantName: schema.productVariants.name,
+      productName: schema.products.name,
+    })
+    .from(schema.productVariants)
+    .innerJoin(
+      schema.products,
+      eq(schema.productVariants.productId, schema.products.id)
+    )
+    .where(inArray(schema.productVariants.id, variantIds))
+  return c.json({
+    ok: true,
+    ecarts: ecarts.map((e) => {
+      const variante = variantes.find((v) => v.id === e.variantId)
+      return {
+        ...e,
+        sku: variante?.sku ?? null,
+        variantName: variante?.variantName ?? null,
+        productName: variante?.productName ?? null,
+      }
+    }),
+    nonComptes,
+    mouvements: mouvements.length,
+  })
 })
