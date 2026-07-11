@@ -10,8 +10,10 @@ import {
 } from "shared"
 import * as schema from "../db/schema"
 import { validerCorps } from "../lib/validation"
-import { estErreurDeclencheur } from "../lib/db-errors"
+import { estErreurDeclencheur, estViolationUnicite } from "../lib/db-errors"
 import { fournisseurExiste, varianteScope } from "../lib/org-scope"
+import { applyMovements } from "../services/stock"
+import type { InstructionBatch, MouvementStock } from "../services/stock"
 import { porteeLectureStock } from "../lib/stock-acces"
 import { requireAuth } from "../middleware/require-auth"
 import {
@@ -491,6 +493,168 @@ purchasesRoute.delete("/:id/items/:itemId", async (c) => {
   } catch (err) {
     if (estErreurDeclencheur(err, "RECEPTION_VALIDEE")) {
       return c.json(REPONSE_RECEPTION_VALIDEE, 409)
+    }
+    throw err
+  }
+  return c.json({ ok: true })
+})
+
+purchasesRoute.post("/:id/receive", async (c) => {
+  const { organizationId } = c.get("membership")
+  const db = drizzle(c.env.DB, { schema })
+  const achat = await achatScope(db, organizationId, c.req.param("id"))
+  if (!achat) {
+    return c.json(
+      { code: "INTROUVABLE", message: "Réception introuvable" },
+      404
+    )
+  }
+  const refus = await verifierAccesEntrepot(c, achat.warehouseId, ["manager"])
+  if (refus) return refus
+  if (achat.status !== "draft") {
+    return c.json(
+      {
+        code: "STATUT_INVALIDE",
+        message: "Cette réception a déjà été validée",
+      },
+      409
+    )
+  }
+  const items = await db
+    .select()
+    .from(schema.purchaseItems)
+    .where(eq(schema.purchaseItems.purchaseId, achat.id))
+  if (items.length === 0) {
+    return c.json(
+      {
+        code: "VALIDATION",
+        message: "Impossible de valider une réception sans ligne",
+      },
+      400
+    )
+  }
+
+  const maintenant = new Date()
+
+  // Lots : réutiliser le lot existant (variantId, lotNumber), sinon en créer
+  // un DANS le même batch. Clé de map `${variantId} ${lotNumber}` : sans
+  // ambiguïté, un variantId est un UUID qui ne contient jamais d'espace.
+  type LotResolu = {
+    id: string
+    nouveau: boolean
+    variantId: string
+    lotNumber: string
+    expiryDate: Date | null
+  }
+  const itemsAvecLot = items.filter((i) => i.lotNumber !== null)
+  const variantIdsLots = [...new Set(itemsAvecLot.map((i) => i.variantId))]
+  const lotsExistants =
+    variantIdsLots.length > 0
+      ? await db
+          .select()
+          .from(schema.lots)
+          .where(inArray(schema.lots.variantId, variantIdsLots))
+      : []
+  const lotParCle = new Map<string, LotResolu>()
+  for (const item of itemsAvecLot) {
+    const lotNumber = item.lotNumber
+    if (lotNumber === null) continue
+    const cle = `${item.variantId} ${lotNumber}`
+    if (lotParCle.has(cle)) continue
+    const existant = lotsExistants.find(
+      (l) => l.variantId === item.variantId && l.lotNumber === lotNumber
+    )
+    lotParCle.set(
+      cle,
+      existant
+        ? {
+            id: existant.id,
+            nouveau: false,
+            variantId: existant.variantId,
+            lotNumber: existant.lotNumber,
+            expiryDate: existant.expiryDate,
+          }
+        : {
+            id: crypto.randomUUID(),
+            nouveau: true,
+            variantId: item.variantId,
+            lotNumber,
+            expiryDate: item.expiryDate,
+          }
+    )
+  }
+  const insertionsLots = [...lotParCle.values()]
+    .filter((lot) => lot.nouveau)
+    .map((lot) =>
+      db.insert(schema.lots).values({
+        id: lot.id,
+        organizationId,
+        variantId: lot.variantId,
+        lotNumber: lot.lotNumber,
+        expiryDate: lot.expiryDate,
+        createdAt: maintenant,
+      })
+    )
+
+  // Passage received SANS filtre de statut dans le WHERE : si une validation
+  // concurrente est passée entre notre pré-contrôle et le batch, le trigger
+  // purchases_recu_immuable (old.status = 'received') fait échouer CE batch
+  // ENTIER — au lieu d'un UPDATE « 0 ligne » silencieux qui laisserait les
+  // mouvements s'appliquer une seconde fois.
+  const majStatut = db
+    .update(schema.purchases)
+    .set({
+      status: "received",
+      receivedAt: maintenant,
+      receivedBy: c.get("user").id,
+      updatedAt: maintenant,
+    })
+    .where(eq(schema.purchases.id, achat.id))
+
+  const mouvements: MouvementStock[] = items.map((item) => ({
+    warehouseId: achat.warehouseId,
+    variantId: item.variantId,
+    lotId:
+      item.lotNumber !== null
+        ? (lotParCle.get(`${item.variantId} ${item.lotNumber}`)?.id ?? null)
+        : null,
+    delta: item.quantity,
+    type: "purchase",
+    refType: "purchase",
+    refId: achat.id,
+    unitCost: item.unitCost,
+  }))
+
+  // Batch hétérogène construit directement (spread, pas de push + cast)
+  const instructionsAvant: InstructionBatch[] = [majStatut, ...insertionsLots]
+  try {
+    await applyMovements(db, {
+      organizationId,
+      userId: c.get("user").id,
+      mouvements,
+      instructionsAvant,
+      date: maintenant,
+    })
+  } catch (err) {
+    if (estErreurDeclencheur(err, "RECEPTION_VALIDEE")) {
+      return c.json(
+        {
+          code: "STATUT_INVALIDE",
+          message: "Cette réception a déjà été validée",
+        },
+        409
+      )
+    }
+    if (estViolationUnicite(err, "lots_variant_lot_uidx")) {
+      // Course rarissime : un lot de même numéro créé entre notre lecture et
+      // le batch. Rejouable sans risque : au retry, le lot sera réutilisé.
+      return c.json(
+        {
+          code: "LOT_EXISTANT",
+          message: "Conflit sur un numéro de lot, veuillez réessayer",
+        },
+        409
+      )
     }
     throw err
   }
