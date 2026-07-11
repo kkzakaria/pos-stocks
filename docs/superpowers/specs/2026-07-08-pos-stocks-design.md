@@ -78,8 +78,8 @@ Le scaffold TanStack Start existant est restructuré : `apps/web` devient une SP
 
 - `suppliers` — nom, contact
 - `purchases` + `purchase_items` — réception fournisseur : coût unitaire d'achat (marges), numéro de lot et péremption saisis à la réception, statut `draft` → `received`
-- `transfers` + `transfer_items` — fromWarehouseId → toWarehouseId, statut `pending` → `sent` → `received` ; le stock sort à l'expédition, entre à la réception ; annulable avant expédition ; refus partiel à la réception tracé en ajustement
-- `inventory_counts` + `inventory_count_items` — par entrepôt : quantité attendue figée à l'ouverture, quantité comptée, écart → mouvements d'ajustement à la clôture
+- `transfers` + `transfer_items` — fromWarehouseId → toWarehouseId, statut `pending` → `sent` → `received` ; le stock sort à l'expédition, entre à la réception ; annulable avant expédition ; refus partiel à la réception tracé en ajustement. **Valorisation : le CMP de l'entrepôt d'origine est figé sur la ligne à l'expédition et absorbé par le CMP de destination à la réception**
+- `inventory_counts` + `inventory_count_items` — par entrepôt, **toujours complet en v1 (tout l'entrepôt ; le partiel viendra plus tard si besoin)** : quantité attendue figée à l'ouverture, quantité comptée, écart → mouvements d'ajustement à la clôture
 
 ### Ventes (POS)
 
