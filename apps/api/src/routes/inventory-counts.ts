@@ -165,11 +165,13 @@ inventoryCountsRoute.post("/", async (c) => {
   // Inventaire COMPLET (v1, spec) : une ligne par niveau existant de
   // l'entrepôt — les variantes jamais stockées ici n'ont pas de ligne de
   // niveau, donc rien à compter.
-  const niveaux = await db
-    .select({
-      variantId: schema.stockLevels.variantId,
-      quantity: schema.stockLevels.quantity,
-    })
+  // Pré-check UX uniquement (évite d'ouvrir un document vide) : ce n'est PAS
+  // la source du contenu figé, juste une lecture indicative. Le contenu
+  // RÉEL provient de l'INSERT…SELECT ci-dessous, exécuté DANS le même batch
+  // que le document — jamais de cette lecture, qui peut être périmée au
+  // moment du batch si un mouvement de stock survient entre les deux.
+  const presenceNiveaux = await db
+    .select({ id: schema.stockLevels.id })
     .from(schema.stockLevels)
     .where(
       and(
@@ -177,7 +179,8 @@ inventoryCountsRoute.post("/", async (c) => {
         eq(schema.stockLevels.warehouseId, corps.data.warehouseId)
       )
     )
-  if (niveaux.length === 0) {
+    .limit(1)
+  if (presenceNiveaux.length === 0) {
     return c.json(
       {
         code: "VALIDATION",
@@ -188,6 +191,11 @@ inventoryCountsRoute.post("/", async (c) => {
   }
   const id = crypto.randomUUID()
   const maintenant = new Date()
+  // `mode: "timestamp"` (integer, secondes) : même conversion que
+  // SQLiteTimestamp.mapToDriverValue côté drizzle, appliquée ici à la main
+  // car la colonne `created_at` du SELECT ci-dessous est une expression
+  // `sql` brute (pas de `.values()` typé pour un INSERT…SELECT).
+  const maintenantEpoch = Math.floor(maintenant.getTime() / 1000)
   const insertionDoc = db.insert(schema.inventoryCounts).values({
     id,
     organizationId,
@@ -197,19 +205,48 @@ inventoryCountsRoute.post("/", async (c) => {
     createdAt: maintenant,
     updatedAt: maintenant,
   })
-  const insertionsLignes = niveaux.map((n) =>
-    db.insert(schema.inventoryCountItems).values({
-      id: crypto.randomUUID(),
-      organizationId,
-      countId: id,
-      variantId: n.variantId,
-      expectedQuantity: n.quantity,
-      createdAt: maintenant,
-    })
+  // Figeage RÉEL des quantités attendues : INSERT…SELECT exécuté dans le
+  // MÊME batch que le document ci-dessus, donc sur l'état de stock_levels
+  // au moment exact où le batch s'exécute — jamais une lecture JS
+  // antérieure, qui raterait ou figerait périmé un mouvement de stock
+  // survenu entre la lecture et l'écriture (même principe que le gel du
+  // CMP à l'expédition dans transfers.ts et la réconciliation dans
+  // services/stock.ts). `db.insert(...).select(...)` — et non un `db.run(sql
+  // brut)` — car le batch D1 de drizzle 0.44 exige un query builder
+  // préparable (`.stmt` interne) : un `SQLiteRaw` issu de `db.run()` n'en a
+  // pas et fait planter `batch()` (vérifié empiriquement). Les clés/ordre du
+  // `.select({...})` doivent correspondre EXACTEMENT aux colonnes de la
+  // table cible (contrôlé par drizzle à la construction de la requête).
+  // `lower(hex(randomblob(16)))` : générateur d'ID texte standard en SQL
+  // pur — SQLite ne peut pas appeler crypto.randomUUID() côté moteur. Le
+  // format (32 hex minuscules, sans tirets) diffère des UUID générés côté
+  // JS ailleurs dans le dépôt, mais aucune contrainte de format n'existe
+  // sur les colonnes `id` (texte, clé primaire uniquement) : un
+  // identifiant texte unique convient.
+  const insertionLignes = db.insert(schema.inventoryCountItems).select(
+    db
+      .select({
+        // Expressions `sql` brutes : drizzle exige un alias explicite
+        // (`.as(...)`) pour les référencer comme colonnes de résultat.
+        id: sql<string>`lower(hex(randomblob(16)))`.as("id"),
+        organizationId: schema.stockLevels.organizationId,
+        countId: sql<string>`${id}`.as("count_id"),
+        variantId: schema.stockLevels.variantId,
+        expectedQuantity: schema.stockLevels.quantity,
+        countedQuantity: sql<number | null>`NULL`.as("counted_quantity"),
+        createdAt: sql<number>`${maintenantEpoch}`.as("created_at"),
+      })
+      .from(schema.stockLevels)
+      .where(
+        and(
+          eq(schema.stockLevels.organizationId, organizationId),
+          eq(schema.stockLevels.warehouseId, corps.data.warehouseId)
+        )
+      )
   )
   try {
     // Document + photographie des quantités dans UN batch atomique.
-    await db.batch([insertionDoc, ...insertionsLignes])
+    await db.batch([insertionDoc, insertionLignes])
   } catch (err) {
     // Course : deux ouvertures simultanées — l'index unique partiel
     // inventory_counts_open_wh_uidx (0007) tue la seconde. SQLite rapporte

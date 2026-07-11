@@ -5,6 +5,7 @@ import { eq } from "drizzle-orm"
 import app from "../src/index"
 import * as schema from "../src/db/schema"
 import { applyMovements } from "../src/services/stock"
+import { estViolationUnicite } from "../src/lib/db-errors"
 import {
   affecterEntrepot,
   bootstrapOwner,
@@ -158,6 +159,41 @@ describe("inventaires — ouverture et saisie", () => {
     )
     expect(sansStock.status).toBe(400)
     expect((await sansStock.json<{ code: string }>()).code).toBe("VALIDATION")
+  })
+
+  it("la vraie garde est l'index partiel 0007, pas seulement le pré-check applicatif : une deuxième ligne 'open' insérée directement en base est rejetée, et estViolationUnicite la détecte comme la route le ferait en 409", async () => {
+    const s = await seed()
+    const db = drizzle(env.DB, { schema })
+    const maintenant = new Date()
+    await db.insert(schema.inventoryCounts).values({
+      id: crypto.randomUUID(),
+      organizationId: s.organizationId,
+      warehouseId: s.entrepotId,
+      openedBy: s.ownerId,
+      openedAt: maintenant,
+      createdAt: maintenant,
+      updatedAt: maintenant,
+    })
+    let erreur: unknown
+    try {
+      await db.insert(schema.inventoryCounts).values({
+        id: crypto.randomUUID(),
+        organizationId: s.organizationId,
+        warehouseId: s.entrepotId,
+        openedBy: s.ownerId,
+        openedAt: maintenant,
+        createdAt: maintenant,
+        updatedAt: maintenant,
+      })
+    } catch (err) {
+      erreur = err
+    }
+    // SQLite rapporte les COLONNES de l'index unique partiel
+    // inventory_counts_open_wh_uidx (WHERE status = 'open'), jamais son nom
+    // — même fragment que la branche catch de POST /inventory-counts.
+    expect(estViolationUnicite(erreur, "inventory_counts.warehouse_id")).toBe(
+      true
+    )
   })
 
   it("saisie de comptage : plusieurs sessions, correction, effacement à null", async () => {
