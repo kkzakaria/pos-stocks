@@ -11,7 +11,7 @@
 | 1 | Fondations : monorepo, API Hono + D1 + Drizzle, Better Auth + organisation, login, CI | `2026-07-08-phase-1-fondations.md` | ✅ terminée (2026-07-08, PR #1) |
 | 2 | Administration : entrepôts, utilisateurs, affectations, middleware de permissions complet | `2026-07-09-phase-2-administration.md` | ✅ terminée (2026-07-10, PR #3 mergée) |
 | 3 | Catalogue : catégories, fournisseurs, produits, variantes, images R2, lots | `2026-07-10-phase-3-catalogue.md` | ✅ terminée (2026-07-10, PR #4 mergée) |
-| 4 | Moteur de stock : journal + niveaux, service atomique, réceptions, ajustements, alertes | à rédiger | — |
+| 4 | Moteur de stock : journal + niveaux, service atomique, réceptions, ajustements, alertes | `2026-07-10-phase-4-moteur-de-stock.md` | ✅ terminée (2026-07-11, PR en cours) |
 | 5 | Transferts inter-entrepôts et inventaires physiques | à rédiger | — |
 | 6 | POS : sessions de caisse, vente atomique, paiements, ticket 80 mm, FEFO, dépannage — **mini-brainstorming UI avant le plan** | à rédiger | — |
 | 7 | Rapports, tableau de bord, finitions (valorisation, marges, alertes visibles) | à rédiger | — |
@@ -51,13 +51,13 @@ Notes de fin de phase : API `https://pos-stocks-api.koffiz2110.workers.dev`, SPA
 **Livrable** : catalogue complet consultable et administrable.
 
 ### Phase 4 — Moteur de stock
-- [ ] `stock_movements` (journal append-only) + `stock_levels` (matérialisé)
-- [ ] `stockService.applyMovements` : batch D1 atomique, garde anti-stock-négatif
-- [ ] Réceptions fournisseur (draft → received, coûts, création de lots)
-- [ ] Ajustements manuels tracés
-- [ ] Alertes stock bas (seuil produit surchargeable par entrepôt)
-- [ ] Commande de réconciliation journal → niveaux
-- [ ] Écrans stock (niveaux par entrepôt, journal filtrable, réceptions)
+- [x] `stock_movements` (journal append-only) + `stock_levels` (matérialisé)
+- [x] `stockService.applyMovements` : batch D1 atomique, garde anti-stock-négatif
+- [x] Réceptions fournisseur (draft → received, coûts, création de lots)
+- [x] Ajustements manuels tracés
+- [x] Alertes stock bas (seuil produit surchargeable par entrepôt)
+- [x] Commande de réconciliation journal → niveaux
+- [x] Écrans stock (niveaux par entrepôt, journal filtrable, réceptions)
 
 **Livrable** : le stock entre, se consulte et s'audite ; les invariants tiennent sous concurrence.
 
