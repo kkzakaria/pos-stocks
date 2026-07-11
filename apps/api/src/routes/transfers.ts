@@ -8,6 +8,7 @@ import {
   transferCreateSchema,
   transferItemCreateSchema,
   transferItemUpdateSchema,
+  transferReceiveSchema,
 } from "shared"
 import * as schema from "../db/schema"
 import { validerCorps } from "../lib/validation"
@@ -530,6 +531,149 @@ transfersRoute.post("/:id/send", async (c) => {
         {
           code: "STATUT_INVALIDE",
           message: "Ce transfert a déjà été expédié ou annulé",
+        },
+        409
+      )
+    }
+    throw err
+  }
+  return c.json({ ok: true })
+})
+
+transfersRoute.post("/:id/receive", async (c) => {
+  // Corps OPTIONNEL (lignes absentes = tout est reçu) : validerCorps exige un
+  // JSON, on parse donc tolérant ici — un POST sans corps vaut {}.
+  const brut: unknown = await c.req.json().catch(() => ({}))
+  const parsed = transferReceiveSchema.safeParse(brut)
+  if (!parsed.success) {
+    return c.json(
+      {
+        code: "VALIDATION",
+        message: "Données invalides",
+        details: parsed.error.flatten(),
+      },
+      400
+    )
+  }
+  const { organizationId } = c.get("membership")
+  const db = drizzle(c.env.DB, { schema })
+  const transfert = await transfertScope(db, organizationId, c.req.param("id"))
+  if (!transfert) {
+    return c.json(
+      { code: "INTROUVABLE", message: "Transfert introuvable" },
+      404
+    )
+  }
+  // Réception = rôle sur la DESTINATION (décision de phase)
+  const refus = await verifierAccesEntrepot(c, transfert.toWarehouseId, [
+    "manager",
+  ])
+  if (refus) return refus
+  if (transfert.status !== "sent") {
+    return c.json(
+      {
+        code: "STATUT_INVALIDE",
+        message: "Seul un transfert expédié peut être réceptionné",
+      },
+      409
+    )
+  }
+  const items = await db
+    .select()
+    .from(schema.transferItems)
+    .where(eq(schema.transferItems.transferId, transfert.id))
+
+  const recus = new Map<string, number>()
+  for (const saisie of parsed.data.items ?? []) {
+    const item = items.find((i) => i.id === saisie.itemId)
+    if (!item) {
+      return c.json({ code: "INTROUVABLE", message: "Ligne introuvable" }, 404)
+    }
+    if (saisie.receivedQuantity > item.quantity) {
+      return c.json(
+        {
+          code: "QUANTITE_RECUE_INVALIDE",
+          message: `La quantité reçue (${saisie.receivedQuantity}) dépasse la quantité expédiée (${item.quantity})`,
+        },
+        400
+      )
+    }
+    recus.set(saisie.itemId, saisie.receivedQuantity)
+  }
+
+  const maintenant = new Date()
+  // Ordre du batch : lignes d'abord (le trigger transfer_items_expedie_update
+  // n'autorise QUE received_quantity tant que le parent est 'sent'), puis le
+  // passage received SANS filtre — une double réception concurrente échoue
+  // sur l'une OU l'autre instruction et le batch entier est annulé.
+  const majLignes = items.map((item) =>
+    db
+      .update(schema.transferItems)
+      .set({ receivedQuantity: recus.get(item.id) ?? item.quantity })
+      .where(eq(schema.transferItems.id, item.id))
+  )
+  const majStatut = db
+    .update(schema.transfers)
+    .set({
+      status: "received",
+      receivedBy: c.get("user").id,
+      receivedAt: maintenant,
+      updatedAt: maintenant,
+    })
+    .where(eq(schema.transfers.id, transfert.id))
+
+  // Décision de phase (documentée en tête de plan) : l'entrée à destination
+  // porte la quantité EXPÉDIÉE totale, valorisée au CMP d'origine figé
+  // (unit_cost, non-null après expédition) ; l'écart éventuel ressort en
+  // adjustment négatif dans le MÊME batch. Net = quantité reçue, la perte
+  // est journalisée et valorisée au CMP de destination après absorption
+  // (biais assumé : la perte absorbe sa part de valeur).
+  const mouvements: MouvementStock[] = items.flatMap((item) => {
+    const recu = recus.get(item.id) ?? item.quantity
+    const entree: MouvementStock = {
+      warehouseId: transfert.toWarehouseId,
+      variantId: item.variantId,
+      lotId: item.lotId,
+      delta: item.quantity,
+      type: "transfer_in",
+      refType: "transfer",
+      refId: transfert.id,
+      unitCost: item.unitCost ?? 0,
+    }
+    if (recu === item.quantity) {
+      return [entree]
+    }
+    const ecart: MouvementStock = {
+      warehouseId: transfert.toWarehouseId,
+      variantId: item.variantId,
+      lotId: item.lotId,
+      delta: recu - item.quantity,
+      type: "adjustment",
+      reason: `Écart de réception du transfert (${item.quantity} expédié, ${recu} reçu)`,
+      refType: "transfer",
+      refId: transfert.id,
+    }
+    return [entree, ecart]
+  })
+
+  const instructionsAvant: InstructionBatch[] = [...majLignes, majStatut]
+  try {
+    await applyMovements(db, {
+      organizationId,
+      userId: c.get("user").id,
+      mouvements,
+      instructionsAvant,
+      date: maintenant,
+    })
+  } catch (err) {
+    if (
+      estErreurDeclencheur(err, "TRANSFERT_TERMINE") ||
+      estErreurDeclencheur(err, "TRANSFERT_EXPEDIE")
+    ) {
+      return c.json(
+        {
+          code: "STATUT_INVALIDE",
+          message: "Ce transfert a déjà été réceptionné ou annulé",
         },
         409
       )
