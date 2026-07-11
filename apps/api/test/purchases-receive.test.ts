@@ -187,8 +187,14 @@ describe("POST /api/v1/purchases/:id/receive", () => {
     expect((await revalidation.json<{ code: string }>()).code).toBe(
       "STATUT_INVALIDE"
     )
-    // pas de double application
+    // pas de double application : ni sur le niveau, ni dans le journal
     expect((await lireNiveau(warehouseId, variantId))?.quantity).toBe(10)
+    const db = drizzle(env.DB, { schema })
+    const mouvements = await db
+      .select()
+      .from(schema.stockMovements)
+      .where(eq(schema.stockMovements.refId, id))
+    expect(mouvements).toHaveLength(1)
 
     const ajout = await req(
       ownerCookie,
