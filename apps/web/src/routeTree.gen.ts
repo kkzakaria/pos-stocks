@@ -13,11 +13,14 @@ import { Route as LoginRouteImport } from './routes/login'
 import { Route as AppRouteImport } from './routes/_app'
 import { Route as AppIndexRouteImport } from './routes/_app/index'
 import { Route as AppMonCompteRouteImport } from './routes/_app/mon-compte'
+import { Route as AppStockIndexRouteImport } from './routes/_app/stock/index'
+import { Route as AppStockMouvementsRouteImport } from './routes/_app/stock/mouvements'
 import { Route as AppCatalogueFournisseursRouteImport } from './routes/_app/catalogue/fournisseurs'
 import { Route as AppCatalogueCategoriesRouteImport } from './routes/_app/catalogue/categories'
 import { Route as AppAdministrationUtilisateursRouteImport } from './routes/_app/administration/utilisateurs'
 import { Route as AppAdministrationParametresRouteImport } from './routes/_app/administration/parametres'
 import { Route as AppAdministrationEntrepotsRouteImport } from './routes/_app/administration/entrepots'
+import { Route as AppStockReceptionsIndexRouteImport } from './routes/_app/stock/receptions/index'
 import { Route as AppCatalogueProduitsIndexRouteImport } from './routes/_app/catalogue/produits/index'
 import { Route as AppCatalogueProduitsProductIdRouteImport } from './routes/_app/catalogue/produits/$productId'
 
@@ -38,6 +41,16 @@ const AppIndexRoute = AppIndexRouteImport.update({
 const AppMonCompteRoute = AppMonCompteRouteImport.update({
   id: '/mon-compte',
   path: '/mon-compte',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppStockIndexRoute = AppStockIndexRouteImport.update({
+  id: '/stock/',
+  path: '/stock/',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppStockMouvementsRoute = AppStockMouvementsRouteImport.update({
+  id: '/stock/mouvements',
+  path: '/stock/mouvements',
   getParentRoute: () => AppRoute,
 } as any)
 const AppCatalogueFournisseursRoute =
@@ -69,6 +82,11 @@ const AppAdministrationEntrepotsRoute =
     path: '/administration/entrepots',
     getParentRoute: () => AppRoute,
   } as any)
+const AppStockReceptionsIndexRoute = AppStockReceptionsIndexRouteImport.update({
+  id: '/stock/receptions/',
+  path: '/stock/receptions/',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppCatalogueProduitsIndexRoute =
   AppCatalogueProduitsIndexRouteImport.update({
     id: '/catalogue/produits/',
@@ -91,8 +109,11 @@ export interface FileRoutesByFullPath {
   '/administration/utilisateurs': typeof AppAdministrationUtilisateursRoute
   '/catalogue/categories': typeof AppCatalogueCategoriesRoute
   '/catalogue/fournisseurs': typeof AppCatalogueFournisseursRoute
+  '/stock/mouvements': typeof AppStockMouvementsRoute
+  '/stock/': typeof AppStockIndexRoute
   '/catalogue/produits/$productId': typeof AppCatalogueProduitsProductIdRoute
   '/catalogue/produits/': typeof AppCatalogueProduitsIndexRoute
+  '/stock/receptions/': typeof AppStockReceptionsIndexRoute
 }
 export interface FileRoutesByTo {
   '/login': typeof LoginRoute
@@ -103,8 +124,11 @@ export interface FileRoutesByTo {
   '/administration/utilisateurs': typeof AppAdministrationUtilisateursRoute
   '/catalogue/categories': typeof AppCatalogueCategoriesRoute
   '/catalogue/fournisseurs': typeof AppCatalogueFournisseursRoute
+  '/stock/mouvements': typeof AppStockMouvementsRoute
+  '/stock': typeof AppStockIndexRoute
   '/catalogue/produits/$productId': typeof AppCatalogueProduitsProductIdRoute
   '/catalogue/produits': typeof AppCatalogueProduitsIndexRoute
+  '/stock/receptions': typeof AppStockReceptionsIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -117,8 +141,11 @@ export interface FileRoutesById {
   '/_app/administration/utilisateurs': typeof AppAdministrationUtilisateursRoute
   '/_app/catalogue/categories': typeof AppCatalogueCategoriesRoute
   '/_app/catalogue/fournisseurs': typeof AppCatalogueFournisseursRoute
+  '/_app/stock/mouvements': typeof AppStockMouvementsRoute
+  '/_app/stock/': typeof AppStockIndexRoute
   '/_app/catalogue/produits/$productId': typeof AppCatalogueProduitsProductIdRoute
   '/_app/catalogue/produits/': typeof AppCatalogueProduitsIndexRoute
+  '/_app/stock/receptions/': typeof AppStockReceptionsIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -131,8 +158,11 @@ export interface FileRouteTypes {
     | '/administration/utilisateurs'
     | '/catalogue/categories'
     | '/catalogue/fournisseurs'
+    | '/stock/mouvements'
+    | '/stock/'
     | '/catalogue/produits/$productId'
     | '/catalogue/produits/'
+    | '/stock/receptions/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/login'
@@ -143,8 +173,11 @@ export interface FileRouteTypes {
     | '/administration/utilisateurs'
     | '/catalogue/categories'
     | '/catalogue/fournisseurs'
+    | '/stock/mouvements'
+    | '/stock'
     | '/catalogue/produits/$productId'
     | '/catalogue/produits'
+    | '/stock/receptions'
   id:
     | '__root__'
     | '/_app'
@@ -156,8 +189,11 @@ export interface FileRouteTypes {
     | '/_app/administration/utilisateurs'
     | '/_app/catalogue/categories'
     | '/_app/catalogue/fournisseurs'
+    | '/_app/stock/mouvements'
+    | '/_app/stock/'
     | '/_app/catalogue/produits/$productId'
     | '/_app/catalogue/produits/'
+    | '/_app/stock/receptions/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -195,6 +231,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppMonCompteRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/stock/': {
+      id: '/_app/stock/'
+      path: '/stock'
+      fullPath: '/stock/'
+      preLoaderRoute: typeof AppStockIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/stock/mouvements': {
+      id: '/_app/stock/mouvements'
+      path: '/stock/mouvements'
+      fullPath: '/stock/mouvements'
+      preLoaderRoute: typeof AppStockMouvementsRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/catalogue/fournisseurs': {
       id: '/_app/catalogue/fournisseurs'
       path: '/catalogue/fournisseurs'
@@ -230,6 +280,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppAdministrationEntrepotsRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/stock/receptions/': {
+      id: '/_app/stock/receptions/'
+      path: '/stock/receptions'
+      fullPath: '/stock/receptions/'
+      preLoaderRoute: typeof AppStockReceptionsIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/catalogue/produits/': {
       id: '/_app/catalogue/produits/'
       path: '/catalogue/produits'
@@ -255,8 +312,11 @@ interface AppRouteChildren {
   AppAdministrationUtilisateursRoute: typeof AppAdministrationUtilisateursRoute
   AppCatalogueCategoriesRoute: typeof AppCatalogueCategoriesRoute
   AppCatalogueFournisseursRoute: typeof AppCatalogueFournisseursRoute
+  AppStockMouvementsRoute: typeof AppStockMouvementsRoute
+  AppStockIndexRoute: typeof AppStockIndexRoute
   AppCatalogueProduitsProductIdRoute: typeof AppCatalogueProduitsProductIdRoute
   AppCatalogueProduitsIndexRoute: typeof AppCatalogueProduitsIndexRoute
+  AppStockReceptionsIndexRoute: typeof AppStockReceptionsIndexRoute
 }
 
 const AppRouteChildren: AppRouteChildren = {
@@ -267,8 +327,11 @@ const AppRouteChildren: AppRouteChildren = {
   AppAdministrationUtilisateursRoute: AppAdministrationUtilisateursRoute,
   AppCatalogueCategoriesRoute: AppCatalogueCategoriesRoute,
   AppCatalogueFournisseursRoute: AppCatalogueFournisseursRoute,
+  AppStockMouvementsRoute: AppStockMouvementsRoute,
+  AppStockIndexRoute: AppStockIndexRoute,
   AppCatalogueProduitsProductIdRoute: AppCatalogueProduitsProductIdRoute,
   AppCatalogueProduitsIndexRoute: AppCatalogueProduitsIndexRoute,
+  AppStockReceptionsIndexRoute: AppStockReceptionsIndexRoute,
 }
 
 const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)
