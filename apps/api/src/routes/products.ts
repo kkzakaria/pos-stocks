@@ -9,6 +9,7 @@ import {
 import * as schema from "../db/schema"
 import { validerCorps } from "../lib/validation"
 import { estViolationUnicite } from "../lib/db-errors"
+import { barcodeDejaUtilise } from "../lib/barcode"
 import { genererSkuProduit, genererSkuVariante } from "../lib/sku"
 import { categorieExiste, produitScope } from "../lib/org-scope"
 import { likeEchappe } from "../lib/recherche"
@@ -147,6 +148,19 @@ productsRoute.post(
       )
     }
 
+    if (
+      corps.data.barcode &&
+      (await barcodeDejaUtilise(db, organizationId, corps.data.barcode))
+    ) {
+      return c.json(
+        {
+          code: "BARCODE_EXISTANT",
+          message: "Ce code-barres est déjà utilisé",
+        },
+        409
+      )
+    }
+
     const skuFourni = corps.data.sku
     // SKU auto : régénéré en cas de course sur l'index unique (org, sku),
     // 3 tentatives maximum puis 409.
@@ -184,6 +198,15 @@ productsRoute.post(
           }),
         ])
       } catch (err) {
+        if (estViolationUnicite(err, "barcode")) {
+          return c.json(
+            {
+              code: "BARCODE_EXISTANT",
+              message: "Ce code-barres est déjà utilisé",
+            },
+            409
+          )
+        }
         if (estViolationUnicite(err)) {
           if (skuFourni) {
             return c.json(
@@ -272,10 +295,38 @@ productsRoute.patch(
         )
       }
     }
-    await db
-      .update(schema.products)
-      .set({ ...corps.data, updatedAt: new Date() })
-      .where(eq(schema.products.id, produit.id))
+    if (
+      typeof corps.data.barcode === "string" &&
+      corps.data.barcode !== produit.barcode &&
+      (await barcodeDejaUtilise(db, organizationId, corps.data.barcode, {
+        produitId: produit.id,
+      }))
+    ) {
+      return c.json(
+        {
+          code: "BARCODE_EXISTANT",
+          message: "Ce code-barres est déjà utilisé",
+        },
+        409
+      )
+    }
+    try {
+      await db
+        .update(schema.products)
+        .set({ ...corps.data, updatedAt: new Date() })
+        .where(eq(schema.products.id, produit.id))
+    } catch (err) {
+      if (estViolationUnicite(err, "barcode")) {
+        return c.json(
+          {
+            code: "BARCODE_EXISTANT",
+            message: "Ce code-barres est déjà utilisé",
+          },
+          409
+        )
+      }
+      throw err
+    }
     return c.json({ ok: true })
   }
 )
@@ -307,6 +358,18 @@ productsRoute.post(
             "Le prix plancher doit être inférieur ou égal au prix de vente",
         },
         400
+      )
+    }
+    if (
+      corps.data.barcode &&
+      (await barcodeDejaUtilise(db, organizationId, corps.data.barcode))
+    ) {
+      return c.json(
+        {
+          code: "BARCODE_EXISTANT",
+          message: "Ce code-barres est déjà utilisé",
+        },
+        409
       )
     }
     const sku =
@@ -352,6 +415,15 @@ productsRoute.post(
         ])
       }
     } catch (err) {
+      if (estViolationUnicite(err, "barcode")) {
+        return c.json(
+          {
+            code: "BARCODE_EXISTANT",
+            message: "Ce code-barres est déjà utilisé",
+          },
+          409
+        )
+      }
       if (estViolationUnicite(err)) {
         return c.json(
           { code: "SKU_EXISTANT", message: "Ce SKU existe déjà" },

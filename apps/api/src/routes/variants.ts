@@ -5,6 +5,7 @@ import { variantUpdateSchema, lotCreateSchema } from "shared"
 import * as schema from "../db/schema"
 import { validerCorps } from "../lib/validation"
 import { estViolationUnicite } from "../lib/db-errors"
+import { barcodeDejaUtilise } from "../lib/barcode"
 import { varianteScope } from "../lib/org-scope"
 import { requireAuth } from "../middleware/require-auth"
 import { requireMembership, requireRole } from "../middleware/permissions"
@@ -63,44 +64,70 @@ variantsRoute.patch("/:id", async (c) => {
     )
   }
 
-  const desactivation =
-    corps.data.isActive === false && variante.isActive && produit.isActive
-  if (desactivation) {
-    // Garde atomique anti-course : la condition « il reste au moins une autre
-    // variante active » est vérifiée DANS le même UPDATE. Deux désactivations
-    // concurrentes ne peuvent plus laisser un produit actif sans variante
-    // (l'ancien pré-comptage séparé laissait une fenêtre).
-    const result = await db
+  if (
+    typeof corps.data.barcode === "string" &&
+    corps.data.barcode !== variante.barcode &&
+    (await barcodeDejaUtilise(db, organizationId, corps.data.barcode, {
+      varianteId: variante.id,
+    }))
+  ) {
+    return c.json(
+      { code: "BARCODE_EXISTANT", message: "Ce code-barres est déjà utilisé" },
+      409
+    )
+  }
+
+  try {
+    const desactivation =
+      corps.data.isActive === false && variante.isActive && produit.isActive
+    if (desactivation) {
+      // Garde atomique anti-course : la condition « il reste au moins une autre
+      // variante active » est vérifiée DANS le même UPDATE. Deux désactivations
+      // concurrentes ne peuvent plus laisser un produit actif sans variante
+      // (l'ancien pré-comptage séparé laissait une fenêtre).
+      const result = await db
+        .update(schema.productVariants)
+        .set(corps.data)
+        .where(
+          and(
+            eq(schema.productVariants.id, variante.id),
+            sql`EXISTS (SELECT 1 FROM product_variants autre
+              WHERE autre.product_id = ${variante.productId}
+                AND autre.is_active = 1
+                AND autre.id <> ${variante.id})`
+          )
+        )
+        .returning({ id: schema.productVariants.id })
+      if (result.length === 0) {
+        return c.json(
+          {
+            code: "DERNIERE_VARIANTE",
+            message:
+              "Impossible de désactiver la dernière variante active d'un produit actif",
+          },
+          409
+        )
+      }
+      return c.json({ ok: true })
+    }
+
+    await db
       .update(schema.productVariants)
       .set(corps.data)
-      .where(
-        and(
-          eq(schema.productVariants.id, variante.id),
-          sql`EXISTS (SELECT 1 FROM product_variants autre
-            WHERE autre.product_id = ${variante.productId}
-              AND autre.is_active = 1
-              AND autre.id <> ${variante.id})`
-        )
-      )
-      .returning({ id: schema.productVariants.id })
-    if (result.length === 0) {
+      .where(eq(schema.productVariants.id, variante.id))
+    return c.json({ ok: true })
+  } catch (err) {
+    if (estViolationUnicite(err, "barcode")) {
       return c.json(
         {
-          code: "DERNIERE_VARIANTE",
-          message:
-            "Impossible de désactiver la dernière variante active d'un produit actif",
+          code: "BARCODE_EXISTANT",
+          message: "Ce code-barres est déjà utilisé",
         },
         409
       )
     }
-    return c.json({ ok: true })
+    throw err
   }
-
-  await db
-    .update(schema.productVariants)
-    .set(corps.data)
-    .where(eq(schema.productVariants.id, variante.id))
-  return c.json({ ok: true })
 })
 
 variantsRoute.post("/:id/lots", async (c) => {
