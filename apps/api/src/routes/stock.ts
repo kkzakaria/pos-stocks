@@ -1,6 +1,7 @@
 import { Hono } from "hono"
 import { drizzle } from "drizzle-orm/d1"
 import { and, asc, desc, eq, gte, inArray, lt, or, sql } from "drizzle-orm"
+import { alias } from "drizzle-orm/sqlite-core"
 import type { SQL } from "drizzle-orm"
 import { adjustmentCreateSchema, minStockSchema } from "shared"
 import * as schema from "../db/schema"
@@ -375,6 +376,71 @@ stockRoute.get("/alerts", async (c) => {
     .where(and(...conditions))
     .orderBy(asc(schema.warehouses.name), asc(schema.products.name))
   return c.json({ alerts, total: alerts.length })
+})
+
+// Stock en transit ENTRANT : dérivé des transferts `sent` non réceptionnés —
+// aucune matérialisation (spec Phase 5). Même contrat de lecture que /levels.
+stockRoute.get("/transit", async (c) => {
+  const { organizationId, role } = c.get("membership")
+  const db = drizzle(c.env.DB, { schema })
+  const warehouseId = c.req.query("warehouseId")
+  if (!warehouseId) {
+    return c.json(
+      { code: "VALIDATION", message: "Le paramètre warehouseId est requis" },
+      400
+    )
+  }
+  const portee = await porteeLectureStock(
+    db,
+    organizationId,
+    c.get("user").id,
+    role
+  )
+  if (!portee.tous && !portee.warehouseIds.includes(warehouseId)) {
+    return c.json({ code: "ACCES_REFUSE", message: "Accès refusé" }, 403)
+  }
+  if (!(await entrepotDansOrganisation(db, organizationId, warehouseId))) {
+    return c.json({ code: "INTROUVABLE", message: "Entrepôt introuvable" }, 404)
+  }
+  const origine = alias(schema.warehouses, "origine")
+  const transit = await db
+    .select({
+      transferId: schema.transfers.id,
+      reference: schema.transfers.reference,
+      fromWarehouseId: schema.transfers.fromWarehouseId,
+      fromWarehouseName: origine.name,
+      sentAt: schema.transfers.sentAt,
+      variantId: schema.transferItems.variantId,
+      productName: schema.products.name,
+      variantName: schema.productVariants.name,
+      sku: schema.productVariants.sku,
+      lotNumber: schema.lots.lotNumber,
+      quantity: schema.transferItems.quantity,
+    })
+    .from(schema.transferItems)
+    .innerJoin(
+      schema.transfers,
+      eq(schema.transferItems.transferId, schema.transfers.id)
+    )
+    .innerJoin(origine, eq(schema.transfers.fromWarehouseId, origine.id))
+    .innerJoin(
+      schema.productVariants,
+      eq(schema.transferItems.variantId, schema.productVariants.id)
+    )
+    .innerJoin(
+      schema.products,
+      eq(schema.productVariants.productId, schema.products.id)
+    )
+    .leftJoin(schema.lots, eq(schema.transferItems.lotId, schema.lots.id))
+    .where(
+      and(
+        eq(schema.transfers.organizationId, organizationId),
+        eq(schema.transfers.status, "sent"),
+        eq(schema.transfers.toWarehouseId, warehouseId)
+      )
+    )
+    .orderBy(desc(schema.transfers.sentAt), asc(schema.products.name))
+  return c.json({ transit })
 })
 
 stockRoute.post(
