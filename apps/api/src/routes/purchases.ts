@@ -457,9 +457,23 @@ purchasesRoute.delete("/:id/items/:itemId", async (c) => {
   if (achat.status !== "draft") {
     return c.json(REPONSE_RECEPTION_VALIDEE, 409)
   }
+  // Vérifier que la ligne existe avant de la supprimer
+  const items = await db
+    .select()
+    .from(schema.purchaseItems)
+    .where(
+      and(
+        eq(schema.purchaseItems.id, c.req.param("itemId")),
+        eq(schema.purchaseItems.purchaseId, achat.id)
+      )
+    )
+    .limit(1)
+  if (items.length === 0) {
+    return c.json({ code: "INTROUVABLE", message: "Ligne introuvable" }, 404)
+  }
   const maintenant = new Date()
   try {
-    const result = await db.batch([
+    await db.batch([
       db
         .delete(schema.purchaseItems)
         .where(
@@ -474,9 +488,6 @@ purchasesRoute.delete("/:id/items/:itemId", async (c) => {
         .set({ updatedAt: maintenant })
         .where(eq(schema.purchases.id, achat.id)),
     ])
-    if (result[0].length === 0) {
-      return c.json({ code: "INTROUVABLE", message: "Ligne introuvable" }, 404)
-    }
   } catch (err) {
     if (estErreurDeclencheur(err, "RECEPTION_VALIDEE")) {
       return c.json(REPONSE_RECEPTION_VALIDEE, 409)

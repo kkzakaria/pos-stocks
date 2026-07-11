@@ -1,6 +1,9 @@
 import { describe, it, expect } from "vitest"
 import { env } from "cloudflare:test"
+import { drizzle } from "drizzle-orm/d1"
+import { eq } from "drizzle-orm"
 import app from "../src/index"
+import * as schema from "../src/db/schema"
 import {
   bootstrapOwner,
   createUserWithRole,
@@ -269,5 +272,61 @@ describe("réceptions fournisseur — brouillon", () => {
         )
       ).status
     ).toBe(404)
+  })
+
+  it("suppression ligne inexistante : 404 et ne modifie pas updatedAt", async () => {
+    const { ownerCookie, warehouseId, supplierId, produit } = await seed()
+
+    // Créer une réception
+    const creation = await req(ownerCookie, "POST", "/api/v1/purchases", {
+      warehouseId,
+      supplierId,
+      reference: "BL-2026-TEST",
+    })
+    expect(creation.status).toBe(201)
+    const { id: purchaseId } = await creation.json<{ id: string }>()
+
+    // Ajouter une ligne
+    const ajout = await req(
+      ownerCookie,
+      "POST",
+      `/api/v1/purchases/${purchaseId}/items`,
+      {
+        variantId: produit.variantId,
+        quantity: 5,
+        unitCost: 200,
+      }
+    )
+    expect(ajout.status).toBe(201)
+
+    // Lire l'updatedAt initial depuis la base de données
+    const db = drizzle(env.DB, { schema })
+    const purchasesBefore = await db
+      .select({ updatedAt: schema.purchases.updatedAt })
+      .from(schema.purchases)
+      .where(eq(schema.purchases.id, purchaseId))
+      .limit(1)
+    expect(purchasesBefore).toHaveLength(1)
+    const updatedAtBefore = purchasesBefore[0]?.updatedAt
+
+    // Essayer de supprimer une ligne inexistante
+    const deleteResp = await req(
+      ownerCookie,
+      "DELETE",
+      `/api/v1/purchases/${purchaseId}/items/${crypto.randomUUID()}`
+    )
+    expect(deleteResp.status).toBe(404)
+    const deleteBody = await deleteResp.json<{ code: string }>()
+    expect(deleteBody.code).toBe("INTROUVABLE")
+
+    // Vérifier que l'updatedAt n'a pas changé
+    const purchasesAfter = await db
+      .select({ updatedAt: schema.purchases.updatedAt })
+      .from(schema.purchases)
+      .where(eq(schema.purchases.id, purchaseId))
+      .limit(1)
+    expect(purchasesAfter).toHaveLength(1)
+    const updatedAtAfter = purchasesAfter[0].updatedAt
+    expect(updatedAtAfter.getTime()).toBe(updatedAtBefore.getTime())
   })
 })
