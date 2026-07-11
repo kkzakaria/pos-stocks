@@ -8,6 +8,10 @@ export default defineWorkersConfig(async () => {
   const migrations = await readD1Migrations(path.join(__dirname, "drizzle"))
   return {
     test: {
+      // Tests sur D1 réelle avec plusieurs hachages scrypt par cas : les
+      // matrices multi-utilisateurs dépassent les 5 s par défaut sur les
+      // runners CI partagés (échecs observés à ~5,3 s, PR #5).
+      testTimeout: 20000,
       setupFiles: ["./test/apply-migrations.ts"],
       poolOptions: {
         workers: {
