@@ -6,6 +6,7 @@ import { formaterMontant } from "@/lib/format"
 import { useAccesStock } from "@/lib/permissions"
 import { useEntrepotsVisibles } from "@/lib/stock"
 import type { NiveauStock } from "@/lib/stock"
+import { ErreurChargement } from "@/components/erreur-chargement"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -172,6 +173,11 @@ function NiveauxStockPage() {
 
       {entrepotsEnCours || niveaux.isPending ? (
         <p className="text-sm text-gray-500">Chargement…</p>
+      ) : niveaux.isError ? (
+        <ErreurChargement
+          message="Impossible de charger les niveaux de stock."
+          onRetry={() => void niveaux.refetch()}
+        />
       ) : (
         <Table>
           <TableHeader>
@@ -186,7 +192,7 @@ function NiveauxStockPage() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {(niveaux.data?.levels ?? []).map((n) => (
+            {niveaux.data.levels.map((n) => (
               <TableRow key={n.variantId}>
                 <TableCell className="font-medium">{n.productName}</TableCell>
                 <TableCell>{n.variantName}</TableCell>
@@ -238,7 +244,7 @@ function NiveauxStockPage() {
                 )}
               </TableRow>
             ))}
-            {niveaux.data?.levels.length === 0 && (
+            {niveaux.data.levels.length === 0 && (
               <TableRow>
                 <TableCell
                   colSpan={peutEcrireIci ? 7 : 6}

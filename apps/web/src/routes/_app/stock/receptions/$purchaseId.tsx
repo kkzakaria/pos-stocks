@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { apiFetch } from "@/lib/api"
 import { formaterMontant } from "@/lib/format"
 import { useAccesStock } from "@/lib/permissions"
+import { ErreurChargement } from "@/components/erreur-chargement"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -73,7 +74,7 @@ function ReceptionDetailPage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
 
-  const { data } = useQuery({
+  const { data, isError, refetch } = useQuery({
     queryKey: ["purchase", purchaseId],
     queryFn: () =>
       apiFetch<{ purchase: Reception }>(`/api/v1/purchases/${purchaseId}`),
@@ -223,6 +224,14 @@ function ReceptionDetailPage() {
     onError: (err) => alert(err instanceof Error ? err.message : "Erreur"),
   })
 
+  if (isError) {
+    return (
+      <ErreurChargement
+        message="Impossible de charger la réception."
+        onRetry={() => void refetch()}
+      />
+    )
+  }
   if (!data) {
     return <p className="text-sm text-gray-500">Chargement…</p>
   }

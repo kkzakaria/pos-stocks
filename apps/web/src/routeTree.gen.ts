@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as AppRouteImport } from './routes/_app'
 import { Route as AppIndexRouteImport } from './routes/_app/index'
+import { Route as AppStockRouteImport } from './routes/_app/stock'
 import { Route as AppMonCompteRouteImport } from './routes/_app/mon-compte'
 import { Route as AppStockIndexRouteImport } from './routes/_app/stock/index'
 import { Route as AppStockMouvementsRouteImport } from './routes/_app/stock/mouvements'
@@ -39,20 +40,25 @@ const AppIndexRoute = AppIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AppRoute,
 } as any)
+const AppStockRoute = AppStockRouteImport.update({
+  id: '/stock',
+  path: '/stock',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppMonCompteRoute = AppMonCompteRouteImport.update({
   id: '/mon-compte',
   path: '/mon-compte',
   getParentRoute: () => AppRoute,
 } as any)
 const AppStockIndexRoute = AppStockIndexRouteImport.update({
-  id: '/stock/',
-  path: '/stock/',
-  getParentRoute: () => AppRoute,
+  id: '/',
+  path: '/',
+  getParentRoute: () => AppStockRoute,
 } as any)
 const AppStockMouvementsRoute = AppStockMouvementsRouteImport.update({
-  id: '/stock/mouvements',
-  path: '/stock/mouvements',
-  getParentRoute: () => AppRoute,
+  id: '/mouvements',
+  path: '/mouvements',
+  getParentRoute: () => AppStockRoute,
 } as any)
 const AppCatalogueFournisseursRoute =
   AppCatalogueFournisseursRouteImport.update({
@@ -84,9 +90,9 @@ const AppAdministrationEntrepotsRoute =
     getParentRoute: () => AppRoute,
   } as any)
 const AppStockReceptionsIndexRoute = AppStockReceptionsIndexRouteImport.update({
-  id: '/stock/receptions/',
-  path: '/stock/receptions/',
-  getParentRoute: () => AppRoute,
+  id: '/receptions/',
+  path: '/receptions/',
+  getParentRoute: () => AppStockRoute,
 } as any)
 const AppCatalogueProduitsIndexRoute =
   AppCatalogueProduitsIndexRouteImport.update({
@@ -96,9 +102,9 @@ const AppCatalogueProduitsIndexRoute =
   } as any)
 const AppStockReceptionsPurchaseIdRoute =
   AppStockReceptionsPurchaseIdRouteImport.update({
-    id: '/stock/receptions/$purchaseId',
-    path: '/stock/receptions/$purchaseId',
-    getParentRoute: () => AppRoute,
+    id: '/receptions/$purchaseId',
+    path: '/receptions/$purchaseId',
+    getParentRoute: () => AppStockRoute,
   } as any)
 const AppCatalogueProduitsProductIdRoute =
   AppCatalogueProduitsProductIdRouteImport.update({
@@ -111,6 +117,7 @@ export interface FileRoutesByFullPath {
   '/': typeof AppIndexRoute
   '/login': typeof LoginRoute
   '/mon-compte': typeof AppMonCompteRoute
+  '/stock': typeof AppStockRouteWithChildren
   '/administration/entrepots': typeof AppAdministrationEntrepotsRoute
   '/administration/parametres': typeof AppAdministrationParametresRoute
   '/administration/utilisateurs': typeof AppAdministrationUtilisateursRoute
@@ -144,6 +151,7 @@ export interface FileRoutesById {
   '/_app': typeof AppRouteWithChildren
   '/login': typeof LoginRoute
   '/_app/mon-compte': typeof AppMonCompteRoute
+  '/_app/stock': typeof AppStockRouteWithChildren
   '/_app/': typeof AppIndexRoute
   '/_app/administration/entrepots': typeof AppAdministrationEntrepotsRoute
   '/_app/administration/parametres': typeof AppAdministrationParametresRoute
@@ -163,6 +171,7 @@ export interface FileRouteTypes {
     | '/'
     | '/login'
     | '/mon-compte'
+    | '/stock'
     | '/administration/entrepots'
     | '/administration/parametres'
     | '/administration/utilisateurs'
@@ -195,6 +204,7 @@ export interface FileRouteTypes {
     | '/_app'
     | '/login'
     | '/_app/mon-compte'
+    | '/_app/stock'
     | '/_app/'
     | '/_app/administration/entrepots'
     | '/_app/administration/parametres'
@@ -237,6 +247,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppIndexRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/stock': {
+      id: '/_app/stock'
+      path: '/stock'
+      fullPath: '/stock'
+      preLoaderRoute: typeof AppStockRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/mon-compte': {
       id: '/_app/mon-compte'
       path: '/mon-compte'
@@ -246,17 +263,17 @@ declare module '@tanstack/react-router' {
     }
     '/_app/stock/': {
       id: '/_app/stock/'
-      path: '/stock'
+      path: '/'
       fullPath: '/stock/'
       preLoaderRoute: typeof AppStockIndexRouteImport
-      parentRoute: typeof AppRoute
+      parentRoute: typeof AppStockRoute
     }
     '/_app/stock/mouvements': {
       id: '/_app/stock/mouvements'
-      path: '/stock/mouvements'
+      path: '/mouvements'
       fullPath: '/stock/mouvements'
       preLoaderRoute: typeof AppStockMouvementsRouteImport
-      parentRoute: typeof AppRoute
+      parentRoute: typeof AppStockRoute
     }
     '/_app/catalogue/fournisseurs': {
       id: '/_app/catalogue/fournisseurs'
@@ -295,10 +312,10 @@ declare module '@tanstack/react-router' {
     }
     '/_app/stock/receptions/': {
       id: '/_app/stock/receptions/'
-      path: '/stock/receptions'
+      path: '/receptions'
       fullPath: '/stock/receptions/'
       preLoaderRoute: typeof AppStockReceptionsIndexRouteImport
-      parentRoute: typeof AppRoute
+      parentRoute: typeof AppStockRoute
     }
     '/_app/catalogue/produits/': {
       id: '/_app/catalogue/produits/'
@@ -309,10 +326,10 @@ declare module '@tanstack/react-router' {
     }
     '/_app/stock/receptions/$purchaseId': {
       id: '/_app/stock/receptions/$purchaseId'
-      path: '/stock/receptions/$purchaseId'
+      path: '/receptions/$purchaseId'
       fullPath: '/stock/receptions/$purchaseId'
       preLoaderRoute: typeof AppStockReceptionsPurchaseIdRouteImport
-      parentRoute: typeof AppRoute
+      parentRoute: typeof AppStockRoute
     }
     '/_app/catalogue/produits/$productId': {
       id: '/_app/catalogue/produits/$productId'
@@ -324,36 +341,48 @@ declare module '@tanstack/react-router' {
   }
 }
 
+interface AppStockRouteChildren {
+  AppStockMouvementsRoute: typeof AppStockMouvementsRoute
+  AppStockIndexRoute: typeof AppStockIndexRoute
+  AppStockReceptionsPurchaseIdRoute: typeof AppStockReceptionsPurchaseIdRoute
+  AppStockReceptionsIndexRoute: typeof AppStockReceptionsIndexRoute
+}
+
+const AppStockRouteChildren: AppStockRouteChildren = {
+  AppStockMouvementsRoute: AppStockMouvementsRoute,
+  AppStockIndexRoute: AppStockIndexRoute,
+  AppStockReceptionsPurchaseIdRoute: AppStockReceptionsPurchaseIdRoute,
+  AppStockReceptionsIndexRoute: AppStockReceptionsIndexRoute,
+}
+
+const AppStockRouteWithChildren = AppStockRoute._addFileChildren(
+  AppStockRouteChildren,
+)
+
 interface AppRouteChildren {
   AppMonCompteRoute: typeof AppMonCompteRoute
+  AppStockRoute: typeof AppStockRouteWithChildren
   AppIndexRoute: typeof AppIndexRoute
   AppAdministrationEntrepotsRoute: typeof AppAdministrationEntrepotsRoute
   AppAdministrationParametresRoute: typeof AppAdministrationParametresRoute
   AppAdministrationUtilisateursRoute: typeof AppAdministrationUtilisateursRoute
   AppCatalogueCategoriesRoute: typeof AppCatalogueCategoriesRoute
   AppCatalogueFournisseursRoute: typeof AppCatalogueFournisseursRoute
-  AppStockMouvementsRoute: typeof AppStockMouvementsRoute
-  AppStockIndexRoute: typeof AppStockIndexRoute
   AppCatalogueProduitsProductIdRoute: typeof AppCatalogueProduitsProductIdRoute
-  AppStockReceptionsPurchaseIdRoute: typeof AppStockReceptionsPurchaseIdRoute
   AppCatalogueProduitsIndexRoute: typeof AppCatalogueProduitsIndexRoute
-  AppStockReceptionsIndexRoute: typeof AppStockReceptionsIndexRoute
 }
 
 const AppRouteChildren: AppRouteChildren = {
   AppMonCompteRoute: AppMonCompteRoute,
+  AppStockRoute: AppStockRouteWithChildren,
   AppIndexRoute: AppIndexRoute,
   AppAdministrationEntrepotsRoute: AppAdministrationEntrepotsRoute,
   AppAdministrationParametresRoute: AppAdministrationParametresRoute,
   AppAdministrationUtilisateursRoute: AppAdministrationUtilisateursRoute,
   AppCatalogueCategoriesRoute: AppCatalogueCategoriesRoute,
   AppCatalogueFournisseursRoute: AppCatalogueFournisseursRoute,
-  AppStockMouvementsRoute: AppStockMouvementsRoute,
-  AppStockIndexRoute: AppStockIndexRoute,
   AppCatalogueProduitsProductIdRoute: AppCatalogueProduitsProductIdRoute,
-  AppStockReceptionsPurchaseIdRoute: AppStockReceptionsPurchaseIdRoute,
   AppCatalogueProduitsIndexRoute: AppCatalogueProduitsIndexRoute,
-  AppStockReceptionsIndexRoute: AppStockReceptionsIndexRoute,
 }
 
 const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)

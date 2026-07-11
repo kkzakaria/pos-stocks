@@ -5,6 +5,7 @@ import { apiFetch } from "@/lib/api"
 import { formaterMontant } from "@/lib/format"
 import { useAccesStock } from "@/lib/permissions"
 import { useEntrepotsVisibles } from "@/lib/stock"
+import { ErreurChargement } from "@/components/erreur-chargement"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -196,6 +197,11 @@ function ReceptionsPage() {
 
       {receptions.isPending ? (
         <p className="text-sm text-gray-500">Chargement…</p>
+      ) : receptions.isError ? (
+        <ErreurChargement
+          message="Impossible de charger les réceptions."
+          onRetry={() => void receptions.refetch()}
+        />
       ) : (
         <Table>
           <TableHeader>
@@ -210,7 +216,7 @@ function ReceptionsPage() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {(receptions.data?.purchases ?? []).map((r) => (
+            {receptions.data.purchases.map((r) => (
               <TableRow
                 key={r.id}
                 className="cursor-pointer"
@@ -240,7 +246,7 @@ function ReceptionsPage() {
                 </TableCell>
               </TableRow>
             ))}
-            {receptions.data?.purchases.length === 0 && (
+            {receptions.data.purchases.length === 0 && (
               <TableRow>
                 <TableCell
                   colSpan={7}
