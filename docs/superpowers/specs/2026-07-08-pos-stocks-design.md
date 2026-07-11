@@ -72,7 +72,7 @@ Le scaffold TanStack Start existant est restructuré : `apps/web` devient une SP
 ### Stock — journal + niveaux matérialisés
 
 - `stock_movements` — **journal immuable append-only** : warehouseId, variantId, lotId?, delta (+/−), type (`purchase`, `sale`, `transfer_out`, `transfer_in`, `adjustment`, `count`), référence au document source (type + id), userId, date. Source de vérité et piste d'audit complète
-- `stock_levels` — quantité courante par (warehouseId, variantId, lotId?) + seuil d'alerte spécifique par entrepôt + **coût moyen pondéré** (`avgCost` — valorisation **CMP** par variante et par entrepôt, recalculé à chaque réception dans le même batch ; base des marges et de la valorisation en Phase 7). Mise à jour **dans le même batch D1** que l'insertion du mouvement — jamais l'un sans l'autre. Recalculable depuis le journal (commande de réconciliation)
+- `stock_levels` — quantité courante par (warehouseId, variantId) — les quantités par lot restent dérivables du journal (`lotId` sur chaque mouvement) ; une matérialisation par lot sera tranchée en Phase 6 si le FEFO l'exige — + seuil d'alerte spécifique par entrepôt + **coût moyen pondéré** (`avgCost` — valorisation **CMP** par variante et par entrepôt, recalculé à chaque réception dans le même batch ; base des marges et de la valorisation en Phase 7). Mise à jour **dans le même batch D1** que l'insertion du mouvement — jamais l'un sans l'autre. Recalculable depuis le journal (commande de réconciliation)
 
 ### Approvisionnement et opérations
 
@@ -147,7 +147,7 @@ Deux univers dans la même SPA, selon le rôle (caissier → POS direct) :
 **Cohérence du stock (risque n° 1)** :
 - Toute écriture de stock passe par un service unique (`stockService.applyMovements`) — aucune route ne touche `stock_levels` directement
 - Chaque opération métier = un seul `db.batch()` D1 atomique : document + mouvements + niveaux réussissent ou échouent ensemble
-- Décréments protégés : `UPDATE … SET quantity = quantity − ? WHERE … AND quantity >= ?` ; 0 ligne affectée → rejet de l'opération entière (`409 STOCK_INSUFFISANT` avec détail). Le stock ne devient jamais négatif, même avec des caisses concurrentes
+- Décréments protégés par contrainte `CHECK (quantity >= 0)` sur `stock_levels` : une ligne qui rendrait le stock négatif fait échouer son statement et D1 **annule le batch entier** → rejet de l'opération (`409 STOCK_INSUFFISANT` avec détail reconstruit). (Un garde `UPDATE … WHERE quantity >= ?` ne suffit pas sur D1 : 0 ligne affectée n'est pas une erreur SQL, le batch serait déjà commité au moment de lire `meta.changes`.) Le stock ne devient jamais négatif, même avec des caisses concurrentes
 - `stock_levels` recalculable depuis le journal (commande de réconciliation)
 
 **Erreurs** :
