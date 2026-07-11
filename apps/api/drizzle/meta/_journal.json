@@ -57,6 +57,13 @@
       "when": 1783799245992,
       "tag": "0007_transfer_inventory_guards",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1783810159876,
+      "tag": "0008_transfer_send_guard",
+      "breakpoints": true
     }
   ]
 }

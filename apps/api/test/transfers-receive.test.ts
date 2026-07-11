@@ -234,6 +234,30 @@ describe("transferts — réception", () => {
     expect(await lireNiveau(s.destinationId, s.variantId)).toBeNull()
   })
 
+  it("itemId dupliqué dans le corps → 400 VALIDATION, rien n'est écrit", async () => {
+    const s = await seed()
+    const { id, itemId } = await transfertExpedie(s, 5)
+    const res = await req(
+      s.ownerCookie,
+      "POST",
+      `/api/v1/transfers/${id}/receive`,
+      {
+        items: [
+          { itemId, receivedQuantity: 2 },
+          { itemId, receivedQuantity: 3 },
+        ],
+      }
+    )
+    expect(res.status).toBe(400)
+    expect((await res.json<{ code: string }>()).code).toBe("VALIDATION")
+    const db = drizzle(env.DB, { schema })
+    const transferts = await db
+      .select()
+      .from(schema.transfers)
+      .where(eq(schema.transfers.id, id))
+    expect(transferts[0]?.status).toBe("sent")
+  })
+
   it("transitions interdites : réception d'un pending 409, double réception 409 et stock crédité une seule fois", async () => {
     const s = await seed()
     // pending

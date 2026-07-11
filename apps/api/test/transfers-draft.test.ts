@@ -273,8 +273,15 @@ describe("transferts — brouillon", () => {
       }
     )
     const { id: itemId } = await ajout.json<{ id: string }>()
-    // Force le statut hors route (les triggers laissent sortir de pending)
+    // Force le statut hors route (les triggers laissent sortir de pending).
+    // Le trigger transfers_send_lignes_gelees (0008) exige que unit_cost soit
+    // déjà figé sur chaque ligne avant la transition pending -> sent : on
+    // simule ce gel ici, comme le ferait /send.
     const db = drizzle(env.DB, { schema })
+    await db
+      .update(schema.transferItems)
+      .set({ unitCost: 0 })
+      .where(eq(schema.transferItems.id, itemId))
     await db
       .update(schema.transfers)
       .set({ status: "sent" })

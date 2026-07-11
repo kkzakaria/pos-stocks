@@ -59,6 +59,13 @@ async function insererTransfert(
     createdAt: maintenant,
   })
   if (status !== "pending") {
+    // Le trigger transfers_send_lignes_gelees (0008) exige unit_cost figé
+    // sur chaque ligne pour franchir pending -> sent : on simule ce gel ici
+    // (harmless pour les statuts atteints sans passer par 'sent').
+    await db
+      .update(schema.transferItems)
+      .set({ unitCost: 0 })
+      .where(eq(schema.transferItems.id, itemId))
     await db
       .update(schema.transfers)
       .set({ status })
@@ -230,6 +237,81 @@ describe("verrous 0007 — transferts", () => {
       .update(schema.transfers)
       .set({ status: "received" })
       .where(eq(schema.transfers.id, transferId))
+  })
+})
+
+describe("verrous 0008 — gel des lignes à l'expédition (TOCTOU brouillon→envoi)", () => {
+  it("pending -> sent est bloquée tant qu'une ligne a unit_cost NULL, passe une fois toutes gelées", async () => {
+    const s = await seed()
+    const db = drizzle(env.DB, { schema })
+    const transferId = crypto.randomUUID()
+    const itemGeleId = crypto.randomUUID()
+    const itemNonGeleId = crypto.randomUUID()
+    const maintenant = new Date()
+    await db.insert(schema.transfers).values({
+      id: transferId,
+      organizationId: s.organizationId,
+      fromWarehouseId: s.origineId,
+      toWarehouseId: s.destinationId,
+      createdBy: s.ownerId,
+      createdAt: maintenant,
+      updatedAt: maintenant,
+    })
+    await db.insert(schema.transferItems).values({
+      id: itemGeleId,
+      organizationId: s.organizationId,
+      transferId,
+      variantId: s.variantId,
+      quantity: 3,
+      createdAt: maintenant,
+    })
+    await db.insert(schema.transferItems).values({
+      id: itemNonGeleId,
+      organizationId: s.organizationId,
+      transferId,
+      variantId: s.variantId,
+      quantity: 2,
+      createdAt: maintenant,
+    })
+    // Simule le gel du CMP fait par /send sur UNE seule ligne — comme si
+    // l'autre avait été ajoutée par une requête concurrente pendant la
+    // fenêtre lecture-JS -> commit du batch de send.
+    await db
+      .update(schema.transferItems)
+      .set({ unitCost: 0 })
+      .where(eq(schema.transferItems.id, itemGeleId))
+    // La ligne restante n'a pas de CMP figé : la transition doit avorter.
+    expect(
+      estErreurDeclencheur(
+        await erreurDe(
+          db
+            .update(schema.transfers)
+            .set({ status: "sent" })
+            .where(eq(schema.transfers.id, transferId))
+        ),
+        "LIGNE_NON_GELEE"
+      )
+    ).toBe(true)
+    // Le document est resté pending (le RAISE ABORT annule le statement)
+    const avant = await db
+      .select({ status: schema.transfers.status })
+      .from(schema.transfers)
+      .where(eq(schema.transfers.id, transferId))
+    expect(avant[0]?.status).toBe("pending")
+    // Gèle la seconde ligne : la transition passe désormais
+    await db
+      .update(schema.transferItems)
+      .set({ unitCost: 0 })
+      .where(eq(schema.transferItems.id, itemNonGeleId))
+    await db
+      .update(schema.transfers)
+      .set({ status: "sent" })
+      .where(eq(schema.transfers.id, transferId))
+    const apres = await db
+      .select({ status: schema.transfers.status })
+      .from(schema.transfers)
+      .where(eq(schema.transfers.id, transferId))
+    expect(apres[0]?.status).toBe("sent")
   })
 })
 

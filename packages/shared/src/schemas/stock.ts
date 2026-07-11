@@ -102,19 +102,28 @@ export const transferItemUpdateSchema = z
   })
 
 // Corps OPTIONNEL de la réception : lignes absentes = tout est reçu.
-export const transferReceiveSchema = z.object({
-  items: z
-    .array(
-      z.object({
-        itemId: z.string().min(1, "La ligne est requise"),
-        receivedQuantity: z
-          .number()
-          .int("La quantité reçue doit être un entier")
-          .nonnegative("La quantité reçue doit être positive ou nulle"),
-      })
-    )
-    .optional(),
-})
+export const transferReceiveSchema = z
+  .object({
+    items: z
+      .array(
+        z.object({
+          itemId: z.string().min(1, "La ligne est requise"),
+          receivedQuantity: z
+            .number()
+            .int("La quantité reçue doit être un entier")
+            .nonnegative("La quantité reçue doit être positive ou nulle"),
+        })
+      )
+      .optional(),
+  })
+  .refine(
+    (v) =>
+      !v.items || new Set(v.items.map((i) => i.itemId)).size === v.items.length,
+    {
+      message: "Chaque ligne ne peut apparaître qu'une seule fois",
+      path: ["items"],
+    }
+  )
 
 export const inventoryCountCreateSchema = z.object({
   warehouseId: z.string().min(1, "L'entrepôt est requis"),

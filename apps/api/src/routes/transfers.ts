@@ -477,6 +477,15 @@ transfersRoute.post("/:id/send", async (c) => {
   // en cas de double expédition concurrente, le premier statement du second
   // batch voit le parent 'sent' et échoue si le CMP a bougé — et de toute
   // façon la mise à jour de statut (sent -> sent) tue le batch entier.
+  // `quantity` est en revanche GELÉE à la valeur lue en JS ci-dessus (et non
+  // via une sous-requête) : une édition concurrente de la ligne entre cette
+  // lecture et le commit du batch (fenêtre TOCTOU brouillon→expédition) est
+  // ainsi écrasée — la quantité qui sort (mouvement transfer_out, calculé
+  // plus bas depuis `items`) est garantie égale à la quantité gelée sur la
+  // ligne. Les lignes insérées APRÈS cette lecture (donc absentes de
+  // `gelsCmp`) restent avec unit_cost NULL au moment de la transition ;
+  // le trigger transfers_send_lignes_gelees (0008) fait alors échouer le
+  // batch entier plutôt que de laisser passer une ligne « ex nihilo ».
   const gelsCmp = items.map((item) =>
     db
       .update(schema.transferItems)
@@ -484,6 +493,7 @@ transfersRoute.post("/:id/send", async (c) => {
         unitCost: sql`COALESCE((SELECT avg_cost FROM stock_levels
           WHERE warehouse_id = ${transfert.fromWarehouseId}
             AND variant_id = ${item.variantId}), 0)`,
+        quantity: item.quantity,
       })
       .where(eq(schema.transferItems.id, item.id))
   )
@@ -583,6 +593,23 @@ transfersRoute.post("/:id/receive", async (c) => {
     .from(schema.transferItems)
     .where(eq(schema.transferItems.transferId, transfert.id))
 
+  // Défensif : un transfert 'sent' ne devrait plus jamais porter de ligne à
+  // unit_cost NULL — le trigger transfers_send_lignes_gelees (0008) garantit
+  // ce gel à l'expédition. Si ça arrive quand même (anomalie de données),
+  // on refuse plutôt que de valoriser silencieusement à 0 (`?? 0`), ce qui
+  // créerait un transfer_in jamais sorti de l'origine.
+  const ligneSansCout = items.find((i) => i.unitCost === null)
+  if (ligneSansCout) {
+    return c.json(
+      {
+        code: "ERREUR_INTERNE",
+        message:
+          "Une ligne de ce transfert n'a pas de coût figé ; la réception est bloquée pour éviter une valorisation incorrecte",
+      },
+      500
+    )
+  }
+
   const recus = new Map<string, number>()
   for (const saisie of parsed.data.items ?? []) {
     const item = items.find((i) => i.id === saisie.itemId)
@@ -638,6 +665,8 @@ transfersRoute.post("/:id/receive", async (c) => {
       type: "transfer_in",
       refType: "transfer",
       refId: transfert.id,
+      // `?? 0` ici est purement pour le typage (`unitCost: number | null`) :
+      // la garde ligneSansCout ci-dessus a déjà exclu tout NULL réel.
       unitCost: item.unitCost ?? 0,
     }
     if (recu === item.quantity) {

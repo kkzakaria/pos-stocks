@@ -284,6 +284,24 @@ describe("transferts — expédition", () => {
     ).toBe(409)
   })
 
+  it("gel de quantité : après un send réussi, transfer_items.quantity en base = la quantité au moment du send", async () => {
+    const { ownerCookie, origineId, destinationId, variantId } = await seed()
+    const id = await creerBrouillon(ownerCookie, origineId, destinationId, [
+      { variantId, quantity: 6 },
+    ])
+    expect(
+      (await req(ownerCookie, "POST", `/api/v1/transfers/${id}/send`)).status
+    ).toBe(200)
+    // Lecture DIRECTE en base (pas via le GET de la route) : vérifie que le
+    // batch de /send a bien figé quantity, pas seulement unit_cost.
+    const db = drizzle(env.DB, { schema })
+    const lignes = await db
+      .select({ quantity: schema.transferItems.quantity })
+      .from(schema.transferItems)
+      .where(eq(schema.transferItems.transferId, id))
+    expect(lignes).toEqual([{ quantity: 6 }])
+  })
+
   it("matrice : manager ORIGINE expédie, manager destination 403, cashier origine 403", async () => {
     const { organizationId, ownerCookie, origineId, destinationId, variantId } =
       await seed()
