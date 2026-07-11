@@ -65,6 +65,27 @@ function NiveauxStockPage() {
     enabled: entrepotId !== "",
   })
 
+  type LigneTransit = {
+    transferId: string
+    reference: string | null
+    fromWarehouseName: string
+    sentAt: string | null
+    variantId: string
+    productName: string
+    variantName: string
+    sku: string
+    lotNumber: string | null
+    quantity: number
+  }
+  const transit = useQuery({
+    queryKey: ["stock-transit", entrepotId],
+    queryFn: () =>
+      apiFetch<{ transit: LigneTransit[] }>(
+        `/api/v1/stock/transit?warehouseId=${entrepotId}`
+      ),
+    enabled: entrepotId !== "",
+  })
+
   const peutEcrireIci =
     acces.ecritureTous || acces.entrepotsEcriture.includes(entrepotId)
 
@@ -170,6 +191,27 @@ function NiveauxStockPage() {
           Alertes seulement
         </label>
       </div>
+
+      {(transit.data?.transit.length ?? 0) > 0 && (
+        <div className="mb-6 rounded-md border border-amber-200 bg-amber-50 p-4">
+          <h2 className="mb-2 text-sm font-semibold">
+            En transit entrant ({transit.data?.transit.length})
+          </h2>
+          <ul className="flex flex-col gap-1 text-sm">
+            {(transit.data?.transit ?? []).map((l, index) => (
+              <li key={`${l.transferId}-${l.variantId}-${index}`}>
+                <span className="font-medium">{l.quantity}</span> ×{" "}
+                {l.productName} — {l.variantName} ({l.sku})
+                {l.lotNumber ? ` — lot ${l.lotNumber}` : ""} depuis{" "}
+                {l.fromWarehouseName}
+                {l.sentAt
+                  ? `, expédié le ${new Date(l.sentAt).toLocaleDateString("fr-FR")}`
+                  : ""}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {entrepotsEnCours || niveaux.isPending ? (
         <p className="text-sm text-gray-500">Chargement…</p>
