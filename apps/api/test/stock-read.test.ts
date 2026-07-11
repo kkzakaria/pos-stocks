@@ -185,6 +185,40 @@ describe("GET /api/v1/stock/levels", () => {
     ])
     expect(corpsAlertes.levels[0]?.enAlerte).toBe(true)
   })
+
+  it.each([
+    { role: "admin", name: "admin" },
+    { role: "auditor", name: "auditeur" },
+    { role: "stock_manager", name: "gestionnaire de stock" },
+  ] as const)(
+    "rôle global $name : lit les niveaux de tous les entrepôts",
+    async ({ role, name }) => {
+      const { organizationId, depotId, boutiqueId } = await seed()
+      const user = await createUserWithRole(organizationId, role)
+
+      // Lit du dépôt (non-assigné localement)
+      const resDepot = await get(
+        user.cookie,
+        `/api/v1/stock/levels?warehouseId=${depotId}`
+      )
+      expect(resDepot.status).toBe(200)
+      const { levels } = await resDepot.json<{ levels: Niveau[] }>()
+      expect(levels).toHaveLength(1)
+      expect(levels[0]?.quantity).toBe(24)
+
+      // Lit de la boutique (non-assigné localement)
+      const resBoutique = await get(
+        user.cookie,
+        `/api/v1/stock/levels?warehouseId=${boutiqueId}`
+      )
+      expect(resBoutique.status).toBe(200)
+      const { levels: levelsBoutique } = await resBoutique.json<{
+        levels: Niveau[]
+      }>()
+      expect(levelsBoutique).toHaveLength(1)
+      expect(levelsBoutique[0]?.quantity).toBe(4)
+    }
+  )
 })
 
 describe("GET /api/v1/stock/movements", () => {
