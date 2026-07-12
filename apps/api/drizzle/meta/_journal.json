@@ -92,6 +92,20 @@
       "when": 1783860889855,
       "tag": "0012_purchase_receive_guard",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "6",
+      "when": 1783862581953,
+      "tag": "0013_pos_tables",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "6",
+      "when": 1783862595853,
+      "tag": "0014_pos_guards",
+      "breakpoints": true
     }
   ]
 }
