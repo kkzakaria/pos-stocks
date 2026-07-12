@@ -139,6 +139,22 @@ describe("GET /api/v1/pos/catalogue", () => {
     )
   })
 
+  it("refuse une boutique désactivée (miroir sales/register-sessions)", async () => {
+    const { ownerCookie, storeId } = await seedPos()
+    const db = drizzle(env.DB, { schema })
+    await db
+      .update(schema.warehouses)
+      .set({ isActive: false })
+      .where(eq(schema.warehouses.id, storeId))
+    const res = await req(
+      ownerCookie,
+      "GET",
+      `/api/v1/pos/catalogue?storeId=${storeId}`
+    )
+    expect(res.status).toBe(400)
+    expect((await res.json<{ code: string }>()).code).toBe("VALIDATION")
+  })
+
   it("exclut les produits inactifs", async () => {
     const { ownerCookie, storeId, organizationId } = await seedPos()
     const inactif = await creerProduitSimple(organizationId, {

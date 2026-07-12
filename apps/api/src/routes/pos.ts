@@ -39,6 +39,12 @@ posRoute.get("/catalogue", async (c) => {
   if (!boutique || boutique.type !== "store") {
     return c.json(REPONSE_NON_BOUTIQUE, 400)
   }
+  if (!boutique.isActive) {
+    return c.json(
+      { code: "VALIDATION", message: "Cette boutique est désactivée" },
+      400
+    )
+  }
   const categories = await db
     .select({ id: schema.categories.id, name: schema.categories.name })
     .from(schema.categories)
