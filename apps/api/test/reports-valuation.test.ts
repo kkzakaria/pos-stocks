@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest"
 import { env } from "cloudflare:test"
 import { drizzle } from "drizzle-orm/d1"
+import { eq } from "drizzle-orm"
 import app from "../src/index"
 import * as schema from "../src/db/schema"
 import { applyMovements } from "../src/services/stock"
@@ -86,7 +87,16 @@ async function seedValo() {
       },
     ],
   })
-  return { organizationId, ownerCookie, depotId, boutiqueId, v1, v2, v3 }
+  return {
+    organizationId,
+    ownerId,
+    ownerCookie,
+    depotId,
+    boutiqueId,
+    v1,
+    v2,
+    v3,
+  }
 }
 
 describe("GET /api/v1/reports/valuation", () => {
@@ -196,5 +206,52 @@ describe("GET /api/v1/reports/valuation", () => {
     expect(
       lignes.some((l) => l.startsWith("Dépôt Central;Article Un;Standard;"))
     ).toBe(true)
+  })
+
+  it("produits inactifs INCLUS dans la valorisation", async () => {
+    const { organizationId, ownerCookie, depotId, ownerId } = await seedValo()
+    // Créer un produit inactif avec du stock
+    const produitInactif = await creerProduitSimple(organizationId, {
+      nom: "Article Inactif",
+    })
+    const db = drizzle(env.DB, { schema })
+    await applyMovements(db, {
+      organizationId,
+      userId: ownerId,
+      mouvements: [
+        {
+          warehouseId: depotId,
+          variantId: produitInactif.variantId,
+          delta: 8,
+          type: "purchase",
+          unitCost: 150,
+        },
+      ],
+    })
+    // Désactiver le produit
+    await db
+      .update(schema.products)
+      .set({ isActive: false })
+      .where(eq(schema.products.id, produitInactif.productId))
+    // Appeler le rapport
+    const res = await req(ownerCookie, "GET", "/api/v1/reports/valuation")
+    expect(res.status).toBe(200)
+    const { entrepots, total } = await res.json<Rapport>()
+    // Le produit inactif doit toujours être compté
+    // Valeur attendue : 8 × 150 = 1200
+    expect(total).toBe(5200) // 4000 (seed) + 1200 (inactif)
+    const depot = entrepots.find((e) => e.warehouseId === depotId)
+    if (!depot) throw new Error("dépôt absent du rapport")
+    expect(depot.valeur).toBe(3200) // 2000 (seed) + 1200 (inactif)
+    const produitInactifLigne = depot.lignes.find(
+      (l) => l.variantId === produitInactif.variantId
+    )
+    expect(produitInactifLigne).toBeDefined()
+    if (produitInactifLigne) {
+      expect(produitInactifLigne.productName).toBe("Article Inactif")
+      expect(produitInactifLigne.quantity).toBe(8)
+      expect(produitInactifLigne.avgCost).toBe(150)
+      expect(produitInactifLigne.valeur).toBe(1200)
+    }
   })
 })
