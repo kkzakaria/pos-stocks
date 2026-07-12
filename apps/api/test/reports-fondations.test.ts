@@ -44,6 +44,10 @@ describe("champCsv / genererCsv", () => {
     expect(champCsv("ligne\ncoupee")).toBe('"ligne\ncoupee"')
   })
 
+  it("échappe un champ combinant point-virgule, guillemets et saut de ligne", () => {
+    expect(champCsv('a;"b"\nc')).toBe('"a;""b""\nc"')
+  })
+
   it("génère BOM + en-têtes + lignes en CRLF, séparateur point-virgule", () => {
     const csv = genererCsv(
       ["Boutique", "CA"],
