@@ -1,11 +1,18 @@
 import { describe, it, expect } from "vitest"
 import { env } from "cloudflare:test"
 import { drizzle } from "drizzle-orm/d1"
-import { eq } from "drizzle-orm"
+import { and, eq } from "drizzle-orm"
 import app from "../src/index"
 import * as schema from "../src/db/schema"
 import { estErreurDeclencheur } from "../src/lib/db-errors"
-import { bootstrapOwner, creerEntrepot, creerProduitSimple } from "./helpers"
+import { applyMovements } from "../src/services/stock"
+import {
+  bootstrapOwner,
+  creerEntrepot,
+  creerProduitSimple,
+  affecterEntrepot,
+  createUserWithRole,
+} from "./helpers"
 
 function req(cookie: string, method: string, url: string, body?: unknown) {
   return app.request(
@@ -110,5 +117,203 @@ describe("TOCTOU réceptions — gel des lignes à la validation", () => {
       erreur = err
     }
     expect(estErreurDeclencheur(erreur, "LIGNE_NON_GELEE")).toBe(true)
+  })
+})
+
+// Retour annoté `| null` (piège eslint no-unnecessary-condition)
+async function lireNiveau(
+  warehouseId: string,
+  variantId: string
+): Promise<{ quantity: number; avgCost: number } | null> {
+  const db = drizzle(env.DB, { schema })
+  const rows = await db
+    .select({
+      quantity: schema.stockLevels.quantity,
+      avgCost: schema.stockLevels.avgCost,
+    })
+    .from(schema.stockLevels)
+    .where(
+      and(
+        eq(schema.stockLevels.warehouseId, warehouseId),
+        eq(schema.stockLevels.variantId, variantId)
+      )
+    )
+    .limit(1)
+  return rows[0] ?? null
+}
+
+describe("tests différés P5", () => {
+  it("biais CMP assumé : réception partielle vers une destination valorisée", async () => {
+    const { organizationId, ownerId, ownerCookie } = await bootstrapOwner()
+    const origineId = await creerEntrepot(organizationId, "Origine P6")
+    const destinationId = await creerEntrepot(organizationId, "Destination P6")
+    const { variantId } = await creerProduitSimple(organizationId)
+    const db = drizzle(env.DB, { schema })
+    // Destination déjà valorisée : 10 @ 100 ; origine : 10 @ 200
+    await applyMovements(db, {
+      organizationId,
+      userId: ownerId,
+      mouvements: [
+        {
+          warehouseId: destinationId,
+          variantId,
+          delta: 10,
+          type: "purchase",
+          unitCost: 100,
+        },
+        {
+          warehouseId: origineId,
+          variantId,
+          delta: 10,
+          type: "purchase",
+          unitCost: 200,
+        },
+      ],
+    })
+    // Transfert de 4, expédié, reçu 3 (écart 1)
+    const creation = await req(ownerCookie, "POST", "/api/v1/transfers", {
+      fromWarehouseId: origineId,
+      toWarehouseId: destinationId,
+    })
+    const { id: transferId } = await creation.json<{ id: string }>()
+    const ligne = await req(
+      ownerCookie,
+      "POST",
+      `/api/v1/transfers/${transferId}/items`,
+      { variantId, quantity: 4 }
+    )
+    const { id: itemId } = await ligne.json<{ id: string }>()
+    expect(
+      (await req(ownerCookie, "POST", `/api/v1/transfers/${transferId}/send`))
+        .status
+    ).toBe(200)
+    const reception = await req(
+      ownerCookie,
+      "POST",
+      `/api/v1/transfers/${transferId}/receive`,
+      { items: [{ itemId, receivedQuantity: 3 }] }
+    )
+    expect(reception.status).toBe(200)
+    // transfer_in +4 @ 200 absorbé : CMP = round((10×100 + 4×200) / 14) = 129
+    // adjustment −1 : quantité 13, CMP INCHANGÉ (biais assumé : la perte
+    // absorbe sa part de valeur — décision P5, ici pinnée par test)
+    const destination = await lireNiveau(destinationId, variantId)
+    expect(destination).toEqual({ quantity: 13, avgCost: 129 })
+  })
+
+  it("un caissier n'a pas accès au back-office /stock/transit", async () => {
+    const { organizationId } = await bootstrapOwner()
+    const boutiqueId = await creerEntrepot(
+      organizationId,
+      "Boutique T4",
+      "store"
+    )
+    const caissier = await createUserWithRole(organizationId, "staff")
+    await affecterEntrepot(
+      organizationId,
+      caissier.userId,
+      boutiqueId,
+      "cashier"
+    )
+    const res = await req(
+      caissier.cookie,
+      "GET",
+      `/api/v1/stock/transit?warehouseId=${boutiqueId}`
+    )
+    expect(res.status).toBe(403)
+    expect((await res.json<{ code: string }>()).code).toBe("ACCES_REFUSE")
+  })
+
+  it("purchase + transfer_in dans le MÊME batch : CMP combiné", async () => {
+    const { organizationId, ownerId } = await bootstrapOwner()
+    const warehouseId = await creerEntrepot(organizationId, "Mixte P6")
+    const { variantId } = await creerProduitSimple(organizationId)
+    const db = drizzle(env.DB, { schema })
+    await applyMovements(db, {
+      organizationId,
+      userId: ownerId,
+      mouvements: [
+        { warehouseId, variantId, delta: 10, type: "purchase", unitCost: 100 },
+        {
+          warehouseId,
+          variantId,
+          delta: 5,
+          type: "transfer_in",
+          unitCost: 160,
+        },
+      ],
+    })
+    // CMP = round((10×100 + 5×160) / 15) = round(1800/15) = 120
+    expect(await lireNiveau(warehouseId, variantId)).toEqual({
+      quantity: 15,
+      avgCost: 120,
+    })
+  })
+
+  it("réception multi-lignes à quantités mixtes (totale + partielle)", async () => {
+    const { organizationId, ownerId, ownerCookie } = await bootstrapOwner()
+    const origineId = await creerEntrepot(organizationId, "Origine mixte")
+    const destinationId = await creerEntrepot(organizationId, "Dest mixte")
+    const p1 = await creerProduitSimple(organizationId)
+    const p2 = await creerProduitSimple(organizationId)
+    const db = drizzle(env.DB, { schema })
+    await applyMovements(db, {
+      organizationId,
+      userId: ownerId,
+      mouvements: [
+        {
+          warehouseId: origineId,
+          variantId: p1.variantId,
+          delta: 10,
+          type: "purchase",
+          unitCost: 100,
+        },
+        {
+          warehouseId: origineId,
+          variantId: p2.variantId,
+          delta: 10,
+          type: "purchase",
+          unitCost: 50,
+        },
+      ],
+    })
+    const creation = await req(ownerCookie, "POST", "/api/v1/transfers", {
+      fromWarehouseId: origineId,
+      toWarehouseId: destinationId,
+    })
+    const { id: transferId } = await creation.json<{ id: string }>()
+    const l1 = await req(
+      ownerCookie,
+      "POST",
+      `/api/v1/transfers/${transferId}/items`,
+      { variantId: p1.variantId, quantity: 6 }
+    )
+    const { id: item1 } = await l1.json<{ id: string }>()
+    await req(ownerCookie, "POST", `/api/v1/transfers/${transferId}/items`, {
+      variantId: p2.variantId,
+      quantity: 4,
+    })
+    await req(ownerCookie, "POST", `/api/v1/transfers/${transferId}/send`)
+    // Ligne 1 partielle (5/6), ligne 2 absente du corps = reçue en totalité
+    const reception = await req(
+      ownerCookie,
+      "POST",
+      `/api/v1/transfers/${transferId}/receive`,
+      { items: [{ itemId: item1, receivedQuantity: 5 }] }
+    )
+    expect(reception.status).toBe(200)
+    // p1 : +6 puis −1 = 5 ; p2 : +4
+    expect((await lireNiveau(destinationId, p1.variantId))?.quantity).toBe(5)
+    expect((await lireNiveau(destinationId, p2.variantId))?.quantity).toBe(4)
+    // 3 mouvements à destination : transfer_in ×2 + adjustment ×1
+    const mouvements = await db
+      .select({ type: schema.stockMovements.type })
+      .from(schema.stockMovements)
+      .where(eq(schema.stockMovements.warehouseId, destinationId))
+    expect(mouvements.map((m) => m.type).sort()).toEqual([
+      "adjustment",
+      "transfer_in",
+      "transfer_in",
+    ])
   })
 })

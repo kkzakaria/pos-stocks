@@ -526,21 +526,34 @@ inventoryCountsRoute.post("/:id/close", async (c) => {
     throw err
   }
 
-  // Récapitulatif enrichi (noms, SKU) pour l'écran de clôture
+  // Récapitulatif enrichi (noms, SKU) pour l'écran de clôture — lecture
+  // POST-COMMIT (différé P5) : la clôture est DÉJÀ commitée à ce stade, un
+  // échec transitoire de cette lecture ne doit pas la transformer en 500.
+  // Repli : récapitulatif sans noms (le GET détail les fournit).
   const variantIds = ecarts.map((e) => e.variantId)
-  const variantes = await db
-    .select({
-      id: schema.productVariants.id,
-      sku: schema.productVariants.sku,
-      variantName: schema.productVariants.name,
-      productName: schema.products.name,
-    })
-    .from(schema.productVariants)
-    .innerJoin(
-      schema.products,
-      eq(schema.productVariants.productId, schema.products.id)
-    )
-    .where(inArray(schema.productVariants.id, variantIds))
+  let variantes: Array<{
+    id: string
+    sku: string
+    variantName: string
+    productName: string
+  }> = []
+  try {
+    variantes = await db
+      .select({
+        id: schema.productVariants.id,
+        sku: schema.productVariants.sku,
+        variantName: schema.productVariants.name,
+        productName: schema.products.name,
+      })
+      .from(schema.productVariants)
+      .innerJoin(
+        schema.products,
+        eq(schema.productVariants.productId, schema.products.id)
+      )
+      .where(inArray(schema.productVariants.id, variantIds))
+  } catch {
+    variantes = []
+  }
   return c.json({
     ok: true,
     ecarts: ecarts.map((e) => {
