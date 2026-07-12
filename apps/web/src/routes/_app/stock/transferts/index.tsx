@@ -119,7 +119,11 @@ function TransfertsPage() {
                     id="t-origine"
                     required
                     value={origineId}
-                    onChange={(e) => setOrigineId(e.target.value)}
+                    onChange={(e) => {
+                      const valeur = e.target.value
+                      setOrigineId(valeur)
+                      if (destinationId === valeur) setDestinationId("")
+                    }}
                     className="h-10 rounded-md border px-2 text-sm"
                   >
                     <option value="">— choisir —</option>
