@@ -100,8 +100,9 @@ export const saleCreateSchema = z
   )
   .refine(
     (v) =>
-      new Set(v.items.map((i) => `${i.variantId}|${i.sourceWarehouseId ?? ""}`))
-        .size === v.items.length,
+      new Set(
+        v.items.map((i) => `${i.variantId}|${i.sourceWarehouseId ?? v.storeId}`)
+      ).size === v.items.length,
     {
       message:
         "Chaque article ne peut apparaître qu'une fois par entrepôt source",

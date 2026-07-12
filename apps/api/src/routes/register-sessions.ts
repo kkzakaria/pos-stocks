@@ -119,7 +119,8 @@ registerSessionsRoute.get("/", async (c) => {
       .where(
         and(
           eq(schema.warehouseMembers.warehouseId, storeId),
-          eq(schema.warehouseMembers.userId, c.get("user").id)
+          eq(schema.warehouseMembers.userId, c.get("user").id),
+          eq(schema.warehouseMembers.organizationId, organizationId)
         )
       )
       .limit(1)

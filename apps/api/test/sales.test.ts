@@ -381,6 +381,28 @@ describe("POST /api/v1/sales — vente atomique", () => {
     expect(incomplet.status).toBe(400)
   })
 
+  it("dédoublonnage : {V} et {V, sourceWarehouseId: storeId} sont la MÊME clé — 400 VALIDATION, pas un 409", async () => {
+    const { storeId, caissier, variantId } = await seedVente()
+    const res = await req(caissier.cookie, "POST", "/api/v1/sales", {
+      storeId,
+      clientRequestId: crypto.randomUUID(),
+      items: [
+        { variantId, quantity: 1, unitPrice: 500 },
+        { variantId, quantity: 1, unitPrice: 500, sourceWarehouseId: storeId },
+      ],
+      payments: [{ method: "cash", amount: 1000, receivedAmount: 1000 }],
+    })
+    expect(res.status).toBe(400)
+    const corps = await res.json<{
+      code: string
+      details: { fieldErrors: Record<string, string[]> }
+    }>()
+    expect(corps.code).toBe("VALIDATION")
+    expect(corps.details.fieldErrors.items[0]).toMatch(
+      /qu'une fois par entrepôt source/
+    )
+  })
+
   it("FEFO : déduit du lot qui expire le premier, répartit, et fige le lot sur la ligne quand il est unique", async () => {
     const { organizationId, ownerId, storeId, caissier, db } = await seedVente()
     const { variantId } = await creerProduitSimple(organizationId, {
