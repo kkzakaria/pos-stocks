@@ -1,6 +1,6 @@
 import { Hono } from "hono"
 import { drizzle } from "drizzle-orm/d1"
-import { and, asc, eq, gte, lt, sql } from "drizzle-orm"
+import { and, asc, eq, gt, gte, lt, sql } from "drizzle-orm"
 import type { SQL } from "drizzle-orm"
 import type { DrizzleD1Database } from "drizzle-orm/d1"
 import * as schema from "../db/schema"
@@ -269,4 +269,139 @@ reportsRoute.get("/sales", async (c) => {
     })
   }
   return c.json({ periode: { du, au }, groupe, total, lignes })
+})
+
+type LigneValorisation = {
+  variantId: string
+  productName: string
+  variantName: string
+  sku: string
+  quantity: number
+  avgCost: number
+  valeur: number
+}
+
+type EntrepotValorisation = {
+  warehouseId: string
+  warehouseName: string
+  valeur: number
+  lignes: LigneValorisation[]
+}
+
+// Valorisation du stock (spec §6) : photographie de stock_levels COURANT —
+// pas de période. quantity > 0 seulement ; produits INACTIFS inclus (la
+// valeur physique ne disparaît pas quand un produit quitte le catalogue —
+// décision 6 du plan). Seul rapport ouvert à stock_manager.
+reportsRoute.get("/valuation", async (c) => {
+  const { organizationId, role } = c.get("membership")
+  const db = drizzle(c.env.DB, { schema })
+  const portee = await porteeRapport(
+    db,
+    organizationId,
+    c.get("user").id,
+    role,
+    "valorisation"
+  )
+  if (!portee) {
+    return c.json(REPONSE_ACCES_REFUSE, 403)
+  }
+  const warehouseId = c.req.query("warehouseId")
+  const conditions: SQL[] = [
+    eq(schema.stockLevels.organizationId, organizationId),
+    gt(schema.stockLevels.quantity, 0),
+  ]
+  if (warehouseId) {
+    if (!estDansPortee(portee, warehouseId)) {
+      return c.json(REPONSE_ACCES_REFUSE, 403)
+    }
+    if (!(await entrepotDansOrganisation(db, organizationId, warehouseId))) {
+      return c.json(
+        { code: "INTROUVABLE", message: "Entrepôt introuvable" },
+        404
+      )
+    }
+    conditions.push(eq(schema.stockLevels.warehouseId, warehouseId))
+  } else {
+    const filtre = filtrePortee(portee, schema.stockLevels.warehouseId)
+    if (filtre.condition) {
+      conditions.push(filtre.condition)
+    }
+  }
+  const lignes = await db
+    .select({
+      warehouseId: schema.stockLevels.warehouseId,
+      warehouseName: schema.warehouses.name,
+      variantId: schema.stockLevels.variantId,
+      productName: schema.products.name,
+      variantName: schema.productVariants.name,
+      sku: schema.productVariants.sku,
+      quantity: schema.stockLevels.quantity,
+      avgCost: schema.stockLevels.avgCost,
+      valeur: sql<number>`${schema.stockLevels.quantity} * ${schema.stockLevels.avgCost}`,
+    })
+    .from(schema.stockLevels)
+    .innerJoin(
+      schema.productVariants,
+      eq(schema.stockLevels.variantId, schema.productVariants.id)
+    )
+    .innerJoin(
+      schema.products,
+      eq(schema.productVariants.productId, schema.products.id)
+    )
+    .innerJoin(
+      schema.warehouses,
+      eq(schema.stockLevels.warehouseId, schema.warehouses.id)
+    )
+    .where(and(...conditions))
+    .orderBy(
+      asc(schema.warehouses.name),
+      asc(schema.products.name),
+      asc(schema.productVariants.name)
+    )
+  if (c.req.query("format") === "csv") {
+    const contenu = genererCsv(
+      ["Entrepôt", "Produit", "Variante", "SKU", "Quantité", "CMP", "Valeur"],
+      lignes.map((l) => [
+        l.warehouseName,
+        l.productName,
+        l.variantName,
+        l.sku,
+        l.quantity,
+        l.avgCost,
+        l.valeur,
+      ])
+    )
+    const jour = new Date().toISOString().slice(0, 10)
+    return c.body(contenu, 200, {
+      ...ENTETES_CSV,
+      "content-disposition": `attachment; filename="rapport-valorisation_${jour}.csv"`,
+    })
+  }
+  // Regroupement hiérarchique par entrepôt (la valeur par ligne reste
+  // calculée en SQL ; ici on ne fait que plier la liste triée).
+  const entrepots: EntrepotValorisation[] = []
+  for (const ligne of lignes) {
+    let entrepot = entrepots.find((e) => e.warehouseId === ligne.warehouseId)
+    if (!entrepot) {
+      entrepot = {
+        warehouseId: ligne.warehouseId,
+        warehouseName: ligne.warehouseName,
+        valeur: 0,
+        lignes: [],
+      }
+      entrepots.push(entrepot)
+    }
+    entrepot.valeur += ligne.valeur
+    entrepot.lignes.push({
+      variantId: ligne.variantId,
+      productName: ligne.productName,
+      variantName: ligne.variantName,
+      sku: ligne.sku,
+      quantity: ligne.quantity,
+      avgCost: ligne.avgCost,
+      valeur: ligne.valeur,
+    })
+  }
+  const total = entrepots.reduce((somme, e) => somme + e.valeur, 0)
+  return c.json({ entrepots, total })
 })
