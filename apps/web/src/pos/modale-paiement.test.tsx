@@ -21,7 +21,7 @@ describe("ModalePaiement", () => {
     // formaterMontant insère un espace insécable U+202F — normalisé par le
     // matcher texte, mais présent à la fois dans le total et « reste à
     // payer » (rien n'est encore payé), d'où getAllByText.
-    expect(screen.getAllByText(/1 400/).length).toBeGreaterThan(0)
+    expect(screen.getAllByText(/(?<!\d)1 400(?!\d)/).length).toBeGreaterThan(0)
     expect(screen.getByText(/reste à payer/i)).toBeTruthy()
   })
 
