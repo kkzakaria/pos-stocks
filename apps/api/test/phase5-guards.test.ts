@@ -66,6 +66,15 @@ async function insererTransfert(
       .update(schema.transferItems)
       .set({ unitCost: 0 })
       .where(eq(schema.transferItems.id, itemId))
+    // transfers_pending_transitions (0009) interdit tout saut direct hors de
+    // 'pending' autre que sent/cancelled : 'received' doit transiter par
+    // 'sent' d'abord, comme le flux réel /send puis /receive.
+    if (status === "received") {
+      await db
+        .update(schema.transfers)
+        .set({ status: "sent" })
+        .where(eq(schema.transfers.id, transferId))
+    }
     await db
       .update(schema.transfers)
       .set({ status })
@@ -312,6 +321,95 @@ describe("verrous 0008 — gel des lignes à l'expédition (TOCTOU brouillon→e
       .from(schema.transfers)
       .where(eq(schema.transfers.id, transferId))
     expect(apres[0]?.status).toBe("sent")
+  })
+})
+
+describe("verrous 0009 — durcissement (DELETE terminaux, transitions pending, created_at figé)", () => {
+  it("DELETE direct d'un transfert received est bloqué (TRANSFERT_TERMINE)", async () => {
+    const s = await seed()
+    const db = drizzle(env.DB, { schema })
+    const { transferId } = await insererTransfert(s, "received")
+    expect(
+      estErreurDeclencheur(
+        await erreurDe(
+          db.delete(schema.transfers).where(eq(schema.transfers.id, transferId))
+        ),
+        "TRANSFERT_TERMINE"
+      )
+    ).toBe(true)
+  })
+
+  it("DELETE direct d'un inventaire clos est bloqué (INVENTAIRE_CLOS)", async () => {
+    const s = await seed()
+    const db = drizzle(env.DB, { schema })
+    const { countId } = await insererInventaire(s, s.origineId, "closed")
+    expect(
+      estErreurDeclencheur(
+        await erreurDe(
+          db
+            .delete(schema.inventoryCounts)
+            .where(eq(schema.inventoryCounts.id, countId))
+        ),
+        "INVENTAIRE_CLOS"
+      )
+    ).toBe(true)
+  })
+
+  it("UPDATE direct pending -> received est bloqué (STATUT_INVALIDE)", async () => {
+    const s = await seed()
+    const db = drizzle(env.DB, { schema })
+    const { transferId } = await insererTransfert(s, "pending")
+    expect(
+      estErreurDeclencheur(
+        await erreurDe(
+          db
+            .update(schema.transfers)
+            .set({ status: "received" })
+            .where(eq(schema.transfers.id, transferId))
+        ),
+        "STATUT_INVALIDE"
+      )
+    ).toBe(true)
+  })
+
+  it("pending -> sent (lignes gelées) et pending -> cancelled restent permises", async () => {
+    const s = await seed()
+    const db = drizzle(env.DB, { schema })
+    // pending -> sent, lignes gelées au préalable (comme le flux /send réel).
+    const { transferId: idEnvoi } = await insererTransfert(s, "sent")
+    const apresEnvoi = await db
+      .select({ status: schema.transfers.status })
+      .from(schema.transfers)
+      .where(eq(schema.transfers.id, idEnvoi))
+    expect(apresEnvoi[0]?.status).toBe("sent")
+    // pending -> cancelled, direct, sans gel requis.
+    const { transferId: idAnnulation } = await insererTransfert(s, "pending")
+    await db
+      .update(schema.transfers)
+      .set({ status: "cancelled" })
+      .where(eq(schema.transfers.id, idAnnulation))
+    const apresAnnulation = await db
+      .select({ status: schema.transfers.status })
+      .from(schema.transfers)
+      .where(eq(schema.transfers.id, idAnnulation))
+    expect(apresAnnulation[0]?.status).toBe("cancelled")
+  })
+
+  it("created_at d'une ligne expédiée est immuable (TRANSFERT_EXPEDIE)", async () => {
+    const s = await seed()
+    const db = drizzle(env.DB, { schema })
+    const { itemId } = await insererTransfert(s, "sent")
+    expect(
+      estErreurDeclencheur(
+        await erreurDe(
+          db
+            .update(schema.transferItems)
+            .set({ createdAt: new Date(0) })
+            .where(eq(schema.transferItems.id, itemId))
+        ),
+        "TRANSFERT_EXPEDIE"
+      )
+    ).toBe(true)
   })
 })
 
