@@ -65,6 +65,34 @@ describe("ModalePaiement", () => {
     ])
   })
 
+  it("masquer le panneau mobile money efface montant et référence", () => {
+    const onValider = rendre(1000)
+    fireEvent.click(screen.getByRole("button", { name: /mobile money/i }))
+    fireEvent.change(screen.getByLabelText(/montant mobile money/i), {
+      target: { value: "400" },
+    })
+    fireEvent.change(screen.getByLabelText(/référence/i), {
+      target: { value: "OM-9" },
+    })
+    // Masquer le panneau : le montant mobile ne doit plus réduire duCash
+    // ni être envoyé comme paiement mobile_money.
+    fireEvent.click(screen.getByRole("button", { name: /mobile money/i }))
+    // Cash exact du total (les 400 mobiles ne sont plus déduits) : sans le
+    // fix, il resterait 600 dus (1000 - 400) et « Montant exact » ne
+    // couvrirait pas le total.
+    fireEvent.click(screen.getByRole("button", { name: /montant exact/i }))
+    fireEvent.click(screen.getByRole("button", { name: /valider/i }))
+    expect(onValider).toHaveBeenCalledWith([
+      { method: "cash", amount: 1000, receivedAmount: 1000 },
+    ])
+    // Ré-ouvrir le panneau : les champs sont bien repartis à zéro.
+    fireEvent.click(screen.getByRole("button", { name: /mobile money/i }))
+    expect(
+      screen.getByLabelText<HTMLInputElement>(/montant mobile money/i).value
+    ).toBe("")
+    expect(screen.getByLabelText<HTMLInputElement>(/référence/i).value).toBe("")
+  })
+
   it("paiement mixte : les montants s'empilent jusqu'à couvrir le total", () => {
     const onValider = rendre(1000)
     fireEvent.click(screen.getByRole("button", { name: /mobile money/i }))

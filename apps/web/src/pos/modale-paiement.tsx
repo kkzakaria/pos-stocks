@@ -163,7 +163,19 @@ export function ModalePaiement({
         <Button
           variant="outline"
           className="mb-2 w-full"
-          onClick={() => setMobileVisible((v) => !v)}
+          onClick={() =>
+            setMobileVisible((v) => {
+              // Masquer réinitialise le montant/la référence : sinon un
+              // montant mobile caché continue à réduire duCash, part comme
+              // paiement mobile_money dans valider(), et peut bloquer la
+              // validation si la référence a été laissée vide.
+              if (v) {
+                setMontantMobile("")
+                setReference("")
+              }
+              return !v
+            })
+          }
         >
           Mobile money
         </Button>
