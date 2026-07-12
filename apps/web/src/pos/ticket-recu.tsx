@@ -1,4 +1,5 @@
 import { useEffect } from "react"
+import { createPortal } from "react-dom"
 import { formaterMontant } from "@/lib/format"
 import type { ReglagesTicket, VenteDetail } from "@/lib/pos-api"
 
@@ -87,6 +88,15 @@ type PropsImpression = PropsTicket & { onImprime: () => void }
 
 // Monte le ticket puis déclenche l'impression navigateur (spec §5 étape 7 :
 // impression automatique après validation ; aussi utilisé en réimpression).
+//
+// Portail vers `document.body` (revue — finding « page blanche ») : l'écran
+// de vente enveloppe tout dans `<main class="print:hidden">`. Un ancêtre en
+// `display:none` à l'impression masque tout son sous-arbre, y compris un
+// enfant `print:block` — sans portail, `.ticket-80mm` ne s'affiche jamais à
+// l'impression. En sortant le ticket du sous-arbre de `<main>`, il n'est
+// plus soumis à ce `display:none` et son propre `print:block` reprend la
+// main. Un seul point de portail ici corrige tous les appelants
+// (confirmation de vente, réimpression tickets du jour).
 export function ImpressionTicket({
   sale,
   reglages,
@@ -97,5 +107,8 @@ export function ImpressionTicket({
     onImprime()
     // L'impression est un effet ponctuel au montage, volontairement.
   }, [])
-  return <TicketRecu sale={sale} reglages={reglages} />
+  return createPortal(
+    <TicketRecu sale={sale} reglages={reglages} />,
+    document.body
+  )
 }

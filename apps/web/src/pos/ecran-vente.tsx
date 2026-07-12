@@ -132,6 +132,12 @@ export function EcranVente({ me, boutique, session, onSessionFermee }: Props) {
         preparerVente(boutique.id, requestId.current, lignes, paiements)
       ),
     onSuccess: ({ sale }) => {
+      // Revue — impression et `dejaEnregistree` : on n'inspecte pas ce flag
+      // ici volontairement. La clé d'idempotence est régénérée après CHAQUE
+      // vente réussie (ligne ci-dessous), donc le seul cas où le serveur
+      // répond `dejaEnregistree: true` est un retry après une réponse
+      // réseau perdue côté client — qui n'a donc jamais imprimé. Imprimer
+      // systématiquement ici est le comportement voulu, pas un oubli.
       setPaiementOuvert(false)
       setLignes([])
       setCleChoisie(null)
@@ -335,6 +341,11 @@ export function EcranVente({ me, boutique, session, onSessionFermee }: Props) {
                 <Button
                   variant="outline"
                   className="min-h-14 flex-1"
+                  // `<ImpressionTicket>` reste monté (via portail vers
+                  // document.body, `onImprime` no-op) tant que la
+                  // confirmation est affichée : le ticket est déjà dans le
+                  // DOM hors de `<main>`, donc `window.print()` direct
+                  // suffit à le réimprimer.
                   onClick={() => window.print()}
                 >
                   Réimprimer
