@@ -5,6 +5,7 @@ import {
   changerPrix,
   changerQuantite,
   creerBufferScan,
+  definirSource,
   estCaissierPur,
   jourLocal,
   marquerLignesEnAlerte,
@@ -91,6 +92,81 @@ describe("panier", () => {
     const marquees = marquerLignesEnAlerte(lignes, ["v2"])
     expect(marquees.find((l) => l.variantId === "v1")?.enAlerte).toBe(false)
     expect(marquees.find((l) => l.variantId === "v2")?.enAlerte).toBe(true)
+  })
+
+  it("definirSource fusionne dans la ligne cible préexistante (quantités additionnées, prix cible conservé)", () => {
+    const lignes: LignePanier[] = [
+      {
+        variantId: "v1",
+        nom: "Coca 50cl",
+        sku: "PRD-0001-STD",
+        quantite: 2,
+        prixUnitaire: 500,
+        prixCatalogue: 500,
+        prixPlancher: null,
+        sourceWarehouseId: null,
+        sourceNom: null,
+        enAlerte: true,
+      },
+      {
+        variantId: "v1",
+        nom: "Coca 50cl",
+        sku: "PRD-0001-STD",
+        quantite: 1,
+        prixUnitaire: 450,
+        prixCatalogue: 500,
+        prixPlancher: 400,
+        sourceWarehouseId: "reserve",
+        sourceNom: "Réserve",
+        enAlerte: false,
+      },
+    ]
+    const apres = definirSource(lignes, "v1", null, "reserve", "Réserve")
+    expect(apres.length).toBe(1)
+    expect(apres[0]).toMatchObject({
+      sourceWarehouseId: "reserve",
+      quantite: 3,
+      // la ligne cible conserve SON propre prix négocié
+      prixUnitaire: 450,
+      enAlerte: false,
+    })
+  })
+
+  it("definirSource : retour boutique (source null) avec ligne boutique préexistante fusionne aussi", () => {
+    const lignes: LignePanier[] = [
+      {
+        variantId: "v1",
+        nom: "Coca 50cl",
+        sku: "PRD-0001-STD",
+        quantite: 1,
+        prixUnitaire: 500,
+        prixCatalogue: 500,
+        prixPlancher: null,
+        sourceWarehouseId: "reserve",
+        sourceNom: "Réserve",
+        enAlerte: false,
+      },
+      {
+        variantId: "v1",
+        nom: "Coca 50cl",
+        sku: "PRD-0001-STD",
+        quantite: 2,
+        prixUnitaire: 450,
+        prixCatalogue: 500,
+        prixPlancher: 400,
+        sourceWarehouseId: null,
+        sourceNom: null,
+        enAlerte: false,
+      },
+    ]
+    const apres = definirSource(lignes, "v1", "reserve", null, null)
+    expect(apres.length).toBe(1)
+    expect(apres[0]).toMatchObject({
+      sourceWarehouseId: null,
+      quantite: 3,
+      // la ligne boutique préexistante conserve SON propre prix négocié
+      prixUnitaire: 450,
+    })
   })
 })
 

@@ -150,7 +150,11 @@ export function changerPrix(
   }
 }
 
-// Dépannage : pose l'entrepôt source sur la ligne (badge « réserve »)
+// Dépannage : pose l'entrepôt source sur la ligne (badge « réserve »). Si une
+// ligne existe déjà à la clé cible (variantId, source), les deux lignes
+// FUSIONNENT — quantités additionnées dans la ligne cible, qui conserve SON
+// propre prix négocié ; la ligne déplacée disparaît. Évite deux lignes de
+// même clé en panier (rejet Zod à l'encaissement, spec §5/§8).
 export function definirSource(
   lignes: LignePanier[],
   variantId: string,
@@ -158,6 +162,24 @@ export function definirSource(
   source: string | null,
   sourceNom: string | null
 ): LignePanier[] {
+  const ligneDeplacee = lignes.find((l) =>
+    memeLigne(l, variantId, ancienneSource)
+  )
+  if (!ligneDeplacee) return lignes
+  const ligneCible = lignes.find((l) => memeLigne(l, variantId, source))
+  if (ligneCible && ligneCible !== ligneDeplacee) {
+    return lignes
+      .filter((l) => l !== ligneDeplacee)
+      .map((l) =>
+        l === ligneCible
+          ? {
+              ...l,
+              quantite: l.quantite + ligneDeplacee.quantite,
+              enAlerte: false,
+            }
+          : l
+      )
+  }
   return lignes.map((l) =>
     memeLigne(l, variantId, ancienneSource)
       ? { ...l, sourceWarehouseId: source, sourceNom, enAlerte: false }
