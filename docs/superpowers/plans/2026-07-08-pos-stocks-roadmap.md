@@ -13,7 +13,7 @@
 | 3 | Catalogue : catégories, fournisseurs, produits, variantes, images R2, lots | `2026-07-10-phase-3-catalogue.md` | ✅ terminée (2026-07-10, PR #4 mergée) |
 | 4 | Moteur de stock : journal + niveaux, service atomique, réceptions, ajustements, alertes | `2026-07-10-phase-4-moteur-de-stock.md` | ✅ terminée (2026-07-11, PR #5 mergée) |
 | 5 | Transferts inter-entrepôts et inventaires physiques | `2026-07-11-phase-5-transferts-inventaires.md` | ✅ terminée (2026-07-12, PR #6 mergée) |
-| 6 | POS : sessions de caisse, vente atomique, paiements, ticket 80 mm, FEFO, dépannage — **mini-brainstorming UI avant le plan** | à rédiger | — |
+| 6 | POS : sessions de caisse, vente atomique, paiements, ticket 80 mm, FEFO, dépannage — **mini-brainstorming UI avant le plan** | `2026-07-12-phase-6-pos.md` | ✅ terminée (2026-07-12, PR #8 en revue) |
 | 7 | Rapports, tableau de bord, finitions (valorisation, marges, alertes visibles) | à rédiger | — |
 
 ## Détail des phases
@@ -70,14 +70,14 @@ Notes de fin de phase : API `https://pos-stocks-api.koffiz2110.workers.dev`, SPA
 **Livrable** : les mouvements inter-entrepôts et les comptages sont opérationnels.
 
 ### Phase 6 — Point de vente
-- [ ] Mini-brainstorming UI POS (écran de vente, ergonomie tactile/scanner) avant le plan
-- [ ] Sessions de caisse (ouverture/fond, fermeture/écart)
-- [ ] Vente atomique (batch : vente + lignes + paiements + mouvements + niveaux), idempotence client
-- [ ] Paiements cash (rendu de monnaie) et mobile money (référence), paiement mixte
-- [ ] FEFO pour les produits à péremption
-- [ ] Dépannage depuis un autre entrepôt (`sourceWarehouseId`)
-- [ ] Ticket 80 mm (impression navigateur), numérotation séquentielle par boutique
-- [ ] Écran POS plein écran + historique des tickets du jour + réimpression
+- [x] Mini-brainstorming UI POS (écran de vente, ergonomie tactile/scanner) avant le plan
+- [x] Sessions de caisse (ouverture/fond, fermeture/écart)
+- [x] Vente atomique (batch : vente + lignes + paiements + mouvements + niveaux), idempotence client
+- [x] Paiements cash (rendu de monnaie) et mobile money (référence), paiement mixte
+- [x] FEFO pour les produits à péremption
+- [x] Dépannage depuis un autre entrepôt (`sourceWarehouseId`)
+- [x] Ticket 80 mm (impression navigateur), numérotation séquentielle par boutique
+- [x] Écran POS plein écran + historique des tickets du jour + réimpression
 
 **Livrable** : une boutique vend réellement, tickets imprimés, caisse clôturée.
 

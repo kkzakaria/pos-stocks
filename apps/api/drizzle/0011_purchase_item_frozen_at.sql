@@ -1,0 +1,1 @@
+ALTER TABLE `purchase_items` ADD `frozen_at` integer;

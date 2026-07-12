@@ -4,6 +4,7 @@ import { and, asc, eq } from "drizzle-orm"
 import { categoryCreateSchema, categoryUpdateSchema } from "shared"
 import * as schema from "../db/schema"
 import { validerCorps } from "../lib/validation"
+import { estViolationUnicite } from "../lib/db-errors"
 import { categorieExiste } from "../lib/org-scope"
 import { requireAuth } from "../middleware/require-auth"
 import { requireMembership, requireRole } from "../middleware/permissions"
@@ -84,13 +85,23 @@ categoriesRoute.post(
       )
     }
     const id = crypto.randomUUID()
-    await db.insert(schema.categories).values({
-      id,
-      organizationId,
-      name: corps.data.name,
-      parentId: corps.data.parentId ?? null,
-      createdAt: new Date(),
-    })
+    try {
+      await db.insert(schema.categories).values({
+        id,
+        organizationId,
+        name: corps.data.name,
+        parentId: corps.data.parentId ?? null,
+        createdAt: new Date(),
+      })
+    } catch (err) {
+      if (estViolationUnicite(err, "categories.name")) {
+        return c.json(
+          { code: "NOM_EXISTANT", message: "Ce nom est déjà utilisé" },
+          409
+        )
+      }
+      throw err
+    }
     return c.json({ id }, 201)
   }
 )
@@ -139,21 +150,32 @@ categoriesRoute.patch(
         400
       )
     }
-    const result = await db
-      .update(schema.categories)
-      .set({
-        ...(corps.data.name !== undefined ? { name: corps.data.name } : {}),
-        ...(corps.data.parentId !== undefined
-          ? { parentId: corps.data.parentId }
-          : {}),
-      })
-      .where(
-        and(
-          eq(schema.categories.id, id),
-          eq(schema.categories.organizationId, organizationId)
+    let result: Array<{ id: string }>
+    try {
+      result = await db
+        .update(schema.categories)
+        .set({
+          ...(corps.data.name !== undefined ? { name: corps.data.name } : {}),
+          ...(corps.data.parentId !== undefined
+            ? { parentId: corps.data.parentId }
+            : {}),
+        })
+        .where(
+          and(
+            eq(schema.categories.id, id),
+            eq(schema.categories.organizationId, organizationId)
+          )
         )
-      )
-      .returning({ id: schema.categories.id })
+        .returning({ id: schema.categories.id })
+    } catch (err) {
+      if (estViolationUnicite(err, "categories.name")) {
+        return c.json(
+          { code: "NOM_EXISTANT", message: "Ce nom est déjà utilisé" },
+          409
+        )
+      }
+      throw err
+    }
     if (result.length === 0) {
       return c.json(
         { code: "INTROUVABLE", message: "Catégorie introuvable" },

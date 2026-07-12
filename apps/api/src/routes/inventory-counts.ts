@@ -10,7 +10,11 @@ import {
 import * as schema from "../db/schema"
 import { validerCorps } from "../lib/validation"
 import { estErreurDeclencheur, estViolationUnicite } from "../lib/db-errors"
-import { porteeLectureStock } from "../lib/stock-acces"
+import {
+  estDansPortee,
+  filtrePortee,
+  porteeLectureStock,
+} from "../lib/stock-acces"
 import { requireAuth } from "../middleware/require-auth"
 import {
   requireMembership,
@@ -84,17 +88,18 @@ inventoryCountsRoute.get("/", async (c) => {
     )
   }
   if (warehouseId) {
-    if (!portee.tous && !portee.warehouseIds.includes(warehouseId)) {
+    if (!estDansPortee(portee, warehouseId)) {
       return c.json({ code: "ACCES_REFUSE", message: "Accès refusé" }, 403)
     }
     conditions.push(eq(schema.inventoryCounts.warehouseId, warehouseId))
-  } else if (!portee.tous) {
-    if (portee.warehouseIds.length === 0) {
+  } else {
+    const filtre = filtrePortee(portee, schema.inventoryCounts.warehouseId)
+    if (filtre.vide) {
       return c.json({ counts: [] })
     }
-    conditions.push(
-      inArray(schema.inventoryCounts.warehouseId, portee.warehouseIds)
-    )
+    if (filtre.condition) {
+      conditions.push(filtre.condition)
+    }
   }
   const rows = await db
     .select({
@@ -288,7 +293,7 @@ inventoryCountsRoute.get("/:id", async (c) => {
     c.get("user").id,
     role
   )
-  if (!portee.tous && !portee.warehouseIds.includes(inventaire.warehouseId)) {
+  if (!estDansPortee(portee, inventaire.warehouseId)) {
     return c.json({ code: "ACCES_REFUSE", message: "Accès refusé" }, 403)
   }
   const entetes = await db
@@ -521,21 +526,34 @@ inventoryCountsRoute.post("/:id/close", async (c) => {
     throw err
   }
 
-  // Récapitulatif enrichi (noms, SKU) pour l'écran de clôture
+  // Récapitulatif enrichi (noms, SKU) pour l'écran de clôture — lecture
+  // POST-COMMIT (différé P5) : la clôture est DÉJÀ commitée à ce stade, un
+  // échec transitoire de cette lecture ne doit pas la transformer en 500.
+  // Repli : récapitulatif sans noms (le GET détail les fournit).
   const variantIds = ecarts.map((e) => e.variantId)
-  const variantes = await db
-    .select({
-      id: schema.productVariants.id,
-      sku: schema.productVariants.sku,
-      variantName: schema.productVariants.name,
-      productName: schema.products.name,
-    })
-    .from(schema.productVariants)
-    .innerJoin(
-      schema.products,
-      eq(schema.productVariants.productId, schema.products.id)
-    )
-    .where(inArray(schema.productVariants.id, variantIds))
+  let variantes: Array<{
+    id: string
+    sku: string
+    variantName: string
+    productName: string
+  }> = []
+  try {
+    variantes = await db
+      .select({
+        id: schema.productVariants.id,
+        sku: schema.productVariants.sku,
+        variantName: schema.productVariants.name,
+        productName: schema.products.name,
+      })
+      .from(schema.productVariants)
+      .innerJoin(
+        schema.products,
+        eq(schema.productVariants.productId, schema.products.id)
+      )
+      .where(inArray(schema.productVariants.id, variantIds))
+  } catch {
+    variantes = []
+  }
   return c.json({
     ok: true,
     ecarts: ecarts.map((e) => {

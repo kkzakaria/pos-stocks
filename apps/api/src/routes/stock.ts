@@ -1,12 +1,17 @@
 import { Hono } from "hono"
 import { drizzle } from "drizzle-orm/d1"
-import { and, asc, desc, eq, gte, inArray, lt, or, sql } from "drizzle-orm"
+import { and, asc, desc, eq, gte, lt, or, sql } from "drizzle-orm"
 import { alias } from "drizzle-orm/sqlite-core"
 import type { SQL } from "drizzle-orm"
 import { adjustmentCreateSchema, minStockSchema } from "shared"
 import * as schema from "../db/schema"
+import { dateCalendaireValide } from "../lib/dates"
 import { likeEchappe } from "../lib/recherche"
-import { porteeLectureStock } from "../lib/stock-acces"
+import {
+  estDansPortee,
+  filtrePortee,
+  porteeLectureStock,
+} from "../lib/stock-acces"
 import { validerCorps } from "../lib/validation"
 import { varianteScope } from "../lib/org-scope"
 import { requireAuth } from "../middleware/require-auth"
@@ -32,27 +37,6 @@ export const stockRoute = new Hono<{
 }>()
 
 stockRoute.use(requireAuth, requireMembership)
-
-const MOTIF_JOUR = /^\d{4}-\d{2}-\d{2}$/
-
-// Le format AAAA-MM-JJ ne suffit pas : "2024-02-30" passe MOTIF_JOUR mais
-// n'existe pas — Date normalise silencieusement en débordant sur le mois
-// suivant, ce qui décale les bornes du/au sans jamais échouer. Round-trip
-// year/month/day pour rejeter les dates calendaires impossibles.
-function dateCalendaireValide(chaine: string): boolean {
-  if (!MOTIF_JOUR.test(chaine)) return false
-  const [annee, mois, jour] = chaine.split("-").map(Number) as [
-    number,
-    number,
-    number,
-  ]
-  const date = new Date(Date.UTC(annee, mois - 1, jour))
-  return (
-    date.getUTCFullYear() === annee &&
-    date.getUTCMonth() === mois - 1 &&
-    date.getUTCDate() === jour
-  )
-}
 
 // Seuil effectif d'une ligne de niveau : surcharge entrepôt sinon défaut produit
 const seuilEffectif = sql<
@@ -97,7 +81,7 @@ stockRoute.get("/levels", async (c) => {
     c.get("user").id,
     role
   )
-  if (!portee.tous && !portee.warehouseIds.includes(warehouseId)) {
+  if (!estDansPortee(portee, warehouseId)) {
     return c.json({ code: "ACCES_REFUSE", message: "Accès refusé" }, 403)
   }
   if (!(await entrepotDansOrganisation(db, organizationId, warehouseId))) {
@@ -196,7 +180,7 @@ stockRoute.get("/movements", async (c) => {
     eq(schema.stockMovements.organizationId, organizationId),
   ]
   if (warehouseId) {
-    if (!portee.tous && !portee.warehouseIds.includes(warehouseId)) {
+    if (!estDansPortee(portee, warehouseId)) {
       return c.json({ code: "ACCES_REFUSE", message: "Accès refusé" }, 403)
     }
     if (!(await entrepotDansOrganisation(db, organizationId, warehouseId))) {
@@ -206,13 +190,14 @@ stockRoute.get("/movements", async (c) => {
       )
     }
     conditions.push(eq(schema.stockMovements.warehouseId, warehouseId))
-  } else if (!portee.tous) {
-    if (portee.warehouseIds.length === 0) {
+  } else {
+    const filtre = filtrePortee(portee, schema.stockMovements.warehouseId)
+    if (filtre.vide) {
       return c.json({ movements: [], total: 0, page, limite })
     }
-    conditions.push(
-      inArray(schema.stockMovements.warehouseId, portee.warehouseIds)
-    )
+    if (filtre.condition) {
+      conditions.push(filtre.condition)
+    }
   }
   if (type) {
     conditions.push(
@@ -330,7 +315,7 @@ stockRoute.get("/alerts", async (c) => {
   ]
   const warehouseId = c.req.query("warehouseId")
   if (warehouseId) {
-    if (!portee.tous && !portee.warehouseIds.includes(warehouseId)) {
+    if (!estDansPortee(portee, warehouseId)) {
       return c.json({ code: "ACCES_REFUSE", message: "Accès refusé" }, 403)
     }
     if (!(await entrepotDansOrganisation(db, organizationId, warehouseId))) {
@@ -340,13 +325,14 @@ stockRoute.get("/alerts", async (c) => {
       )
     }
     conditions.push(eq(schema.stockLevels.warehouseId, warehouseId))
-  } else if (!portee.tous) {
-    if (portee.warehouseIds.length === 0) {
+  } else {
+    const filtre = filtrePortee(portee, schema.stockLevels.warehouseId)
+    if (filtre.vide) {
       return c.json({ alerts: [], total: 0 })
     }
-    conditions.push(
-      inArray(schema.stockLevels.warehouseId, portee.warehouseIds)
-    )
+    if (filtre.condition) {
+      conditions.push(filtre.condition)
+    }
   }
   const alerts = await db
     .select({
@@ -396,7 +382,7 @@ stockRoute.get("/transit", async (c) => {
     c.get("user").id,
     role
   )
-  if (!portee.tous && !portee.warehouseIds.includes(warehouseId)) {
+  if (!estDansPortee(portee, warehouseId)) {
     return c.json({ code: "ACCES_REFUSE", message: "Accès refusé" }, 403)
   }
   if (!(await entrepotDansOrganisation(db, organizationId, warehouseId))) {

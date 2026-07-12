@@ -14,7 +14,11 @@ import * as schema from "../db/schema"
 import { validerCorps } from "../lib/validation"
 import { estErreurDeclencheur } from "../lib/db-errors"
 import { entrepotExiste, varianteScope } from "../lib/org-scope"
-import { porteeLectureStock } from "../lib/stock-acces"
+import {
+  estDansPortee,
+  filtrePortee,
+  porteeLectureStock,
+} from "../lib/stock-acces"
 import { applyMovements, ErreurStockInsuffisant } from "../services/stock"
 import type { InstructionBatch, MouvementStock } from "../services/stock"
 import { reponseStockInsuffisant } from "../lib/stock-erreurs"
@@ -97,18 +101,6 @@ async function verifierReglesLot(
   return null
 }
 
-// Un transfert est LISIBLE si l'un de ses deux entrepôts est dans la portée.
-function transfertLisible(
-  portee: Awaited<ReturnType<typeof porteeLectureStock>>,
-  transfert: { fromWarehouseId: string; toWarehouseId: string }
-): boolean {
-  return (
-    portee.tous ||
-    portee.warehouseIds.includes(transfert.fromWarehouseId) ||
-    portee.warehouseIds.includes(transfert.toWarehouseId)
-  )
-}
-
 transfersRoute.get("/", async (c) => {
   const { organizationId, role } = c.get("membership")
   const db = drizzle(c.env.DB, { schema })
@@ -138,7 +130,7 @@ transfersRoute.get("/", async (c) => {
     )
   }
   if (warehouseId) {
-    if (!portee.tous && !portee.warehouseIds.includes(warehouseId)) {
+    if (!estDansPortee(portee, warehouseId)) {
       return c.json({ code: "ACCES_REFUSE", message: "Accès refusé" }, 403)
     }
     const filtre = or(
@@ -148,16 +140,17 @@ transfersRoute.get("/", async (c) => {
     if (filtre) {
       conditions.push(filtre)
     }
-  } else if (!portee.tous) {
-    if (portee.warehouseIds.length === 0) {
+  } else {
+    const filtre = filtrePortee(
+      portee,
+      schema.transfers.fromWarehouseId,
+      schema.transfers.toWarehouseId
+    )
+    if (filtre.vide) {
       return c.json({ transfers: [] })
     }
-    const filtre = or(
-      inArray(schema.transfers.fromWarehouseId, portee.warehouseIds),
-      inArray(schema.transfers.toWarehouseId, portee.warehouseIds)
-    )
-    if (filtre) {
-      conditions.push(filtre)
+    if (filtre.condition) {
+      conditions.push(filtre.condition)
     }
   }
 
@@ -267,7 +260,9 @@ transfersRoute.get("/:id", async (c) => {
     c.get("user").id,
     role
   )
-  if (!transfertLisible(portee, transfert)) {
+  if (
+    !estDansPortee(portee, transfert.fromWarehouseId, transfert.toWarehouseId)
+  ) {
     return c.json({ code: "ACCES_REFUSE", message: "Accès refusé" }, 403)
   }
   const origine = alias(schema.warehouses, "origine")

@@ -635,6 +635,28 @@ purchasesRoute.post("/:id/receive", async (c) => {
     })
     .where(eq(schema.purchases.id, achat.id))
 
+  // Gel des lignes DANS le batch (miroir du correctif transferts 0008,
+  // décision 11 du plan P6) : les valeurs lues en JS ci-dessus sont
+  // réécrites sur chaque ligne — une édition concurrente entre la lecture
+  // et le batch est écrasée, les mouvements calculés depuis `items` sont
+  // donc garantis cohérents avec le document. `frozenAt` est la sentinelle
+  // du trigger purchases_receive_lignes_gelees (0012) : une ligne INSÉRÉE
+  // après la lecture (absente de ce gel) le fait échouer, batch entier
+  // annulé. Résidu accepté (même classe que les transferts) : un DELETE de
+  // ligne concurrent laisse une entrée au journal sans ligne de document.
+  const gelsLignes = items.map((item) =>
+    db
+      .update(schema.purchaseItems)
+      .set({
+        quantity: item.quantity,
+        unitCost: item.unitCost,
+        lotNumber: item.lotNumber,
+        expiryDate: item.expiryDate,
+        frozenAt: maintenant,
+      })
+      .where(eq(schema.purchaseItems.id, item.id))
+  )
+
   const mouvements: MouvementStock[] = items.map((item) => ({
     warehouseId: achat.warehouseId,
     variantId: item.variantId,
@@ -649,8 +671,14 @@ purchasesRoute.post("/:id/receive", async (c) => {
     unitCost: item.unitCost,
   }))
 
-  // Batch hétérogène construit directement (spread, pas de push + cast)
-  const instructionsAvant: InstructionBatch[] = [majStatut, ...insertionsLots]
+  // Batch hétérogène construit directement (spread, pas de push + cast).
+  // ORDRE IMPÉRATIF : gels des lignes AVANT la transition de statut — le
+  // trigger 0012 vérifie frozen_at au moment du passage received.
+  const instructionsAvant: InstructionBatch[] = [
+    ...gelsLignes,
+    majStatut,
+    ...insertionsLots,
+  ]
   try {
     await applyMovements(db, {
       organizationId,
@@ -665,6 +693,16 @@ purchasesRoute.post("/:id/receive", async (c) => {
         {
           code: "STATUT_INVALIDE",
           message: "Cette réception a déjà été validée",
+        },
+        409
+      )
+    }
+    if (estErreurDeclencheur(err, "LIGNE_NON_GELEE")) {
+      return c.json(
+        {
+          code: "CONFLIT_CONCURRENT",
+          message:
+            "La réception a été modifiée pendant la validation, veuillez réessayer",
         },
         409
       )

@@ -207,6 +207,12 @@ productsRoute.post(
             409
           )
         }
+        if (estViolationUnicite(err, "products.name")) {
+          return c.json(
+            { code: "NOM_EXISTANT", message: "Ce nom est déjà utilisé" },
+            409
+          )
+        }
         if (estViolationUnicite(err)) {
           if (skuFourni) {
             return c.json(
@@ -322,6 +328,12 @@ productsRoute.patch(
             code: "BARCODE_EXISTANT",
             message: "Ce code-barres est déjà utilisé",
           },
+          409
+        )
+      }
+      if (estViolationUnicite(err, "products.name")) {
+        return c.json(
+          { code: "NOM_EXISTANT", message: "Ce nom est déjà utilisé" },
           409
         )
       }
