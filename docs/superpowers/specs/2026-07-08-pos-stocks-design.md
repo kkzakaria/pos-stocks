@@ -84,7 +84,7 @@ Le scaffold TanStack Start existant est restructuré : `apps/web` devient une SP
 ### Ventes (POS)
 
 - `sales` — numéro de ticket séquentiel par boutique, storeId, cashierId, registerSessionId, total, devise, date, statut (`completed` ; `refunded` réservé v2), identifiant d'idempotence client
-- `sale_items` — variantId, lotId?, quantité, **prix unitaire appliqué** (le prix convenu saisi au POS, borné par le prix plancher) + **prix catalogue au moment de la vente** (la remise consentie s'en déduit, pour les rapports), **`sourceWarehouseId`** : par défaut la boutique, peut pointer un autre entrepôt (dépannage depuis la réserve)
+- `sale_items` — variantId, lotId?, quantité, **prix unitaire appliqué** (le prix convenu saisi au POS, borné par le prix plancher) + **prix catalogue au moment de la vente** (la remise consentie s'en déduit, pour les rapports), **`sourceWarehouseId`** : par défaut la boutique, peut pointer un autre entrepôt (dépannage depuis la réserve), **`unitCost`** (Phase 7) : **CMP figé au moment exact de la vente** — posé par sous-requête SQL dans l'INSERT du batch (CMP de `stock_levels` pour (entrepôt source, variante), même mécanisme que le gel à l'expédition des transferts) ; base des marges, immuable. Les ventes antérieures à la colonne restent à NULL : les rapports les valorisent au CMP courant, marquées « estimé »
 - `payments` — saleId, méthode (`cash` | `mobile_money`), montant, référence transaction (mobile money), montant reçu / monnaie rendue (cash). Plusieurs paiements par vente (paiement mixte)
 - `register_sessions` — session de caisse (**v1**) : boutique, caissier, fond de caisse à l'ouverture, montant compté à la fermeture, écart, horodatages
 
@@ -133,7 +133,7 @@ Groupes de routes REST sous `/api/v1`, validation Zod, middleware auth/permissio
 - `/stock` — niveaux par entrepôt, journal des mouvements filtrable, alertes
 - `/purchases`, `/transfers`, `/inventory-counts` — avec transitions d'état (`POST /transfers/:id/send`, `/receive`, …)
 - `/sales`, `/register-sessions` — POS
-- `/reports` — ventes par période/boutique/produit, valorisation du stock, marges
+- `/reports` — trois rapports **agrégés en SQL** (Phase 7) : **ventes** (période du/au + presets jour/semaine/mois, par boutique, par produit — CA, tickets, panier moyen, répartition par méthode), **valorisation du stock** (quantité × avgCost par variante et entrepôt, totaux), **marges** (CA − coût au `unitCost` figé ; fallback CMP courant marqué « estimé » pour les lignes NULL). Chaque rapport a sa variante **export CSV** (UTF-8 avec BOM, séparateur point-virgule, en-têtes français). Portée (matrice §4) : owner/admin/auditor org = tout ; **stock_manager = rapport de valorisation seulement** (tous entrepôts, pas les ventes/marges) ; manager/auditor locaux = leurs entrepôts (helper de portée partagé) ; cashier exclu
 
 ## 7. Écrans du front
 
@@ -147,7 +147,7 @@ Deux univers dans la même SPA, selon le rôle (caissier → POS direct) :
 - **Après-vente** : confirmation avec monnaie rendue + impression automatique du ticket 80 mm (CSS `@media print` dédiée : en-tête organisation, lignes, total, paiements, monnaie, numéro séquentiel, caissier, date) ; liste des tickets du jour avec réimpression.
 - **Fermeture de caisse** : saisie du montant compté ; affichage fond + encaissements cash attendus ; écart calculé et journalisé avec la session ; session fermée → retour à « Ouvrir la caisse ». Le back-office (manager/owner) consulte l'historique des sessions et leurs écarts.
 
-**Back-office (sidebar)** : tableau de bord (ventes du jour, alertes stock bas, transferts en attente) ; catalogue (produits, variantes, images, lots, catégories, fournisseurs) ; stock (niveaux, journal, réceptions, transferts, inventaires) ; ventes (historique, détail, rapports) ; administration (entrepôts, utilisateurs et affectations, paramètres).
+**Back-office (sidebar)** : **tableau de bord** (Phase 7 — la page d'accueil : ventes du jour par boutique visible avec CA et tickets, alertes stock bas détaillées, transferts en attente vers/depuis mes entrepôts, valeur totale du stock pour owner/admin ; chaque bloc cliquable vers l'écran concerné, portée selon les droits) ; catalogue (produits, variantes, images, lots, catégories, fournisseurs) ; stock (niveaux, journal, réceptions, transferts, inventaires) ; **ventes** (Phase 7 — historique multi-jours filtrable boutique/période, détail d'une vente avec lignes, paiements et marge pour qui a le droit, écran Rapports à 3 onglets avec boutons CSV) ; administration (entrepôts, utilisateurs et affectations, paramètres).
 
 ## 8. Cohérence des données et gestion d'erreurs
 
