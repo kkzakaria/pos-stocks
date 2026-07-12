@@ -61,6 +61,16 @@ export function EcranVente({ me, boutique, session, onSessionFermee }: Props) {
   const [depannagePour, setDepannagePour] = useState<CleLigne | null>(null)
   const [paiementOuvert, setPaiementOuvert] = useState(false)
   const [erreurVente, setErreurVente] = useState<string | null>(null)
+  // Verrouillage panier après une soumission AMBIGUË (réponse réseau
+  // perdue, cf. onError ci-dessous) : la vente a peut-être été commitée
+  // côté serveur sans que la réponse nous parvienne. Un retry rejoue le
+  // MÊME clientRequestId (idempotence, décision 5) — si le panier a changé
+  // entre-temps, le retry renverrait l'ancienne vente et onSuccess
+  // effacerait silencieusement les modifications. On bloque donc le scan
+  // et les modifications manuelles jusqu'à résolution (succès) ou abandon
+  // explicite (fermeture de la modale de paiement) ; requestId.current
+  // n'est PAS régénéré tant que ce n'est pas résolu.
+  const [panierVerrouille, setPanierVerrouille] = useState(false)
   const [confirmation, setConfirmation] = useState<VenteDetail | null>(null)
   const [vue, setVue] = useState<"vente" | "tickets" | "fermeture">("vente")
   const [reimpression, setReimpression] = useState<VenteDetail | null>(null)
@@ -93,10 +103,14 @@ export function EcranVente({ me, boutique, session, onSessionFermee }: Props) {
         (a.barcode ?? "").includes(minuscule))
   )
 
-  const ajouterAuPanier = useCallback((article: ArticlePos) => {
-    setLignes((l) => ajouterArticle(l, article))
-    setErreurVente(null)
-  }, [])
+  const ajouterAuPanier = useCallback(
+    (article: ArticlePos) => {
+      if (panierVerrouille) return
+      setLignes((l) => ajouterArticle(l, article))
+      setErreurVente(null)
+    },
+    [panierVerrouille]
+  )
   const scanner = useCallback(
     (code: string) => {
       const article = articles.find((a) => a.barcode === code)
@@ -142,6 +156,7 @@ export function EcranVente({ me, boutique, session, onSessionFermee }: Props) {
       setLignes([])
       setCleChoisie(null)
       setErreurVente(null)
+      setPanierVerrouille(false)
       setConfirmation(sale)
       requestId.current = crypto.randomUUID()
       void queryClient.invalidateQueries({
@@ -162,12 +177,28 @@ export function EcranVente({ me, boutique, session, onSessionFermee }: Props) {
           )
         )
         setPaiementOuvert(false)
+        setPanierVerrouille(false)
         setErreurVente(
           "Stock insuffisant sur les lignes en alerte — proposez un dépannage ou ajustez les quantités"
         )
         return
       }
-      setErreurVente(err instanceof Error ? err.message : "Erreur")
+      if (err instanceof ApiError) {
+        // Erreur structurée : le serveur A RÉPONDU, la vente n'a pas été
+        // commitée (toute erreur métier est levée avant le commit du
+        // batch) — sans risque à modifier le panier.
+        setPanierVerrouille(false)
+        setErreurVente(err.message)
+        return
+      }
+      // Erreur réseau/timeout AMBIGUË : pas de réponse reçue, le batch a
+      // pu être commité côté serveur. On verrouille le panier (voir
+      // commentaire sur panierVerrouille) jusqu'à retry ou abandon.
+      setPanierVerrouille(true)
+      setErreurVente(
+        (err instanceof Error ? err.message : "Erreur réseau") +
+          " — la vente est peut-être déjà enregistrée : réessayez, ou fermez pour vérifier les tickets du jour avant de modifier le panier."
+      )
     },
   })
 
@@ -228,7 +259,8 @@ export function EcranVente({ me, boutique, session, onSessionFermee }: Props) {
             <PanneauLigne
               ligne={ligneChoisie}
               erreurPrix={erreurPrix}
-              onQuantite={(quantite) =>
+              onQuantite={(quantite) => {
+                if (panierVerrouille) return
                 setLignes((l) =>
                   changerQuantite(
                     l,
@@ -237,8 +269,9 @@ export function EcranVente({ me, boutique, session, onSessionFermee }: Props) {
                     quantite
                   )
                 )
-              }
+              }}
               onPrix={(prix) => {
+                if (panierVerrouille) return
                 const resultat = changerPrix(
                   lignes,
                   cleChoisie.variantId,
@@ -257,13 +290,17 @@ export function EcranVente({ me, boutique, session, onSessionFermee }: Props) {
                 setLignes(resultat.lignes)
               }}
               onSupprimer={() => {
+                if (panierVerrouille) return
                 setLignes((l) =>
                   supprimerLigne(l, cleChoisie.variantId, cleChoisie.source)
                 )
                 setCleChoisie(null)
                 setErreurPrix(null)
               }}
-              onDepanner={() => setDepannagePour(cleChoisie)}
+              onDepanner={() => {
+                if (panierVerrouille) return
+                setDepannagePour(cleChoisie)
+              }}
               onFermer={() => {
                 setCleChoisie(null)
                 setErreurPrix(null)
@@ -315,7 +352,14 @@ export function EcranVente({ me, boutique, session, onSessionFermee }: Props) {
           enCours={vente.isPending}
           erreur={erreurVente}
           onValider={(paiements) => vente.mutate(paiements)}
-          onFermer={() => setPaiementOuvert(false)}
+          onFermer={() => {
+            // Fermer la modale après une tentative ambiguë vaut abandon
+            // explicite (décision : déverrouille le panier, cf.
+            // panierVerrouille) — requestId.current n'est pas régénéré,
+            // un futur encaissement rejouera donc la même tentative.
+            setPanierVerrouille(false)
+            setPaiementOuvert(false)
+          }}
         />
       )}
 
@@ -360,11 +404,13 @@ export function EcranVente({ me, boutique, session, onSessionFermee }: Props) {
               </div>
             </div>
           </div>
-          <ImpressionTicket
-            sale={confirmation}
-            reglages={reglages.data ?? null}
-            onImprime={() => undefined}
-          />
+          {!reglages.isPending && (
+            <ImpressionTicket
+              sale={confirmation}
+              reglages={reglages.data ?? null}
+              onImprime={() => undefined}
+            />
+          )}
         </>
       )}
 
@@ -375,7 +421,7 @@ export function EcranVente({ me, boutique, session, onSessionFermee }: Props) {
           onFermer={() => setVue("vente")}
         />
       )}
-      {reimpression && (
+      {reimpression && !reglages.isPending && (
         <ImpressionTicket
           sale={reimpression}
           reglages={reglages.data ?? null}
