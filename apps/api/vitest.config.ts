@@ -12,6 +12,12 @@ export default defineWorkersConfig(async () => {
       // matrices multi-utilisateurs dépassent les 5 s par défaut sur les
       // runners CI partagés (échecs observés à ~5,3 s, PR #5).
       testTimeout: 20000,
+      // Crash workerd « Network connection lost » récurrent sur les runners
+      // CI partagés (PR #6, généralisé PR #8 quand la suite a atteint ~245
+      // tests) : retry global en CI uniquement. Sûr : l'isolatedStorage est
+      // réinitialisé ENTRE les tentatives (vérifié empiriquement, PR #6) ;
+      // un vrai échec reste rouge sur les 3 tentatives.
+      retry: process.env.CI ? 2 : 0,
       setupFiles: ["./test/apply-migrations.ts"],
       poolOptions: {
         workers: {
