@@ -18,16 +18,17 @@ export default defineWorkersConfig(async () => {
       // réinitialisé ENTRE les tentatives (vérifié empiriquement, PR #6) ;
       // un vrai échec reste rouge sur les 3 tentatives.
       retry: process.env.CI ? 2 : 0,
-      // Le retry seul ne suffit plus (PR #8, run 29207418926 : échec malgré
-      // retry x2) : les crashs se concentrent au démarrage, quand un runtime
-      // workerd par worker vitest + les hachages scrypt concurrents saturent
-      // le runner partagé — systématique depuis que la suite atteint 47
-      // fichiers. En CI, sérialiser les fichiers ; en local, parallélisme
-      // par défaut.
-      ...(process.env.CI ? { maxWorkers: 1, minWorkers: 1 } : {}),
       setupFiles: ["./test/apply-migrations.ts"],
       poolOptions: {
         workers: {
+          // Le mode par défaut (« isolated runtimes ») démarre UN processus
+          // workerd PAR FICHIER de test — 47 processus depuis la Phase 6, ce
+          // qui sature les runners CI partagés (crashs « Network connection
+          // lost » systématiques, PR #8 ; le retry seul n'a pas suffi, et
+          // vitest maxWorkers ne contrôle pas le nombre de runtimes du pool).
+          // singleWorker = UN seul runtime, fichiers séquentiels,
+          // isolatedStorage conservé. En local, parallélisme par défaut.
+          singleWorker: Boolean(process.env.CI),
           wrangler: { configPath: "./wrangler.jsonc" },
           miniflare: {
             r2Buckets: ["IMAGES"],
