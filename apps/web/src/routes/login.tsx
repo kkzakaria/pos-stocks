@@ -2,6 +2,8 @@ import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router"
 import { authClient } from "@/lib/auth-client"
 import { LoginForm } from "@/components/login-form"
 import { TicketHorloge } from "@/components/ticket-horloge"
+import { fetchMe } from "@/lib/me"
+import { estCaissierPur } from "@/lib/pos"
 
 export const Route = createFileRoute("/login")({
   beforeLoad: async () => {
@@ -22,7 +24,14 @@ function LoginPage() {
       }
       return "Identifiants invalides"
     }
-    await navigate({ to: "/" })
+    // Caissier pur → POS direct (spec §7, décision 13). En cas d'échec de
+    // lecture du profil, le back-office reste le repli sûr.
+    try {
+      const me = await fetchMe()
+      await navigate({ to: estCaissierPur(me) ? "/pos" : "/" })
+    } catch {
+      await navigate({ to: "/" })
+    }
     return null
   }
 

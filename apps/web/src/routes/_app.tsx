@@ -33,6 +33,12 @@ function AppLayout() {
   const role = me.membership?.role
   const estAdmin = role === "owner" || role === "admin" || role === "auditor"
   const accesStock = useAccesStock()
+  // Lien POS : owner/admin toujours ; staff s'il a une affectation
+  // manager/cashier (la route /pos re-filtre sur les boutiques réelles).
+  const accesPos =
+    role === "owner" ||
+    role === "admin" ||
+    me.assignments.some((a) => a.role === "manager" || a.role === "cashier")
 
   async function handleSignOut() {
     await authClient.signOut()
@@ -52,6 +58,11 @@ function AppLayout() {
             <Link to="/" className={lienClasses}>
               Tableau de bord
             </Link>
+            {accesPos && (
+              <Link to="/pos" className={lienClasses}>
+                Point de vente
+              </Link>
+            )}
             <p className="mt-4 mb-1 px-2 text-[11px] font-medium tracking-widest text-gray-400 uppercase">
               Catalogue
             </p>

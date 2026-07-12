@@ -9,6 +9,7 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as PosRouteImport } from './routes/pos'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as AppRouteImport } from './routes/_app'
 import { Route as AppIndexRouteImport } from './routes/_app/index'
@@ -30,6 +31,11 @@ import { Route as AppStockReceptionsPurchaseIdRouteImport } from './routes/_app/
 import { Route as AppStockInventairesCountIdRouteImport } from './routes/_app/stock/inventaires/$countId'
 import { Route as AppCatalogueProduitsProductIdRouteImport } from './routes/_app/catalogue/produits/$productId'
 
+const PosRoute = PosRouteImport.update({
+  id: '/pos',
+  path: '/pos',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
   path: '/login',
@@ -143,6 +149,7 @@ const AppCatalogueProduitsProductIdRoute =
 export interface FileRoutesByFullPath {
   '/': typeof AppIndexRoute
   '/login': typeof LoginRoute
+  '/pos': typeof PosRoute
   '/mon-compte': typeof AppMonCompteRoute
   '/stock': typeof AppStockRouteWithChildren
   '/administration/entrepots': typeof AppAdministrationEntrepotsRoute
@@ -163,6 +170,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/login': typeof LoginRoute
+  '/pos': typeof PosRoute
   '/mon-compte': typeof AppMonCompteRoute
   '/': typeof AppIndexRoute
   '/administration/entrepots': typeof AppAdministrationEntrepotsRoute
@@ -185,6 +193,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_app': typeof AppRouteWithChildren
   '/login': typeof LoginRoute
+  '/pos': typeof PosRoute
   '/_app/mon-compte': typeof AppMonCompteRoute
   '/_app/stock': typeof AppStockRouteWithChildren
   '/_app/': typeof AppIndexRoute
@@ -209,6 +218,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/login'
+    | '/pos'
     | '/mon-compte'
     | '/stock'
     | '/administration/entrepots'
@@ -229,6 +239,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/login'
+    | '/pos'
     | '/mon-compte'
     | '/'
     | '/administration/entrepots'
@@ -250,6 +261,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/_app'
     | '/login'
+    | '/pos'
     | '/_app/mon-compte'
     | '/_app/stock'
     | '/_app/'
@@ -273,10 +285,18 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   AppRoute: typeof AppRouteWithChildren
   LoginRoute: typeof LoginRoute
+  PosRoute: typeof PosRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/pos': {
+      id: '/pos'
+      path: '/pos'
+      fullPath: '/pos'
+      preLoaderRoute: typeof PosRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/login': {
       id: '/login'
       path: '/login'
@@ -477,6 +497,7 @@ const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)
 const rootRouteChildren: RootRouteChildren = {
   AppRoute: AppRouteWithChildren,
   LoginRoute: LoginRoute,
+  PosRoute: PosRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
