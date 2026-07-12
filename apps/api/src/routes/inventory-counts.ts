@@ -10,7 +10,11 @@ import {
 import * as schema from "../db/schema"
 import { validerCorps } from "../lib/validation"
 import { estErreurDeclencheur, estViolationUnicite } from "../lib/db-errors"
-import { porteeLectureStock } from "../lib/stock-acces"
+import {
+  estDansPortee,
+  filtrePortee,
+  porteeLectureStock,
+} from "../lib/stock-acces"
 import { requireAuth } from "../middleware/require-auth"
 import {
   requireMembership,
@@ -84,17 +88,18 @@ inventoryCountsRoute.get("/", async (c) => {
     )
   }
   if (warehouseId) {
-    if (!portee.tous && !portee.warehouseIds.includes(warehouseId)) {
+    if (!estDansPortee(portee, warehouseId)) {
       return c.json({ code: "ACCES_REFUSE", message: "Accès refusé" }, 403)
     }
     conditions.push(eq(schema.inventoryCounts.warehouseId, warehouseId))
-  } else if (!portee.tous) {
-    if (portee.warehouseIds.length === 0) {
+  } else {
+    const filtre = filtrePortee(portee, schema.inventoryCounts.warehouseId)
+    if (filtre.vide) {
       return c.json({ counts: [] })
     }
-    conditions.push(
-      inArray(schema.inventoryCounts.warehouseId, portee.warehouseIds)
-    )
+    if (filtre.condition) {
+      conditions.push(filtre.condition)
+    }
   }
   const rows = await db
     .select({
@@ -288,7 +293,7 @@ inventoryCountsRoute.get("/:id", async (c) => {
     c.get("user").id,
     role
   )
-  if (!portee.tous && !portee.warehouseIds.includes(inventaire.warehouseId)) {
+  if (!estDansPortee(portee, inventaire.warehouseId)) {
     return c.json({ code: "ACCES_REFUSE", message: "Accès refusé" }, 403)
   }
   const entetes = await db

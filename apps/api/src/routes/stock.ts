@@ -1,12 +1,16 @@
 import { Hono } from "hono"
 import { drizzle } from "drizzle-orm/d1"
-import { and, asc, desc, eq, gte, inArray, lt, or, sql } from "drizzle-orm"
+import { and, asc, desc, eq, gte, lt, or, sql } from "drizzle-orm"
 import { alias } from "drizzle-orm/sqlite-core"
 import type { SQL } from "drizzle-orm"
 import { adjustmentCreateSchema, minStockSchema } from "shared"
 import * as schema from "../db/schema"
 import { likeEchappe } from "../lib/recherche"
-import { porteeLectureStock } from "../lib/stock-acces"
+import {
+  estDansPortee,
+  filtrePortee,
+  porteeLectureStock,
+} from "../lib/stock-acces"
 import { validerCorps } from "../lib/validation"
 import { varianteScope } from "../lib/org-scope"
 import { requireAuth } from "../middleware/require-auth"
@@ -97,7 +101,7 @@ stockRoute.get("/levels", async (c) => {
     c.get("user").id,
     role
   )
-  if (!portee.tous && !portee.warehouseIds.includes(warehouseId)) {
+  if (!estDansPortee(portee, warehouseId)) {
     return c.json({ code: "ACCES_REFUSE", message: "Accès refusé" }, 403)
   }
   if (!(await entrepotDansOrganisation(db, organizationId, warehouseId))) {
@@ -196,7 +200,7 @@ stockRoute.get("/movements", async (c) => {
     eq(schema.stockMovements.organizationId, organizationId),
   ]
   if (warehouseId) {
-    if (!portee.tous && !portee.warehouseIds.includes(warehouseId)) {
+    if (!estDansPortee(portee, warehouseId)) {
       return c.json({ code: "ACCES_REFUSE", message: "Accès refusé" }, 403)
     }
     if (!(await entrepotDansOrganisation(db, organizationId, warehouseId))) {
@@ -206,13 +210,14 @@ stockRoute.get("/movements", async (c) => {
       )
     }
     conditions.push(eq(schema.stockMovements.warehouseId, warehouseId))
-  } else if (!portee.tous) {
-    if (portee.warehouseIds.length === 0) {
+  } else {
+    const filtre = filtrePortee(portee, schema.stockMovements.warehouseId)
+    if (filtre.vide) {
       return c.json({ movements: [], total: 0, page, limite })
     }
-    conditions.push(
-      inArray(schema.stockMovements.warehouseId, portee.warehouseIds)
-    )
+    if (filtre.condition) {
+      conditions.push(filtre.condition)
+    }
   }
   if (type) {
     conditions.push(
@@ -330,7 +335,7 @@ stockRoute.get("/alerts", async (c) => {
   ]
   const warehouseId = c.req.query("warehouseId")
   if (warehouseId) {
-    if (!portee.tous && !portee.warehouseIds.includes(warehouseId)) {
+    if (!estDansPortee(portee, warehouseId)) {
       return c.json({ code: "ACCES_REFUSE", message: "Accès refusé" }, 403)
     }
     if (!(await entrepotDansOrganisation(db, organizationId, warehouseId))) {
@@ -340,13 +345,14 @@ stockRoute.get("/alerts", async (c) => {
       )
     }
     conditions.push(eq(schema.stockLevels.warehouseId, warehouseId))
-  } else if (!portee.tous) {
-    if (portee.warehouseIds.length === 0) {
+  } else {
+    const filtre = filtrePortee(portee, schema.stockLevels.warehouseId)
+    if (filtre.vide) {
       return c.json({ alerts: [], total: 0 })
     }
-    conditions.push(
-      inArray(schema.stockLevels.warehouseId, portee.warehouseIds)
-    )
+    if (filtre.condition) {
+      conditions.push(filtre.condition)
+    }
   }
   const alerts = await db
     .select({
@@ -396,7 +402,7 @@ stockRoute.get("/transit", async (c) => {
     c.get("user").id,
     role
   )
-  if (!portee.tous && !portee.warehouseIds.includes(warehouseId)) {
+  if (!estDansPortee(portee, warehouseId)) {
     return c.json({ code: "ACCES_REFUSE", message: "Accès refusé" }, 403)
   }
   if (!(await entrepotDansOrganisation(db, organizationId, warehouseId))) {
