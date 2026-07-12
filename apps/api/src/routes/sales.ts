@@ -547,8 +547,19 @@ salesRoute.post("/", async (c) => {
       clientRequestId,
       createdAt: maintenant,
     })
+    // CMP figé (spec §3, Phase 7) : sous-requête évaluée DANS la
+    // transaction du batch — même principe que le gel à l'expédition des
+    // transferts, JAMAIS de lecture JS puis écriture. La ligne stock_levels
+    // (source, variante) existe forcément pour une vente qui aboutit : le
+    // décrément du même batch échouerait sinon au CHECK ; si elle manquait,
+    // la sous-requête rendrait NULL et le batch mourrait de toute façon.
     const insertLignes = lignes.map((ligne) =>
-      db.insert(schema.saleItems).values(ligne)
+      db.insert(schema.saleItems).values({
+        ...ligne,
+        unitCost: sql`(SELECT avg_cost FROM stock_levels
+          WHERE warehouse_id = ${ligne.sourceWarehouseId}
+            AND variant_id = ${ligne.variantId})`,
+      })
     )
     const insertPaiements = paiements.map((p) =>
       db.insert(schema.payments).values({
