@@ -9,49 +9,66 @@
 -- 1) Déduplication préalable (la prod est quasi vide, mais la migration doit
 --    passer même avec des doublons) : la ligne au plus petit rowid garde son
 --    nom, les suivantes sont suffixées « (2) », « (3) »… par rang de rowid.
---    Risque résiduel documenté : si « X (2) » existe déjà, la CRÉATION
---    D'INDEX ci-dessous échoue — migration bloquée, visible, à corriger à la
---    main (aucun silencieux).
-UPDATE warehouses SET name = name || ' (' || (
-  SELECT COUNT(*) FROM warehouses w2
-  WHERE w2.organization_id = warehouses.organization_id
-    AND w2.name = warehouses.name COLLATE NOCASE
-    AND w2.rowid <= warehouses.rowid
-) || ')'
-WHERE rowid NOT IN (
-  SELECT MIN(rowid) FROM warehouses
-  GROUP BY organization_id, name COLLATE NOCASE
-);--> statement-breakpoint
-UPDATE products SET name = name || ' (' || (
-  SELECT COUNT(*) FROM products p2
-  WHERE p2.organization_id = products.organization_id
-    AND p2.name = products.name COLLATE NOCASE
-    AND p2.rowid <= products.rowid
-) || ')'
-WHERE rowid NOT IN (
-  SELECT MIN(rowid) FROM products
-  GROUP BY organization_id, name COLLATE NOCASE
-);--> statement-breakpoint
-UPDATE categories SET name = name || ' (' || (
-  SELECT COUNT(*) FROM categories c2
-  WHERE c2.organization_id = categories.organization_id
-    AND c2.name = categories.name COLLATE NOCASE
-    AND c2.rowid <= categories.rowid
-) || ')'
-WHERE rowid NOT IN (
-  SELECT MIN(rowid) FROM categories
-  GROUP BY organization_id, name COLLATE NOCASE
-);--> statement-breakpoint
-UPDATE suppliers SET name = name || ' (' || (
-  SELECT COUNT(*) FROM suppliers s2
-  WHERE s2.organization_id = suppliers.organization_id
-    AND s2.name = suppliers.name COLLATE NOCASE
-    AND s2.rowid <= suppliers.rowid
-) || ')'
-WHERE rowid NOT IN (
-  SELECT MIN(rowid) FROM suppliers
-  GROUP BY organization_id, name COLLATE NOCASE
-);--> statement-breakpoint
+--    Le rang de chaque ligne est calculé UNE FOIS, via une CTE
+--    `AS MATERIALIZED` (ROW_NUMBER() OVER PARTITION BY organization_id,
+--    name COLLATE NOCASE ORDER BY rowid), avant que l'UPDATE ne commence à
+--    muter les noms. MATERIALIZED force SQLite à évaluer et stocker le
+--    résultat de la CTE comme une table temporaire figée : sans ce mot-clé,
+--    SQLite peut choisir d'inliner la CTE et de la ré-évaluer ligne par
+--    ligne pendant l'UPDATE, auquel cas le rang recalculé "voit" les noms
+--    déjà renommés par les lignes précédentes du même UPDATE et se
+--    réinitialise (bug constaté empiriquement avec 3+ doublons dans la même
+--    organisation : « Foo », « foo », « FOO » finissaient en « Foo »,
+--    « foo (2) », « FOO (2) » — collision NOCASE résiduelle faisant échouer
+--    la CRÉATION D'INDEX ci-dessous). Avec la CTE matérialisée, le rang est
+--    figé sur l'état initial de la table : « Foo », « foo (2) », « FOO (3) ».
+--    Risque résiduel documenté : si « X (2) » existe déjà en tant que nom
+--    distinct préexistant, la CRÉATION D'INDEX ci-dessous échoue — migration
+--    bloquée, visible, à corriger à la main (aucun silencieux).
+WITH ranked_warehouses AS MATERIALIZED (
+  SELECT rowid AS rid,
+         ROW_NUMBER() OVER (
+           PARTITION BY organization_id, name COLLATE NOCASE
+           ORDER BY rowid
+         ) AS rang
+  FROM warehouses
+)
+UPDATE warehouses
+SET name = name || ' (' || (SELECT rang FROM ranked_warehouses WHERE ranked_warehouses.rid = warehouses.rowid) || ')'
+WHERE rowid IN (SELECT rid FROM ranked_warehouses WHERE rang > 1);--> statement-breakpoint
+WITH ranked_products AS MATERIALIZED (
+  SELECT rowid AS rid,
+         ROW_NUMBER() OVER (
+           PARTITION BY organization_id, name COLLATE NOCASE
+           ORDER BY rowid
+         ) AS rang
+  FROM products
+)
+UPDATE products
+SET name = name || ' (' || (SELECT rang FROM ranked_products WHERE ranked_products.rid = products.rowid) || ')'
+WHERE rowid IN (SELECT rid FROM ranked_products WHERE rang > 1);--> statement-breakpoint
+WITH ranked_categories AS MATERIALIZED (
+  SELECT rowid AS rid,
+         ROW_NUMBER() OVER (
+           PARTITION BY organization_id, name COLLATE NOCASE
+           ORDER BY rowid
+         ) AS rang
+  FROM categories
+)
+UPDATE categories
+SET name = name || ' (' || (SELECT rang FROM ranked_categories WHERE ranked_categories.rid = categories.rowid) || ')'
+WHERE rowid IN (SELECT rid FROM ranked_categories WHERE rang > 1);--> statement-breakpoint
+WITH ranked_suppliers AS MATERIALIZED (
+  SELECT rowid AS rid,
+         ROW_NUMBER() OVER (
+           PARTITION BY organization_id, name COLLATE NOCASE
+           ORDER BY rowid
+         ) AS rang
+  FROM suppliers
+)
+UPDATE suppliers
+SET name = name || ' (' || (SELECT rang FROM ranked_suppliers WHERE ranked_suppliers.rid = suppliers.rowid) || ')'
+WHERE rowid IN (SELECT rid FROM ranked_suppliers WHERE rang > 1);--> statement-breakpoint
 
 -- 2) Index uniques. La violation remonte
 --    « UNIQUE constraint failed: <table>.organization_id, <table>.name »
