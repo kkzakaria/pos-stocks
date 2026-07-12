@@ -17,7 +17,11 @@ import {
   totalPanier,
 } from "@/lib/pos"
 import type { ArticlePos, LignePanier } from "@/lib/pos"
-import { envoyerVente, fetchCataloguePos } from "@/lib/pos-api"
+import {
+  envoyerVente,
+  fetchCataloguePos,
+  fetchReglagesTicket,
+} from "@/lib/pos-api"
 import type { SessionCaisse, VenteDetail } from "@/lib/pos-api"
 import { GrilleArticles } from "@/pos/grille-articles"
 import { Panier } from "@/pos/panier"
@@ -25,6 +29,9 @@ import { PanneauLigne } from "@/pos/panneau-ligne"
 import { ModalePaiement } from "@/pos/modale-paiement"
 import { DialogueDepannage } from "@/pos/dialogue-depannage"
 import { MenuPos } from "@/pos/menu-pos"
+import { ImpressionTicket } from "@/pos/ticket-recu"
+import { TicketsDuJour } from "@/pos/tickets-du-jour"
+import { FermetureCaisse } from "@/pos/fermeture-caisse"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 
@@ -38,9 +45,6 @@ type Props = {
 type CleLigne = { variantId: string; source: string | null }
 
 export function EcranVente({ me, boutique, session, onSessionFermee }: Props) {
-  // session/onSessionFermee : consommés par la fermeture de caisse (Task 16)
-  void session
-  void onSessionFermee
   const queryClient = useQueryClient()
   const catalogue = useQuery({
     queryKey: ["pos-catalogue", boutique.id],
@@ -58,6 +62,12 @@ export function EcranVente({ me, boutique, session, onSessionFermee }: Props) {
   const [paiementOuvert, setPaiementOuvert] = useState(false)
   const [erreurVente, setErreurVente] = useState<string | null>(null)
   const [confirmation, setConfirmation] = useState<VenteDetail | null>(null)
+  const [vue, setVue] = useState<"vente" | "tickets" | "fermeture">("vente")
+  const [reimpression, setReimpression] = useState<VenteDetail | null>(null)
+  const reglages = useQuery({
+    queryKey: ["reglages-ticket"],
+    queryFn: fetchReglagesTicket,
+  })
   // Identifiant d'idempotence (décision 5) : UN par panier encaissé,
   // conservé tel quel sur retry, régénéré après chaque vente réussie.
   const requestId = useRef(crypto.randomUUID())
@@ -172,8 +182,8 @@ export function EcranVente({ me, boutique, session, onSessionFermee }: Props) {
           <MenuPos
             boutiqueNom={boutique.name}
             peutRetournerBackOffice={!estCaissierPur(me)}
-            onTicketsDuJour={() => undefined}
-            onFermerCaisse={() => undefined}
+            onTicketsDuJour={() => setVue("tickets")}
+            onFermerCaisse={() => setVue("fermeture")}
           />
         </div>
       </header>
@@ -304,31 +314,72 @@ export function EcranVente({ me, boutique, session, onSessionFermee }: Props) {
       )}
 
       {confirmation && (
-        <div className="fixed inset-0 z-40 grid place-items-center bg-black/60 p-4">
-          <div className="w-full max-w-md rounded-lg bg-white p-6 text-center">
-            <p className="text-lg font-semibold">
-              Vente n° {confirmation.ticketNumber} enregistrée
-            </p>
-            {confirmation.payments.some((p) => (p.changeGiven ?? 0) > 0) && (
-              <p className="my-4 text-5xl font-bold text-green-700 tabular-nums">
-                Monnaie :{" "}
-                {formaterMontant(
-                  confirmation.payments.reduce(
-                    (somme, p) => somme + (p.changeGiven ?? 0),
-                    0
-                  )
-                )}
+        <>
+          <div className="fixed inset-0 z-40 grid place-items-center bg-black/60 p-4 print:hidden">
+            <div className="w-full max-w-md rounded-lg bg-white p-6 text-center">
+              <p className="text-lg font-semibold">
+                Vente n° {confirmation.ticketNumber} enregistrée
               </p>
-            )}
-            <Button
-              autoFocus
-              className="mt-4 min-h-14 w-full text-lg"
-              onClick={() => setConfirmation(null)}
-            >
-              Nouvelle vente
-            </Button>
+              {confirmation.payments.some((p) => (p.changeGiven ?? 0) > 0) && (
+                <p className="my-4 text-5xl font-bold text-green-700 tabular-nums">
+                  Monnaie :{" "}
+                  {formaterMontant(
+                    confirmation.payments.reduce(
+                      (somme, p) => somme + (p.changeGiven ?? 0),
+                      0
+                    )
+                  )}
+                </p>
+              )}
+              <div className="mt-4 flex gap-2">
+                <Button
+                  variant="outline"
+                  className="min-h-14 flex-1"
+                  onClick={() => window.print()}
+                >
+                  Réimprimer
+                </Button>
+                <Button
+                  autoFocus
+                  className="min-h-14 flex-1 text-lg"
+                  onClick={() => setConfirmation(null)}
+                >
+                  Nouvelle vente
+                </Button>
+              </div>
+            </div>
           </div>
-        </div>
+          <ImpressionTicket
+            sale={confirmation}
+            reglages={reglages.data ?? null}
+            onImprime={() => undefined}
+          />
+        </>
+      )}
+
+      {vue === "tickets" && (
+        <TicketsDuJour
+          storeId={boutique.id}
+          onReimprimer={(sale) => setReimpression(sale)}
+          onFermer={() => setVue("vente")}
+        />
+      )}
+      {reimpression && (
+        <ImpressionTicket
+          sale={reimpression}
+          reglages={reglages.data ?? null}
+          onImprime={() => setReimpression(null)}
+        />
+      )}
+      {vue === "fermeture" && (
+        <FermetureCaisse
+          session={session}
+          onFermee={() => {
+            setVue("vente")
+            onSessionFermee()
+          }}
+          onAnnuler={() => setVue("vente")}
+        />
       )}
     </main>
   )
