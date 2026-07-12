@@ -1,0 +1,53 @@
+import { apiUrl } from "@/lib/api"
+import { formaterMontant } from "@/lib/format"
+import type { ArticlePos } from "@/lib/pos"
+
+type Props = {
+  articles: ArticlePos[]
+  onChoisir: (article: ArticlePos) => void
+}
+
+// Grille de tuiles produits (spec §7) : image, nom, prix, badge rupture ;
+// tuiles ≥ 88 px, utilisables au doigt.
+export function GrilleArticles({ articles, onChoisir }: Props) {
+  if (articles.length === 0) {
+    return <p className="p-6 text-gray-500">Aucun article.</p>
+  }
+  return (
+    <div className="grid grid-cols-[repeat(auto-fill,minmax(7rem,1fr))] gap-2 p-2">
+      {articles.map((article) => (
+        <button
+          key={article.variantId}
+          onClick={() => onChoisir(article)}
+          className="relative flex min-h-[88px] flex-col items-stretch justify-between rounded-lg border bg-white p-2 text-left shadow-sm active:scale-95"
+        >
+          {article.imageKey ? (
+            <img
+              src={apiUrl(`/api/v1/files/${article.imageKey}`)}
+              alt=""
+              className="mb-1 h-14 w-full rounded object-cover"
+            />
+          ) : (
+            <div
+              aria-hidden="true"
+              className="mb-1 grid h-14 w-full place-items-center rounded bg-gray-100 text-lg font-semibold text-gray-400"
+            >
+              {article.nom.slice(0, 2).toUpperCase()}
+            </div>
+          )}
+          <span className="line-clamp-2 text-xs font-medium">
+            {article.nom}
+          </span>
+          <span className="text-sm font-semibold">
+            {formaterMontant(article.price)}
+          </span>
+          {article.quantity <= 0 && (
+            <span className="absolute top-1 right-1 rounded bg-red-100 px-1.5 py-0.5 text-[10px] font-semibold text-red-700">
+              Rupture
+            </span>
+          )}
+        </button>
+      ))}
+    </div>
+  )
+}
