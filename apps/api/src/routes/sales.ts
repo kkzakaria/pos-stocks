@@ -305,6 +305,67 @@ async function venteBoutique(
   return rows[0] ?? null
 }
 
+// Marge du détail de vente (Phase 7, décision 9 du plan) : réservée à qui a
+// droit aux marges sur la boutique — org owner/admin/auditor OU rôle local
+// manager/auditor. JAMAIS cashier ni stock_manager : la réponse porte
+// marge: null pour eux (aucun coût n'est exposé).
+async function peutVoirMarge(
+  c: Parameters<typeof verifierAccesEntrepot>[0],
+  db: Db,
+  organizationId: string,
+  storeId: string
+): Promise<boolean> {
+  const { role } = c.get("membership")
+  if (role === "owner" || role === "admin" || role === "auditor") {
+    return true
+  }
+  if (role === "stock_manager") {
+    return false
+  }
+  const rows = await db
+    .select({ id: schema.warehouseMembers.id })
+    .from(schema.warehouseMembers)
+    .where(
+      and(
+        eq(schema.warehouseMembers.warehouseId, storeId),
+        eq(schema.warehouseMembers.userId, c.get("user").id),
+        eq(schema.warehouseMembers.organizationId, organizationId),
+        inArray(schema.warehouseMembers.role, ["manager", "auditor"])
+      )
+    )
+    .limit(1)
+  return rows.length > 0
+}
+
+// Coût de la vente au unitCost figé, lignes NULL au CMP courant du niveau
+// (source, variante) — même formule que /reports/margins.
+async function margeVente(
+  db: Db,
+  saleId: string
+): Promise<{ cout: number; marge: number; estime: boolean }> {
+  const rows = await db
+    .select({
+      ca: sql<number>`COALESCE(SUM(${schema.saleItems.quantity} * ${schema.saleItems.unitPrice}), 0)`,
+      cout: sql<number>`COALESCE(SUM(${schema.saleItems.quantity} * COALESCE(${schema.saleItems.unitCost}, ${schema.stockLevels.avgCost}, 0)), 0)`,
+      lignesEstimees: sql<number>`COALESCE(SUM(CASE WHEN ${schema.saleItems.unitCost} IS NULL THEN 1 ELSE 0 END), 0)`,
+    })
+    .from(schema.saleItems)
+    .leftJoin(
+      schema.stockLevels,
+      and(
+        eq(schema.stockLevels.warehouseId, schema.saleItems.sourceWarehouseId),
+        eq(schema.stockLevels.variantId, schema.saleItems.variantId)
+      )
+    )
+    .where(eq(schema.saleItems.saleId, saleId))
+  const agregat = rows[0] ?? { ca: 0, cout: 0, lignesEstimees: 0 }
+  return {
+    cout: agregat.cout,
+    marge: agregat.ca - agregat.cout,
+    estime: agregat.lignesEstimees > 0,
+  }
+}
+
 salesRoute.get("/:id", async (c) => {
   const { organizationId } = c.get("membership")
   const db = drizzle(c.env.DB, { schema })
@@ -314,7 +375,15 @@ salesRoute.get("/:id", async (c) => {
   }
   const refus = await verifierLectureVentes(c, vente.storeId)
   if (refus) return refus
-  return c.json({ sale: await chargerVente(db, organizationId, vente.id) })
+  // marge: null si l'appelant n'y a pas droit (champ ADDITIF — les
+  // consommateurs POS existants lisent { sale } sans changement).
+  const marge = (await peutVoirMarge(c, db, organizationId, vente.storeId))
+    ? await margeVente(db, vente.id)
+    : null
+  return c.json({
+    sale: await chargerVente(db, organizationId, vente.id),
+    marge,
+  })
 })
 
 salesRoute.post("/", async (c) => {

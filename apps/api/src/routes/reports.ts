@@ -405,3 +405,121 @@ reportsRoute.get("/valuation", async (c) => {
   const total = entrepots.reduce((somme, e) => somme + e.valeur, 0)
   return c.json({ entrepots, total })
 })
+
+// Marges (spec §6) : CA − coût au unitCost FIGÉ (Task 4). Les lignes
+// antérieures à la colonne (unit_cost NULL) sont valorisées au CMP COURANT
+// du niveau (entrepôt SOURCE, variante) via LEFT JOIN — et le groupe est
+// marqué estime: true (décision 5 du plan). Fermé à stock_manager.
+reportsRoute.get("/margins", async (c) => {
+  const { organizationId, role } = c.get("membership")
+  const db = drizzle(c.env.DB, { schema })
+  const portee = await porteeRapport(
+    db,
+    organizationId,
+    c.get("user").id,
+    role,
+    "marges"
+  )
+  if (!portee) {
+    return c.json(REPONSE_ACCES_REFUSE, 403)
+  }
+  const du = c.req.query("du")
+  const au = c.req.query("au")
+  const bornes = du && au ? bornesPeriode(du, au) : null
+  if (!du || !au || !bornes) {
+    return c.json(REPONSE_PERIODE_INVALIDE, 400)
+  }
+  const resolution = await conditionsVentes(
+    db,
+    organizationId,
+    portee,
+    bornes,
+    c.req.query("storeId")
+  )
+  if (!resolution.ok) {
+    return resolution.statut === 403
+      ? c.json(REPONSE_ACCES_REFUSE, 403)
+      : c.json({ code: "INTROUVABLE", message: "Boutique introuvable" }, 404)
+  }
+  const groupes = await db
+    .select({
+      productId: schema.products.id,
+      productName: schema.products.name,
+      variantId: schema.saleItems.variantId,
+      variantName: schema.productVariants.name,
+      sku: schema.productVariants.sku,
+      quantite: sql<number>`COALESCE(SUM(${schema.saleItems.quantity}), 0)`,
+      ca: sql<number>`COALESCE(SUM(${schema.saleItems.quantity} * ${schema.saleItems.unitPrice}), 0)`,
+      cout: sql<number>`COALESCE(SUM(${schema.saleItems.quantity} * COALESCE(${schema.saleItems.unitCost}, ${schema.stockLevels.avgCost}, 0)), 0)`,
+      lignesEstimees: sql<number>`COALESCE(SUM(CASE WHEN ${schema.saleItems.unitCost} IS NULL THEN 1 ELSE 0 END), 0)`,
+    })
+    .from(schema.saleItems)
+    .innerJoin(schema.sales, eq(schema.saleItems.saleId, schema.sales.id))
+    .innerJoin(
+      schema.productVariants,
+      eq(schema.saleItems.variantId, schema.productVariants.id)
+    )
+    .innerJoin(
+      schema.products,
+      eq(schema.productVariants.productId, schema.products.id)
+    )
+    .leftJoin(
+      schema.stockLevels,
+      and(
+        eq(schema.stockLevels.warehouseId, schema.saleItems.sourceWarehouseId),
+        eq(schema.stockLevels.variantId, schema.saleItems.variantId)
+      )
+    )
+    .where(and(...resolution.conditions))
+    .groupBy(schema.saleItems.variantId)
+    .orderBy(asc(schema.products.name), asc(schema.productVariants.name))
+  const lignes = groupes.map((g) => ({
+    productId: g.productId,
+    productName: g.productName,
+    variantId: g.variantId,
+    variantName: g.variantName,
+    sku: g.sku,
+    quantite: g.quantite,
+    ca: g.ca,
+    cout: g.cout,
+    marge: g.ca - g.cout,
+    estime: g.lignesEstimees > 0,
+  }))
+  const totalCa = lignes.reduce((somme, l) => somme + l.ca, 0)
+  const totalCout = lignes.reduce((somme, l) => somme + l.cout, 0)
+  const total = {
+    ca: totalCa,
+    cout: totalCout,
+    marge: totalCa - totalCout,
+    estime: lignes.some((l) => l.estime),
+  }
+  if (c.req.query("format") === "csv") {
+    const contenu = genererCsv(
+      [
+        "Produit",
+        "Variante",
+        "SKU",
+        "Quantité",
+        "CA",
+        "Coût",
+        "Marge",
+        "Estimé",
+      ],
+      lignes.map((l) => [
+        l.productName,
+        l.variantName,
+        l.sku,
+        l.quantite,
+        l.ca,
+        l.cout,
+        l.marge,
+        l.estime ? "oui" : "",
+      ])
+    )
+    return c.body(contenu, 200, {
+      ...ENTETES_CSV,
+      "content-disposition": `attachment; filename="rapport-marges_${du}_${au}.csv"`,
+    })
+  }
+  return c.json({ periode: { du, au }, total, lignes })
+})
