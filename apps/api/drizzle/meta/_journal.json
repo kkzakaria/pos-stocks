@@ -71,6 +71,13 @@
       "when": 1783842983140,
       "tag": "0009_transfer_inventory_hardening",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "6",
+      "when": 1783859524400,
+      "tag": "0010_unique_names",
+      "breakpoints": true
     }
   ]
 }
