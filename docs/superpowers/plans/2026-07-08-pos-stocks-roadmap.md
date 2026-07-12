@@ -12,7 +12,7 @@
 | 2 | Administration : entrepôts, utilisateurs, affectations, middleware de permissions complet | `2026-07-09-phase-2-administration.md` | ✅ terminée (2026-07-10, PR #3 mergée) |
 | 3 | Catalogue : catégories, fournisseurs, produits, variantes, images R2, lots | `2026-07-10-phase-3-catalogue.md` | ✅ terminée (2026-07-10, PR #4 mergée) |
 | 4 | Moteur de stock : journal + niveaux, service atomique, réceptions, ajustements, alertes | `2026-07-10-phase-4-moteur-de-stock.md` | ✅ terminée (2026-07-11, PR #5 mergée) |
-| 5 | Transferts inter-entrepôts et inventaires physiques | à rédiger | — |
+| 5 | Transferts inter-entrepôts et inventaires physiques | `2026-07-11-phase-5-transferts-inventaires.md` | ✅ terminée (2026-07-12, PR en cours) |
 | 6 | POS : sessions de caisse, vente atomique, paiements, ticket 80 mm, FEFO, dépannage — **mini-brainstorming UI avant le plan** | à rédiger | — |
 | 7 | Rapports, tableau de bord, finitions (valorisation, marges, alertes visibles) | à rédiger | — |
 
@@ -62,10 +62,10 @@ Notes de fin de phase : API `https://pos-stocks-api.koffiz2110.workers.dev`, SPA
 **Livrable** : le stock entre, se consulte et s'audite ; les invariants tiennent sous concurrence.
 
 ### Phase 5 — Transferts & inventaires
-- [ ] Transferts (pending → sent → received, annulation, écarts de réception)
-- [ ] Stock en transit visible
-- [ ] Inventaires (ouverture avec quantités figées, comptages, clôture → ajustements)
-- [ ] Écrans transferts et inventaires
+- [x] Transferts (pending → sent → received, annulation, écarts de réception)
+- [x] Stock en transit visible
+- [x] Inventaires (ouverture avec quantités figées, comptages, clôture → ajustements)
+- [x] Écrans transferts et inventaires
 
 **Livrable** : les mouvements inter-entrepôts et les comptages sont opérationnels.
 

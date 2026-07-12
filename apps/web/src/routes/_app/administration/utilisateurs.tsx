@@ -41,6 +41,7 @@ type Utilisateur = {
   role: CompanyRole
   isActive: boolean
   assignments: Array<{
+    id: string
     warehouseId: string
     warehouseName: string
     role: WarehouseRole
@@ -152,6 +153,15 @@ function UtilisateursPage() {
       await invalider()
       setAffectation({ userId: "", warehouseId: "", role: "cashier" })
     },
+    onError: (err) => alert(err instanceof Error ? err.message : "Erreur"),
+  })
+
+  const retirerAffectation = useMutation({
+    mutationFn: (assignmentId: string) =>
+      apiFetch(`/api/v1/warehouse-members/${assignmentId}`, {
+        method: "DELETE",
+      }),
+    onSuccess: invalider,
     onError: (err) => alert(err instanceof Error ? err.message : "Erreur"),
   })
 
@@ -274,14 +284,36 @@ function UtilisateursPage() {
                   )}
                 </TableCell>
                 <TableCell className="text-sm">
-                  {u.assignments.length === 0
-                    ? "—"
-                    : u.assignments
-                        .map(
-                          (a) =>
-                            `${a.warehouseName} (${ROLES_ENTREPOT_FR[a.role]})`
-                        )
-                        .join(", ")}
+                  {u.assignments.length === 0 ? (
+                    "—"
+                  ) : (
+                    <span className="flex flex-wrap gap-1">
+                      {u.assignments.map((a) => (
+                        <Badge key={a.id} variant="secondary">
+                          {a.warehouseName} ({ROLES_ENTREPOT_FR[a.role]})
+                          {peutEcrire && (
+                            <button
+                              type="button"
+                              aria-label={`Retirer l'affectation ${a.warehouseName}`}
+                              className="ml-1 font-semibold hover:text-red-700"
+                              disabled={retirerAffectation.isPending}
+                              onClick={() => {
+                                if (
+                                  window.confirm(
+                                    `Retirer l'affectation « ${a.warehouseName} » de ${u.name} ?`
+                                  )
+                                ) {
+                                  retirerAffectation.mutate(a.id)
+                                }
+                              }}
+                            >
+                              ×
+                            </button>
+                          )}
+                        </Badge>
+                      ))}
+                    </span>
+                  )}
                 </TableCell>
                 <TableCell>
                   <Badge variant={u.isActive ? "default" : "secondary"}>

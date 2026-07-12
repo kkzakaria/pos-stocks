@@ -39,8 +39,13 @@ export function estViolationCheck(err: unknown, fragment?: string): boolean {
   return fragment ? messageDansCauses(err, fragment) : true
 }
 
-// RAISE(ABORT, code) émis par un trigger de 0005_stock_guards
-// (RECEPTION_VALIDEE, JOURNAL_IMMUABLE).
+// RAISE(ABORT, code) émis par un trigger custom (0005_stock_guards,
+// 0007_transfer_inventory_guards). Forme d'erreur D1 vérifiée
+// empiriquement : « D1_ERROR: <code>: SQLITE_CONSTRAINT » (la cause
+// imbriquée porte « <code>: SQLITE_CONSTRAINT »). Ancrer sur le format
+// complet « <code>: SQLITE_CONSTRAINT » — et non sur le code seul —
+// évite qu'un code court (ex. « VALIDATION ») matche par accident un
+// fragment d'un message d'erreur sans rapport.
 export function estErreurDeclencheur(err: unknown, code: string): boolean {
-  return messageDansCauses(err, code)
+  return messageDansCauses(err, `${code}: SQLITE_CONSTRAINT`)
 }

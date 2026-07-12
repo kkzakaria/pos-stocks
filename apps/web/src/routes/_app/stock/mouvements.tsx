@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query"
 import { apiFetch } from "@/lib/api"
 import { useEntrepotsVisibles, LIBELLES_TYPE_MOUVEMENT } from "@/lib/stock"
 import type { MouvementJournal } from "@/lib/stock"
+import { ErreurChargement } from "@/components/erreur-chargement"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -140,6 +141,11 @@ function MouvementsPage() {
 
       {mouvements.isPending ? (
         <p className="text-sm text-gray-500">Chargement…</p>
+      ) : mouvements.isError ? (
+        <ErreurChargement
+          message="Impossible de charger le journal des mouvements."
+          onRetry={() => void mouvements.refetch()}
+        />
       ) : (
         <>
           <Table>
@@ -156,7 +162,7 @@ function MouvementsPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {(mouvements.data?.movements ?? []).map((m) => (
+              {mouvements.data.movements.map((m) => (
                 <TableRow key={m.id}>
                   <TableCell className="text-sm whitespace-nowrap">
                     {new Date(m.createdAt).toLocaleString("fr-FR")}
@@ -187,7 +193,7 @@ function MouvementsPage() {
                   <TableCell className="text-sm">{m.userName}</TableCell>
                 </TableRow>
               ))}
-              {mouvements.data?.movements.length === 0 && (
+              {mouvements.data.movements.length === 0 && (
                 <TableRow>
                   <TableCell
                     colSpan={8}

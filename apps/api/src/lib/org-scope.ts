@@ -81,3 +81,21 @@ export async function fournisseurExiste(
     .limit(1)
   return rows.length > 0
 }
+
+export async function entrepotExiste(
+  db: Db,
+  organizationId: string,
+  id: string
+): Promise<boolean> {
+  const rows = await db
+    .select({ id: schema.warehouses.id })
+    .from(schema.warehouses)
+    .where(
+      and(
+        eq(schema.warehouses.id, id),
+        eq(schema.warehouses.organizationId, organizationId)
+      )
+    )
+    .limit(1)
+  return rows.length > 0
+}

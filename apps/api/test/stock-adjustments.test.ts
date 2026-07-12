@@ -104,54 +104,67 @@ describe("POST /api/v1/stock/warehouses/:warehouseId/adjustments", () => {
     expect(corps.details[0]?.sku).toContain("TST-")
   })
 
-  it("matrice : manager de l'entrepôt OK, manager d'un autre entrepôt/auditeur/caissier 403, stock_manager OK", async () => {
-    const { organizationId, warehouseId, variantId } = await seed()
-    const autreEntrepot = await creerEntrepot(organizationId, "Annexe")
-    const manager = await createUserWithRole(organizationId, "staff")
-    await affecterEntrepot(
-      organizationId,
-      manager.userId,
-      warehouseId,
-      "manager"
-    )
-    const managerAilleurs = await createUserWithRole(organizationId, "staff")
-    await affecterEntrepot(
-      organizationId,
-      managerAilleurs.userId,
-      autreEntrepot,
-      "manager"
-    )
-    const auditeurEntrepot = await createUserWithRole(organizationId, "staff")
-    await affecterEntrepot(
-      organizationId,
-      auditeurEntrepot.userId,
-      warehouseId,
-      "auditor"
-    )
-    const caissier = await createUserWithRole(organizationId, "staff")
-    await affecterEntrepot(
-      organizationId,
-      caissier.userId,
-      warehouseId,
-      "cashier"
-    )
-    const gestStock = await createUserWithRole(organizationId, "stock_manager")
+  // retry : test en matrice multi-utilisateurs (nombreux hachages scrypt) — même
+  // flake workerd « Network connection lost » que mon-compte sur les runners CI
+  // partagés (PR #6) ; passe systématiquement en local. Le crash mi-test peut en
+  // plus faire échouer en cascade le test suivant du fichier.
+  it(
+    "matrice : manager de l'entrepôt OK, manager d'un autre entrepôt/auditeur/caissier 403, stock_manager OK",
+    { retry: 2 },
+    async () => {
+      const { organizationId, warehouseId, variantId } = await seed()
+      const autreEntrepot = await creerEntrepot(organizationId, "Annexe")
+      const manager = await createUserWithRole(organizationId, "staff")
+      await affecterEntrepot(
+        organizationId,
+        manager.userId,
+        warehouseId,
+        "manager"
+      )
+      const managerAilleurs = await createUserWithRole(organizationId, "staff")
+      await affecterEntrepot(
+        organizationId,
+        managerAilleurs.userId,
+        autreEntrepot,
+        "manager"
+      )
+      const auditeurEntrepot = await createUserWithRole(organizationId, "staff")
+      await affecterEntrepot(
+        organizationId,
+        auditeurEntrepot.userId,
+        warehouseId,
+        "auditor"
+      )
+      const caissier = await createUserWithRole(organizationId, "staff")
+      await affecterEntrepot(
+        organizationId,
+        caissier.userId,
+        warehouseId,
+        "cashier"
+      )
+      const gestStock = await createUserWithRole(
+        organizationId,
+        "stock_manager"
+      )
 
-    const corps = { variantId, delta: 1, reason: "test" }
-    expect((await ajuster(manager.cookie, warehouseId, corps)).status).toBe(201)
-    expect(
-      (await ajuster(managerAilleurs.cookie, warehouseId, corps)).status
-    ).toBe(403)
-    expect(
-      (await ajuster(auditeurEntrepot.cookie, warehouseId, corps)).status
-    ).toBe(403)
-    expect((await ajuster(caissier.cookie, warehouseId, corps)).status).toBe(
-      403
-    )
-    expect((await ajuster(gestStock.cookie, warehouseId, corps)).status).toBe(
-      201
-    )
-  })
+      const corps = { variantId, delta: 1, reason: "test" }
+      expect((await ajuster(manager.cookie, warehouseId, corps)).status).toBe(
+        201
+      )
+      expect(
+        (await ajuster(managerAilleurs.cookie, warehouseId, corps)).status
+      ).toBe(403)
+      expect(
+        (await ajuster(auditeurEntrepot.cookie, warehouseId, corps)).status
+      ).toBe(403)
+      expect((await ajuster(caissier.cookie, warehouseId, corps)).status).toBe(
+        403
+      )
+      expect((await ajuster(gestStock.cookie, warehouseId, corps)).status).toBe(
+        201
+      )
+    }
+  )
 
   it("cross-org : entrepôt d'une autre organisation → 403 ; variante d'une autre organisation → 404", async () => {
     const { ownerCookie, warehouseId } = await seed()

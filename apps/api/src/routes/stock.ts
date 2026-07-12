@@ -1,6 +1,7 @@
 import { Hono } from "hono"
 import { drizzle } from "drizzle-orm/d1"
 import { and, asc, desc, eq, gte, inArray, lt, or, sql } from "drizzle-orm"
+import { alias } from "drizzle-orm/sqlite-core"
 import type { SQL } from "drizzle-orm"
 import { adjustmentCreateSchema, minStockSchema } from "shared"
 import * as schema from "../db/schema"
@@ -21,8 +22,8 @@ import {
   ErreurStockInsuffisant,
   reconcilier,
 } from "../services/stock"
+import { reponseStockInsuffisant } from "../lib/stock-erreurs"
 import type { Env } from "../env"
-import type { Context } from "hono"
 import type { DrizzleD1Database } from "drizzle-orm/d1"
 
 export const stockRoute = new Hono<{
@@ -58,6 +59,28 @@ const seuilEffectif = sql<
   number | null
 >`COALESCE(${schema.stockLevels.minStock}, ${schema.products.defaultMinStock})`
 
+// Garde partagée /levels, /movements, /alerts, /transit (Phase 5) : un
+// warehouseId explicitement demandé doit exister dans l'organisation —
+// contrat 404 cross-org identique aux autres ressources. S'applique APRÈS
+// le contrôle de portée (403 prioritaire pour un staff hors portée).
+async function entrepotDansOrganisation(
+  db: DrizzleD1Database<typeof schema>,
+  organizationId: string,
+  warehouseId: string
+): Promise<boolean> {
+  const rows = await db
+    .select({ id: schema.warehouses.id })
+    .from(schema.warehouses)
+    .where(
+      and(
+        eq(schema.warehouses.id, warehouseId),
+        eq(schema.warehouses.organizationId, organizationId)
+      )
+    )
+    .limit(1)
+  return rows.length > 0
+}
+
 stockRoute.get("/levels", async (c) => {
   const { organizationId, role } = c.get("membership")
   const db = drizzle(c.env.DB, { schema })
@@ -77,17 +100,7 @@ stockRoute.get("/levels", async (c) => {
   if (!portee.tous && !portee.warehouseIds.includes(warehouseId)) {
     return c.json({ code: "ACCES_REFUSE", message: "Accès refusé" }, 403)
   }
-  const entrepots = await db
-    .select({ id: schema.warehouses.id })
-    .from(schema.warehouses)
-    .where(
-      and(
-        eq(schema.warehouses.id, warehouseId),
-        eq(schema.warehouses.organizationId, organizationId)
-      )
-    )
-    .limit(1)
-  if (entrepots.length === 0) {
+  if (!(await entrepotDansOrganisation(db, organizationId, warehouseId))) {
     return c.json({ code: "INTROUVABLE", message: "Entrepôt introuvable" }, 404)
   }
 
@@ -185,6 +198,12 @@ stockRoute.get("/movements", async (c) => {
   if (warehouseId) {
     if (!portee.tous && !portee.warehouseIds.includes(warehouseId)) {
       return c.json({ code: "ACCES_REFUSE", message: "Accès refusé" }, 403)
+    }
+    if (!(await entrepotDansOrganisation(db, organizationId, warehouseId))) {
+      return c.json(
+        { code: "INTROUVABLE", message: "Entrepôt introuvable" },
+        404
+      )
     }
     conditions.push(eq(schema.stockMovements.warehouseId, warehouseId))
   } else if (!portee.tous) {
@@ -309,7 +328,19 @@ stockRoute.get("/alerts", async (c) => {
     eq(schema.productVariants.isActive, true),
     eq(schema.warehouses.isActive, true),
   ]
-  if (!portee.tous) {
+  const warehouseId = c.req.query("warehouseId")
+  if (warehouseId) {
+    if (!portee.tous && !portee.warehouseIds.includes(warehouseId)) {
+      return c.json({ code: "ACCES_REFUSE", message: "Accès refusé" }, 403)
+    }
+    if (!(await entrepotDansOrganisation(db, organizationId, warehouseId))) {
+      return c.json(
+        { code: "INTROUVABLE", message: "Entrepôt introuvable" },
+        404
+      )
+    }
+    conditions.push(eq(schema.stockLevels.warehouseId, warehouseId))
+  } else if (!portee.tous) {
     if (portee.warehouseIds.length === 0) {
       return c.json({ alerts: [], total: 0 })
     }
@@ -347,41 +378,70 @@ stockRoute.get("/alerts", async (c) => {
   return c.json({ alerts, total: alerts.length })
 })
 
-// Enrichit l'erreur du service avec le SKU et le nom de variante pour un
-// message actionnable côté écran.
-async function reponseStockInsuffisant(
-  c: Context,
-  db: DrizzleD1Database<typeof schema>,
-  err: ErreurStockInsuffisant
-) {
-  const variantIds = err.details.map((d) => d.variantId)
-  const variantes =
-    variantIds.length > 0
-      ? await db
-          .select({
-            id: schema.productVariants.id,
-            sku: schema.productVariants.sku,
-            name: schema.productVariants.name,
-          })
-          .from(schema.productVariants)
-          .where(inArray(schema.productVariants.id, variantIds))
-      : []
-  return c.json(
-    {
-      code: "STOCK_INSUFFISANT",
-      message: "Stock insuffisant pour valider l'opération",
-      details: err.details.map((d) => {
-        const variante = variantes.find((v) => v.id === d.variantId)
-        return {
-          ...d,
-          sku: variante?.sku ?? null,
-          variantName: variante?.name ?? null,
-        }
-      }),
-    },
-    409
+// Stock en transit ENTRANT : dérivé des transferts `sent` non réceptionnés —
+// aucune matérialisation (spec Phase 5). Même contrat de lecture que /levels.
+stockRoute.get("/transit", async (c) => {
+  const { organizationId, role } = c.get("membership")
+  const db = drizzle(c.env.DB, { schema })
+  const warehouseId = c.req.query("warehouseId")
+  if (!warehouseId) {
+    return c.json(
+      { code: "VALIDATION", message: "Le paramètre warehouseId est requis" },
+      400
+    )
+  }
+  const portee = await porteeLectureStock(
+    db,
+    organizationId,
+    c.get("user").id,
+    role
   )
-}
+  if (!portee.tous && !portee.warehouseIds.includes(warehouseId)) {
+    return c.json({ code: "ACCES_REFUSE", message: "Accès refusé" }, 403)
+  }
+  if (!(await entrepotDansOrganisation(db, organizationId, warehouseId))) {
+    return c.json({ code: "INTROUVABLE", message: "Entrepôt introuvable" }, 404)
+  }
+  const origine = alias(schema.warehouses, "origine")
+  const transit = await db
+    .select({
+      transferId: schema.transfers.id,
+      reference: schema.transfers.reference,
+      fromWarehouseId: schema.transfers.fromWarehouseId,
+      fromWarehouseName: origine.name,
+      sentAt: schema.transfers.sentAt,
+      variantId: schema.transferItems.variantId,
+      productName: schema.products.name,
+      variantName: schema.productVariants.name,
+      sku: schema.productVariants.sku,
+      lotNumber: schema.lots.lotNumber,
+      quantity: schema.transferItems.quantity,
+    })
+    .from(schema.transferItems)
+    .innerJoin(
+      schema.transfers,
+      eq(schema.transferItems.transferId, schema.transfers.id)
+    )
+    .innerJoin(origine, eq(schema.transfers.fromWarehouseId, origine.id))
+    .innerJoin(
+      schema.productVariants,
+      eq(schema.transferItems.variantId, schema.productVariants.id)
+    )
+    .innerJoin(
+      schema.products,
+      eq(schema.productVariants.productId, schema.products.id)
+    )
+    .leftJoin(schema.lots, eq(schema.transferItems.lotId, schema.lots.id))
+    .where(
+      and(
+        eq(schema.transfers.organizationId, organizationId),
+        eq(schema.transfers.status, "sent"),
+        eq(schema.transfers.toWarehouseId, warehouseId)
+      )
+    )
+    .orderBy(desc(schema.transfers.sentAt), asc(schema.products.name))
+  return c.json({ transit })
+})
 
 stockRoute.post(
   "/warehouses/:warehouseId/adjustments",

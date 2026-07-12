@@ -43,6 +43,34 @@
       "when": 1783753261559,
       "tag": "0005_stock_guards",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1783799233295,
+      "tag": "0006_shocking_shatterstar",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
+      "when": 1783799245992,
+      "tag": "0007_transfer_inventory_guards",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1783810159876,
+      "tag": "0008_transfer_send_guard",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1783842983140,
+      "tag": "0009_transfer_inventory_hardening",
+      "breakpoints": true
     }
   ]
 }

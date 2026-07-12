@@ -1,7 +1,9 @@
 import { describe, it, expect } from "vitest"
 import { env } from "cloudflare:test"
+import { drizzle } from "drizzle-orm/d1"
 import app from "../src/index"
-import { bootstrapOwner, createUserWithRole } from "./helpers"
+import * as schema from "../src/db/schema"
+import { bootstrapOwner, createUserWithRole, creerEntrepot } from "./helpers"
 
 function post(cookie: string, body: unknown) {
   return app.request(
@@ -111,5 +113,67 @@ describe("API entrepôts", () => {
       env
     )
     expect(vide.status).toBe(400)
+  })
+
+  it("GET /destinations : accessible à un staff sans affectation, exclut les entrepôts inactifs et invisible cross-org", async () => {
+    const { organizationId, ownerCookie } = await bootstrapOwner()
+    const staff = await createUserWithRole(organizationId, "staff")
+    const actifId = await creerEntrepot(organizationId, "Dépôt Actif")
+    const inactifId = await creerEntrepot(organizationId, "Dépôt Inactif")
+    const desactivation = await app.request(
+      `/api/v1/warehouses/${inactifId}`,
+      {
+        method: "PATCH",
+        headers: { "content-type": "application/json", cookie: ownerCookie },
+        body: JSON.stringify({ isActive: false }),
+      },
+      env
+    )
+    expect(desactivation.status).toBe(200)
+
+    const dest = await app.request(
+      "/api/v1/warehouses/destinations",
+      { headers: { cookie: staff.cookie } },
+      env
+    )
+    expect(dest.status).toBe(200)
+    const body = await dest.json<{
+      warehouses: Array<{ id: string; name: string; type: string }>
+    }>()
+    expect(body.warehouses.map((w) => w.id)).toEqual([actifId])
+
+    // Seconde organisation avec son propre entrepôt, insérée directement en
+    // base (cf. permissions.test.ts) : le propriétaire de la première
+    // organisation ne doit jamais la voir.
+    const db = drizzle(env.DB, { schema })
+    const autreOrgId = crypto.randomUUID()
+    await db.insert(schema.organization).values({
+      id: autreOrgId,
+      name: "Autre Société",
+      slug: "autre-societe",
+      createdAt: new Date(),
+    })
+    await creerEntrepot(autreOrgId, "Dépôt Autre Org")
+
+    const destProprietaire = await app.request(
+      "/api/v1/warehouses/destinations",
+      { headers: { cookie: ownerCookie } },
+      env
+    )
+    expect(destProprietaire.status).toBe(200)
+    const bodyProprietaire = await destProprietaire.json<{
+      warehouses: Array<{ id: string; name: string }>
+    }>()
+    expect(bodyProprietaire.warehouses.map((w) => w.id)).toEqual([actifId])
+    expect(
+      bodyProprietaire.warehouses.some((w) => w.name === "Dépôt Autre Org")
+    ).toBe(false)
+
+    const nonAuthentifie = await app.request(
+      "/api/v1/warehouses/destinations",
+      {},
+      env
+    )
+    expect(nonAuthentifie.status).toBe(401)
   })
 })

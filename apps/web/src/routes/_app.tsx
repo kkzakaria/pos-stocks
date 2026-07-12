@@ -81,6 +81,12 @@ function AppLayout() {
                 <Link to="/stock/receptions" className={lienClasses}>
                   Réceptions
                 </Link>
+                <Link to="/stock/transferts" className={lienClasses}>
+                  Transferts
+                </Link>
+                <Link to="/stock/inventaires" className={lienClasses}>
+                  Inventaires
+                </Link>
               </>
             )}
             {estAdmin && (

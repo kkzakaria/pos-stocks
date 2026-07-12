@@ -10,6 +10,15 @@ export type InstructionBatch = BatchItem<"sqlite">
 
 export type TypeMouvement = (typeof schema.MOVEMENT_TYPES)[number]
 
+// Entrées « apport valorisé » : elles portent un unitCost et alimentent le
+// CMP du niveau de destination. `purchase` depuis la Phase 4 ; `transfer_in`
+// depuis la Phase 5 (spec : le transfert est valorisé au CMP de l'origine,
+// figé sur la ligne à l'expédition et absorbé ici, à la réception).
+const TYPES_APPORT_VALORISE: ReadonlySet<TypeMouvement> = new Set([
+  "purchase",
+  "transfer_in",
+])
+
 export type MouvementStock = {
   warehouseId: string
   variantId: string
@@ -20,7 +29,8 @@ export type MouvementStock = {
   reason?: string | null
   refType?: string | null
   refId?: string | null
-  // Requis pour type "purchase" : alimente le CMP
+  // Requis pour les apports valorisés ("purchase", "transfer_in") :
+  // alimente le CMP
   unitCost?: number
 }
 
@@ -44,9 +54,9 @@ type Agregat = {
   warehouseId: string
   variantId: string
   totalDelta: number
-  // Somme des deltas des mouvements `purchase` du groupe
+  // Somme des deltas des mouvements d'apport valorisé du groupe
   qtyRecue: number
-  // Somme des quantité × coût unitaire des mouvements `purchase` du groupe
+  // Somme des quantité × coût unitaire des apports valorisés du groupe
   coutTotalApport: number
 }
 
@@ -66,7 +76,7 @@ function agregerParNiveau(mouvements: MouvementStock[]): Agregat[] {
       parCle.set(cle, agregat)
     }
     agregat.totalDelta += m.delta
-    if (m.type === "purchase") {
+    if (TYPES_APPORT_VALORISE.has(m.type)) {
       agregat.qtyRecue += m.delta
       agregat.coutTotalApport += m.delta * (m.unitCost ?? 0)
     }
@@ -123,8 +133,9 @@ async function calculerDeficits(
 // déjà committé — mouvements écrits sans décrément — au moment de lire
 // meta.changes.)
 //
-// CMP (coût moyen pondéré, entier XOF), pour les mouvements `purchase`,
-// recalculé dans le MÊME batch/transaction, côté SQL, afin de lire
+// CMP (coût moyen pondéré, entier XOF), pour les apports valorisés
+// (`purchase`, `transfer_in`), recalculé dans le MÊME batch/transaction,
+// côté SQL, afin de lire
 // quantity/avg_cost au moment de la transaction (pas de course avec une
 // vente concurrente) :
 //   nouveauCmp = ROUND((qtyAvant × avgAvant + coutTotalApport) / (qtyAvant + qtyRecue))
@@ -153,10 +164,10 @@ export async function applyMovements(
     if (!Number.isInteger(m.delta) || m.delta === 0) {
       throw new Error("Chaque mouvement doit porter un delta entier non nul")
     }
-    if (m.type === "purchase") {
+    if (TYPES_APPORT_VALORISE.has(m.type)) {
       if (m.delta <= 0 || m.unitCost === undefined) {
         throw new Error(
-          "Un mouvement purchase exige un delta positif et un unitCost"
+          "Un mouvement d'apport valorisé (purchase, transfer_in) exige un delta positif et un unitCost"
         )
       }
       if (!Number.isInteger(m.unitCost) || m.unitCost < 0) {

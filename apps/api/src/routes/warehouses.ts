@@ -16,6 +16,34 @@ export const warehousesRoute = new Hono<{
 
 warehousesRoute.use(requireAuth, requireMembership)
 
+// Liste légère pour les sélecteurs (ex. destination d'un transfert) :
+// accessible à tout membre de l'organisation, y compris un staff sans
+// affectation — contrairement à GET /warehouses (réservé aux rôles
+// d'administration), le nom des entrepôts n'est pas une donnée sensible
+// pour un membre qui les voit déjà apparaître dans ses transferts.
+// Déclarée avant "/:id" pour éviter tout conflit de routage Hono.
+warehousesRoute.get("/destinations", async (c) => {
+  const db = drizzle(c.env.DB, { schema })
+  const warehouses = await db
+    .select({
+      id: schema.warehouses.id,
+      name: schema.warehouses.name,
+      type: schema.warehouses.type,
+    })
+    .from(schema.warehouses)
+    .where(
+      and(
+        eq(
+          schema.warehouses.organizationId,
+          c.get("membership").organizationId
+        ),
+        eq(schema.warehouses.isActive, true)
+      )
+    )
+    .orderBy(asc(schema.warehouses.name))
+  return c.json({ warehouses })
+})
+
 warehousesRoute.get(
   "/",
   requireRole("owner", "admin", "auditor", "stock_manager"),

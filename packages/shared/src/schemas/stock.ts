@@ -72,3 +72,78 @@ export const purchaseItemUpdateSchema = z
 export type PurchaseCreateInput = z.infer<typeof purchaseCreateSchema>
 export type PurchaseItemCreateInput = z.infer<typeof purchaseItemCreateSchema>
 export type PurchaseItemUpdateInput = z.infer<typeof purchaseItemUpdateSchema>
+
+export const transferCreateSchema = z.object({
+  fromWarehouseId: z.string().min(1, "L'entrepôt d'origine est requis"),
+  toWarehouseId: z.string().min(1, "L'entrepôt de destination est requis"),
+  reference: z.string().trim().min(1).optional(),
+})
+
+export const transferItemCreateSchema = z.object({
+  variantId: z.string().min(1, "La variante est requise"),
+  quantity: z
+    .number()
+    .int("La quantité doit être un entier")
+    .positive("La quantité doit être positive"),
+  lotId: z.string().min(1).optional(),
+})
+
+export const transferItemUpdateSchema = z
+  .object({
+    quantity: z
+      .number()
+      .int("La quantité doit être un entier")
+      .positive("La quantité doit être positive")
+      .optional(),
+    lotId: z.string().min(1).nullable().optional(),
+  })
+  .refine((v) => Object.keys(v).length > 0, {
+    message: "Aucun champ à modifier",
+  })
+
+// Corps OPTIONNEL de la réception : lignes absentes = tout est reçu.
+export const transferReceiveSchema = z
+  .object({
+    items: z
+      .array(
+        z.object({
+          itemId: z.string().min(1, "La ligne est requise"),
+          receivedQuantity: z
+            .number()
+            .int("La quantité reçue doit être un entier")
+            .nonnegative("La quantité reçue doit être positive ou nulle"),
+        })
+      )
+      .optional(),
+  })
+  .refine(
+    (v) =>
+      !v.items || new Set(v.items.map((i) => i.itemId)).size === v.items.length,
+    {
+      message: "Chaque ligne ne peut apparaître qu'une seule fois",
+      path: ["items"],
+    }
+  )
+
+export const inventoryCountCreateSchema = z.object({
+  warehouseId: z.string().min(1, "L'entrepôt est requis"),
+})
+
+export const inventoryCountItemUpdateSchema = z.object({
+  countedQuantity: z
+    .number()
+    .int("La quantité comptée doit être un entier")
+    .nonnegative("La quantité comptée doit être positive ou nulle")
+    .nullable(),
+})
+
+export type TransferCreateInput = z.infer<typeof transferCreateSchema>
+export type TransferItemCreateInput = z.infer<typeof transferItemCreateSchema>
+export type TransferItemUpdateInput = z.infer<typeof transferItemUpdateSchema>
+export type TransferReceiveInput = z.infer<typeof transferReceiveSchema>
+export type InventoryCountCreateInput = z.infer<
+  typeof inventoryCountCreateSchema
+>
+export type InventoryCountItemUpdateInput = z.infer<
+  typeof inventoryCountItemUpdateSchema
+>

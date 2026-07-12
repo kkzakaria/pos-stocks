@@ -152,3 +152,139 @@ export const purchaseItems = sqliteTable(
   },
   (t) => [index("purchase_items_purchase_idx").on(t.purchaseId)]
 )
+
+export const TRANSFER_STATUSES = [
+  "pending",
+  "sent",
+  "received",
+  "cancelled",
+] as const
+
+export const INVENTORY_COUNT_STATUSES = ["open", "closed"] as const
+
+// Transfert inter-entrepôts : pending (brouillon éditable, annulable) →
+// sent (stock sorti de l'origine, lignes figées, CMP origine gelé sur
+// unit_cost) → received (stock entré à destination, terminal). Terminal
+// aussi : cancelled (avant expédition seulement). Immuabilité par triggers
+// (0007_transfer_inventory_guards).
+export const transfers = sqliteTable(
+  "transfers",
+  {
+    id: text("id").primaryKey(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id, { onDelete: "cascade" }),
+    fromWarehouseId: text("from_warehouse_id")
+      .notNull()
+      .references(() => warehouses.id),
+    toWarehouseId: text("to_warehouse_id")
+      .notNull()
+      .references(() => warehouses.id),
+    status: text("status", { enum: TRANSFER_STATUSES })
+      .notNull()
+      .default("pending"),
+    // Référence libre (n° de bon de transfert interne)
+    reference: text("reference"),
+    createdBy: text("created_by")
+      .notNull()
+      .references(() => user.id),
+    sentBy: text("sent_by").references(() => user.id),
+    sentAt: integer("sent_at", { mode: "timestamp" }),
+    receivedBy: text("received_by").references(() => user.id),
+    receivedAt: integer("received_at", { mode: "timestamp" }),
+    cancelledBy: text("cancelled_by").references(() => user.id),
+    cancelledAt: integer("cancelled_at", { mode: "timestamp" }),
+    createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
+    updatedAt: integer("updated_at", { mode: "timestamp" }).notNull(),
+  },
+  (t) => [index("transfers_org_status_idx").on(t.organizationId, t.status)]
+)
+
+export const transferItems = sqliteTable(
+  "transfer_items",
+  {
+    id: text("id").primaryKey(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id, { onDelete: "cascade" }),
+    transferId: text("transfer_id")
+      .notNull()
+      .references(() => transfers.id, { onDelete: "cascade" }),
+    variantId: text("variant_id")
+      .notNull()
+      .references(() => productVariants.id),
+    // Lot choisi côté origine (optionnel en brouillon, exigé à l'expédition
+    // pour un produit trackLots). Le lot est GLOBAL à la variante
+    // (lots_variant_lot_uidx) : le même lotId sert au transfer_in de
+    // destination, aucune création de lot côté destination.
+    lotId: text("lot_id").references(() => lots.id),
+    quantity: integer("quantity").notNull(),
+    // CMP de l'entrepôt d'origine, entier XOF, figé PAR SOUS-REQUÊTE SQL
+    // dans le batch d'expédition ; null tant que le transfert est pending.
+    unitCost: integer("unit_cost"),
+    // Quantité acceptée à destination (<= quantity) ; null avant réception.
+    receivedQuantity: integer("received_quantity"),
+    createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
+  },
+  (t) => [index("transfer_items_transfer_idx").on(t.transferId)]
+)
+
+// Inventaire TOUJOURS COMPLET (v1, spec) : l'ouverture fige une ligne par
+// niveau de l'entrepôt (expected_quantity), les comptages s'étalent sur
+// plusieurs sessions, la clôture génère les mouvements `count`.
+// L'index unique partiel « un seul inventaire ouvert par entrepôt » est posé
+// en migration custom 0007 (index partiel : HORS snapshot drizzle).
+export const inventoryCounts = sqliteTable(
+  "inventory_counts",
+  {
+    id: text("id").primaryKey(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id, { onDelete: "cascade" }),
+    warehouseId: text("warehouse_id")
+      .notNull()
+      .references(() => warehouses.id),
+    status: text("status", { enum: INVENTORY_COUNT_STATUSES })
+      .notNull()
+      .default("open"),
+    openedBy: text("opened_by")
+      .notNull()
+      .references(() => user.id),
+    openedAt: integer("opened_at", { mode: "timestamp" }).notNull(),
+    closedBy: text("closed_by").references(() => user.id),
+    closedAt: integer("closed_at", { mode: "timestamp" }),
+    createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
+    updatedAt: integer("updated_at", { mode: "timestamp" }).notNull(),
+  },
+  (t) => [
+    index("inventory_counts_org_status_idx").on(t.organizationId, t.status),
+  ]
+)
+
+export const inventoryCountItems = sqliteTable(
+  "inventory_count_items",
+  {
+    id: text("id").primaryKey(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id, { onDelete: "cascade" }),
+    countId: text("count_id")
+      .notNull()
+      .references(() => inventoryCounts.id, { onDelete: "cascade" }),
+    variantId: text("variant_id")
+      .notNull()
+      .references(() => productVariants.id),
+    // Quantité figée à l'ouverture (photographie de stock_levels.quantity)
+    expectedQuantity: integer("expected_quantity").notNull(),
+    // Quantité comptée ; null = pas encore comptée (ignorée à la clôture)
+    countedQuantity: integer("counted_quantity"),
+    createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
+  },
+  (t) => [
+    index("inventory_count_items_count_idx").on(t.countId),
+    uniqueIndex("inventory_count_items_count_variant_uidx").on(
+      t.countId,
+      t.variantId
+    ),
+  ]
+)
