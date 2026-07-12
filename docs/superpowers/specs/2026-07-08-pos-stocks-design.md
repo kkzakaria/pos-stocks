@@ -84,7 +84,7 @@ Le scaffold TanStack Start existant est restructuré : `apps/web` devient une SP
 ### Ventes (POS)
 
 - `sales` — numéro de ticket séquentiel par boutique, storeId, cashierId, registerSessionId, total, devise, date, statut (`completed` ; `refunded` réservé v2), identifiant d'idempotence client
-- `sale_items` — variantId, lotId?, quantité, prix unitaire, remise ligne, **`sourceWarehouseId`** : par défaut la boutique, peut pointer un autre entrepôt (dépannage depuis la réserve)
+- `sale_items` — variantId, lotId?, quantité, **prix unitaire appliqué** (le prix convenu saisi au POS, borné par le prix plancher) + **prix catalogue au moment de la vente** (la remise consentie s'en déduit, pour les rapports), **`sourceWarehouseId`** : par défaut la boutique, peut pointer un autre entrepôt (dépannage depuis la réserve)
 - `payments` — saleId, méthode (`cash` | `mobile_money`), montant, référence transaction (mobile money), montant reçu / monnaie rendue (cash). Plusieurs paiements par vente (paiement mixte)
 - `register_sessions` — session de caisse (**v1**) : boutique, caissier, fond de caisse à l'ouverture, montant compté à la fermeture, écart, horodatages
 
@@ -105,13 +105,14 @@ Application **côté API** par middleware en deux niveaux : rôle d'entreprise (
 
 **Vente au POS**
 1. Ouverture de session de caisse (fond de caisse) — obligatoire avant de vendre
-2. Recherche par scan code-barres, nom ou catégorie ; stock affiché = celui de la boutique
-3. Panier → paiement (cash avec pavé numérique et calcul de monnaie, mobile money avec référence, ou mixte) ; remise par ligne bornée par le **prix plancher** du produit/variante quand il est défini
-4. Validation **atomique** (un `db.batch()` D1) : vente + lignes + paiements + mouvements + décrément des niveaux avec garde `quantity >= demandé` — échec d'une ligne = refus de toute la vente avec détail
-5. Produits à péremption : déduction automatique du lot expirant le premier (**FEFO**)
-6. Ticket 80 mm via impression navigateur, numéro séquentiel par boutique
+2. Ajout au panier par scan code-barres (actif en permanence), tuile produit ou recherche (nom, SKU, code-barres) ; stock affiché = celui de la boutique ; scanner un article déjà au panier incrémente sa quantité
+3. **Négociation par saisie du prix convenu** : toucher une ligne ouvre un pavé numérique (quantité + prix unitaire final) ; prix borné par le **prix plancher** quand il est défini (refus immédiat sous le plancher avec affichage du minimum) ; sans plancher, le prix catalogue n'est pas modifiable
+4. Paiement : cash (pavé numérique + boutons « montant exact » et coupures 500/1 000/2 000/5 000/10 000 F qui s'additionnent, monnaie à rendre en très grand), mobile money (montant + référence obligatoire), ou mixte (les paiements s'empilent avec reste à payer)
+5. Validation **atomique** (un `db.batch()` D1) : vente + lignes + paiements + mouvements + décrément des niveaux avec garde `quantity >= demandé` — échec d'une ligne = refus de toute la vente avec détail ; sur `STOCK_INSUFFISANT` (caisse concurrente), retour au panier avec les lignes fautives en alerte et proposition de dépannage
+6. Produits à péremption : déduction automatique du lot expirant le premier (**FEFO**) — invisible au caissier, lisible au journal de stock
+7. Ticket 80 mm via impression navigateur (déclenchée automatiquement après validation), numéro séquentiel par boutique
 
-**Dépannage depuis un autre entrepôt** : au panier, le caissier autorisé choisit « puiser dans X » pour une ligne → `sourceWarehouseId` = X, le mouvement sort de X. Aucun transfert administratif.
+**Dépannage depuis un autre entrepôt** — **proposé sur rupture** : le cas nominal sort tout de la boutique, sans friction. Quand la quantité demandée dépasse le stock boutique (à l'ajout ou à la validation), la ligne passe en alerte et propose « puiser dans… » avec les entrepôts où l'article est disponible et leurs quantités ; le choix pose `sourceWarehouseId` sur la ligne, marquée d'un badge « réserve ». Réservé aux caissiers autorisés. Aucun transfert administratif.
 
 **Transfert** : création (`pending`) → expédition (`sent`, stock sort de l'origine) → réception (`received`, stock entre à destination). Stock « en transit » visible. Annulation possible avant expédition ; écart à la réception tracé en ajustement.
 
@@ -138,7 +139,13 @@ Groupes de routes REST sous `/api/v1`, validation Zod, middleware auth/permissio
 
 Deux univers dans la même SPA, selon le rôle (caissier → POS direct) :
 
-**POS (plein écran, tactile + scanner clavier)** : écran de vente (recherche/scan à gauche, panier à droite, raccourcis catégories), modale de paiement, ouverture/fermeture de session de caisse, historique des tickets du jour, réimpression.
+**POS (plein écran, hybride tactile + clavier/scanner — décisions du mini-brainstorming UI du 2026-07-12)** :
+- **Navigation** : route `/pos` hors du layout back-office (pas de sidebar). Le caissier y est redirigé à la connexion ; owner/admin/manager de boutique y accèdent depuis la sidebar. Garde d'entrée : sans session de caisse ouverte, écran « Ouvrir la caisse » (choix de la boutique si plusieurs affectations, fond de caisse) — impossible de vendre avant. Menu discret en haut à droite : tickets du jour, fermer la caisse, retour back-office (si autorisé), déconnexion.
+- **Écran de vente** : zone principale = **grille de tuiles produits** (image, nom, prix, badge rupture ; tuiles ≥ 88 px, utilisables au doigt) filtrée par onglets catégories + barre de recherche ; panier à droite avec total et bouton ENCAISSER. **Scan douchette actif partout** : buffer clavier global (frappes rapides terminées par Entrée = signature douchette USB), même sans focus sur la recherche. Raccourcis : `/` focus recherche, `F2` encaisser.
+- **Ligne de panier** : panneau à pavé numérique (quantité +/− et saisie directe, prix unitaire convenu, suppression de ligne).
+- **Modale de paiement** : total en très grand ; méthodes Espèces / Mobile money cumulables (mixte) ; pavé + billets rapides côté cash ; monnaie à rendre en énorme dès que reçu ≥ dû ; validation = envoi atomique avec identifiant d'idempotence.
+- **Après-vente** : confirmation avec monnaie rendue + impression automatique du ticket 80 mm (CSS `@media print` dédiée : en-tête organisation, lignes, total, paiements, monnaie, numéro séquentiel, caissier, date) ; liste des tickets du jour avec réimpression.
+- **Fermeture de caisse** : saisie du montant compté ; affichage fond + encaissements cash attendus ; écart calculé et journalisé avec la session ; session fermée → retour à « Ouvrir la caisse ». Le back-office (manager/owner) consulte l'historique des sessions et leurs écarts.
 
 **Back-office (sidebar)** : tableau de bord (ventes du jour, alertes stock bas, transferts en attente) ; catalogue (produits, variantes, images, lots, catégories, fournisseurs) ; stock (niveaux, journal, réceptions, transferts, inventaires) ; ventes (historique, détail, rapports) ; administration (entrepôts, utilisateurs et affectations, paramètres).
 
