@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query"
+import { useQuery, useMutation } from "@tanstack/react-query"
 import { formaterMontant } from "@/lib/format"
 import { jourLocal } from "@/lib/pos"
 import { fetchVente, fetchVentesDuJour } from "@/lib/pos-api"
@@ -18,6 +18,12 @@ export function TicketsDuJour({ storeId, onReimprimer, onFermer }: Props) {
     queryFn: () => fetchVentesDuJour(storeId, jour),
   })
   const liste = ventes.data?.sales ?? []
+  // Un rejet de fetchVente ne doit pas rester une promesse non gérée : le
+  // caissier voit l'erreur et le bouton se désactive pendant le chargement.
+  const reimpression = useMutation({
+    mutationFn: (saleId: string) => fetchVente(saleId),
+    onSuccess: ({ sale }) => onReimprimer(sale),
+  })
   return (
     <div className="fixed inset-0 z-30 grid place-items-center bg-black/50 p-4">
       <div className="flex max-h-[80vh] w-full max-w-lg flex-col rounded-lg bg-white">
@@ -40,33 +46,41 @@ export function TicketsDuJour({ storeId, onReimprimer, onFermer }: Props) {
               Aucune vente aujourd'hui.
             </p>
           )}
-          {liste.map((vente) => (
-            <div
-              key={vente.id}
-              className="flex items-center justify-between gap-2 border-b px-2 py-2"
-            >
-              <div>
-                <p className="text-sm font-medium">
-                  N° {vente.ticketNumber} — {formaterMontant(vente.total)}
-                </p>
-                <p className="text-xs text-gray-500">
-                  {new Date(vente.createdAt).toLocaleTimeString("fr-FR")} ·{" "}
-                  {vente.cashierName} · {vente.itemCount} article
-                  {vente.itemCount > 1 ? "s" : ""}
-                </p>
-              </div>
-              <Button
-                variant="outline"
-                onClick={() => {
-                  void fetchVente(vente.id).then(({ sale }) =>
-                    onReimprimer(sale)
-                  )
-                }}
+          {reimpression.isError && (
+            <p role="alert" className="mb-2 px-1 text-sm text-red-600">
+              {reimpression.error instanceof Error
+                ? reimpression.error.message
+                : "Impossible de charger ce ticket"}
+            </p>
+          )}
+          {liste.map((vente) => {
+            const enCours =
+              reimpression.isPending && reimpression.variables === vente.id
+            return (
+              <div
+                key={vente.id}
+                className="flex items-center justify-between gap-2 border-b px-2 py-2"
               >
-                Réimprimer
-              </Button>
-            </div>
-          ))}
+                <div>
+                  <p className="text-sm font-medium">
+                    N° {vente.ticketNumber} — {formaterMontant(vente.total)}
+                  </p>
+                  <p className="text-xs text-gray-500">
+                    {new Date(vente.createdAt).toLocaleTimeString("fr-FR")} ·{" "}
+                    {vente.cashierName} · {vente.itemCount} article
+                    {vente.itemCount > 1 ? "s" : ""}
+                  </p>
+                </div>
+                <Button
+                  variant="outline"
+                  disabled={enCours}
+                  onClick={() => reimpression.mutate(vente.id)}
+                >
+                  {enCours ? "Chargement…" : "Réimprimer"}
+                </Button>
+              </div>
+            )
+          })}
         </div>
       </div>
     </div>
