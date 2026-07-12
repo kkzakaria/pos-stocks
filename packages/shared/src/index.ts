@@ -73,3 +73,13 @@ export {
   type InventoryCountCreateInput,
   type InventoryCountItemUpdateInput,
 } from "./schemas/stock"
+export {
+  registerSessionOpenSchema,
+  registerSessionCloseSchema,
+  saleCreateSchema,
+  type RegisterSessionOpenInput,
+  type RegisterSessionCloseInput,
+  type SalePaymentInput,
+  type SaleItemInput,
+  type SaleCreateInput,
+} from "./schemas/pos"
