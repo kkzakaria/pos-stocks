@@ -5,6 +5,7 @@ import { alias } from "drizzle-orm/sqlite-core"
 import type { SQL } from "drizzle-orm"
 import { adjustmentCreateSchema, minStockSchema } from "shared"
 import * as schema from "../db/schema"
+import { dateCalendaireValide } from "../lib/dates"
 import { likeEchappe } from "../lib/recherche"
 import {
   estDansPortee,
@@ -36,27 +37,6 @@ export const stockRoute = new Hono<{
 }>()
 
 stockRoute.use(requireAuth, requireMembership)
-
-const MOTIF_JOUR = /^\d{4}-\d{2}-\d{2}$/
-
-// Le format AAAA-MM-JJ ne suffit pas : "2024-02-30" passe MOTIF_JOUR mais
-// n'existe pas — Date normalise silencieusement en débordant sur le mois
-// suivant, ce qui décale les bornes du/au sans jamais échouer. Round-trip
-// year/month/day pour rejeter les dates calendaires impossibles.
-function dateCalendaireValide(chaine: string): boolean {
-  if (!MOTIF_JOUR.test(chaine)) return false
-  const [annee, mois, jour] = chaine.split("-").map(Number) as [
-    number,
-    number,
-    number,
-  ]
-  const date = new Date(Date.UTC(annee, mois - 1, jour))
-  return (
-    date.getUTCFullYear() === annee &&
-    date.getUTCMonth() === mois - 1 &&
-    date.getUTCDate() === jour
-  )
-}
 
 // Seuil effectif d'une ligne de niveau : surcharge entrepôt sinon défaut produit
 const seuilEffectif = sql<

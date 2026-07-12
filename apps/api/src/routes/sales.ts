@@ -1,10 +1,12 @@
 import { Hono } from "hono"
 import { drizzle } from "drizzle-orm/d1"
-import { and, asc, eq, inArray, sql } from "drizzle-orm"
+import { and, asc, desc, eq, gte, inArray, lt, sql } from "drizzle-orm"
 import { alias } from "drizzle-orm/sqlite-core"
 import type { DrizzleD1Database } from "drizzle-orm/d1"
+import type { SQL } from "drizzle-orm"
 import { saleCreateSchema } from "shared"
 import * as schema from "../db/schema"
+import { dateCalendaireValide } from "../lib/dates"
 import { validerCorps } from "../lib/validation"
 import { estErreurDeclencheur, estViolationUnicite } from "../lib/db-errors"
 import {
@@ -17,7 +19,10 @@ import { applyMovements, ErreurStockInsuffisant } from "../services/stock"
 import type { InstructionBatch, MouvementStock } from "../services/stock"
 import { reponseStockInsuffisant } from "../lib/stock-erreurs"
 import { requireAuth } from "../middleware/require-auth"
-import { requireMembership } from "../middleware/permissions"
+import {
+  requireMembership,
+  verifierAccesEntrepot,
+} from "../middleware/permissions"
 import type { PermissionVariables } from "../middleware/permissions"
 import type { Env } from "../env"
 
@@ -196,6 +201,121 @@ export async function chargerVente(
     .where(eq(schema.payments.saleId, vente.id))
   return { ...vente, items, payments: paiements }
 }
+
+// Lecture des ventes (décision 10) : owner/admin/auditor voient tout ;
+// sinon rôle LOCAL requis — manager, auditor OU cashier de la boutique (un
+// caissier réimprime les tickets du jour de SA boutique, collègues compris).
+function verifierLectureVentes(
+  c: Parameters<typeof verifierAccesEntrepot>[0],
+  storeId: string
+): Promise<Response | null> {
+  return verifierAccesEntrepot(
+    c,
+    storeId,
+    ["manager", "auditor", "cashier"],
+    ["owner", "admin", "auditor"]
+  )
+}
+
+salesRoute.get("/", async (c) => {
+  const { organizationId } = c.get("membership")
+  const storeId = c.req.query("storeId")
+  const jour = c.req.query("jour")
+  const sessionId = c.req.query("sessionId")
+  if (!storeId) {
+    return c.json(
+      { code: "VALIDATION", message: "Le paramètre storeId est requis" },
+      400
+    )
+  }
+  if (jour && !dateCalendaireValide(jour)) {
+    return c.json(
+      { code: "VALIDATION", message: "Date invalide (AAAA-MM-JJ)" },
+      400
+    )
+  }
+  const refus = await verifierLectureVentes(c, storeId)
+  if (refus) return refus
+  const db = drizzle(c.env.DB, { schema })
+  const conditions: SQL[] = [
+    eq(schema.sales.organizationId, organizationId),
+    eq(schema.sales.storeId, storeId),
+  ]
+  if (jour) {
+    const debut = new Date(`${jour}T00:00:00.000Z`)
+    conditions.push(gte(schema.sales.createdAt, debut))
+    conditions.push(
+      lt(schema.sales.createdAt, new Date(debut.getTime() + 86_400_000))
+    )
+  }
+  if (sessionId) {
+    conditions.push(eq(schema.sales.registerSessionId, sessionId))
+  }
+  const rows = await db
+    .select({
+      id: schema.sales.id,
+      ticketNumber: schema.sales.ticketNumber,
+      total: schema.sales.total,
+      currency: schema.sales.currency,
+      status: schema.sales.status,
+      createdAt: schema.sales.createdAt,
+      cashierName: schema.user.name,
+    })
+    .from(schema.sales)
+    .innerJoin(schema.user, eq(schema.sales.cashierId, schema.user.id))
+    .where(and(...conditions))
+    .orderBy(desc(schema.sales.createdAt), desc(schema.sales.ticketNumber))
+    .limit(200)
+  const ids = rows.map((r) => r.id)
+  const agregats =
+    ids.length > 0
+      ? await db
+          .select({
+            saleId: schema.saleItems.saleId,
+            itemCount: sql<number>`COUNT(*)`,
+          })
+          .from(schema.saleItems)
+          .where(inArray(schema.saleItems.saleId, ids))
+          .groupBy(schema.saleItems.saleId)
+      : []
+  const ventes = rows.map((r) => ({
+    ...r,
+    itemCount: agregats.find((a) => a.saleId === r.id)?.itemCount ?? 0,
+  }))
+  return c.json({ sales: ventes })
+})
+
+// Retour annoté `| null` (piège eslint no-unnecessary-condition — motif
+// venteEnTete ci-dessus, cf. son commentaire).
+async function venteBoutique(
+  db: Db,
+  organizationId: string,
+  saleId: string
+): Promise<{ id: string; storeId: string } | null> {
+  const rows = await db
+    .select({ id: schema.sales.id, storeId: schema.sales.storeId })
+    .from(schema.sales)
+    .where(
+      and(
+        eq(schema.sales.id, saleId),
+        eq(schema.sales.organizationId, organizationId)
+      )
+    )
+    .limit(1)
+  return rows[0] ?? null
+}
+
+salesRoute.get("/:id", async (c) => {
+  const { organizationId } = c.get("membership")
+  const db = drizzle(c.env.DB, { schema })
+  const vente = await venteBoutique(db, organizationId, c.req.param("id"))
+  if (!vente) {
+    return c.json({ code: "INTROUVABLE", message: "Vente introuvable" }, 404)
+  }
+  const refus = await verifierLectureVentes(c, vente.storeId)
+  if (refus) return refus
+  return c.json({ sale: await chargerVente(db, organizationId, vente.id) })
+})
 
 salesRoute.post("/", async (c) => {
   const corps = await validerCorps(c, saleCreateSchema)
