@@ -148,6 +148,14 @@ export const purchaseItems = sqliteTable(
     // (ou réutilisé) qu'à la VALIDATION de la réception.
     lotNumber: text("lot_number"),
     expiryDate: integer("expiry_date", { mode: "timestamp" }),
+    // Posé par le gel des lignes DANS le batch de validation (receive) ;
+    // NULL = ligne jamais gelée. Sentinelle du trigger
+    // purchases_receive_lignes_gelees (0012) : une ligne insérée par une
+    // requête concurrente ENTRE la lecture JS du receive et son batch n'a
+    // pas été gelée et bloque la transition draft -> received (même passe
+    // corrective que transfers_send_lignes_gelees, 0008 — le sentinel
+    // unit_cost NULL n'existe pas ici, unit_cost étant NOT NULL).
+    frozenAt: integer("frozen_at", { mode: "timestamp" }),
     createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
   },
   (t) => [index("purchase_items_purchase_idx").on(t.purchaseId)]

@@ -78,6 +78,20 @@
       "when": 1783859524400,
       "tag": "0010_unique_names",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "6",
+      "when": 1783860882437,
+      "tag": "0011_purchase_item_frozen_at",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "6",
+      "when": 1783860889855,
+      "tag": "0012_purchase_receive_guard",
+      "breakpoints": true
     }
   ]
 }
