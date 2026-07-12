@@ -16,6 +16,7 @@ import {
   totalPanier,
 } from "./pos"
 import type { ArticlePos, LignePanier } from "./pos"
+import type { CompanyRole, WarehouseRole } from "shared"
 
 const article = (surcharge: Partial<ArticlePos> = {}): ArticlePos => ({
   variantId: "v1",
@@ -262,16 +263,14 @@ describe("buffer scan douchette", () => {
 
 describe("rôles et boutiques", () => {
   const me = (
-    role: string | undefined,
+    role: CompanyRole | undefined,
     assignments: Array<{
       warehouseId: string
       warehouseName: string
-      role: string
+      role: WarehouseRole
     }>
   ) => ({
-    membership: role
-      ? { organizationId: "o", organizationName: "O", role }
-      : null,
+    membership: role ? { role } : null,
     assignments,
   })
 

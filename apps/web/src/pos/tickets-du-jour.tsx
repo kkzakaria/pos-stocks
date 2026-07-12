@@ -41,7 +41,17 @@ export function TicketsDuJour({ storeId, onReimprimer, onFermer }: Props) {
           {ventes.isPending && (
             <p className="p-3 text-sm text-gray-500">Chargement…</p>
           )}
-          {!ventes.isPending && liste.length === 0 && (
+          {ventes.isError && (
+            <div className="p-3">
+              <p role="alert" className="mb-2 text-sm text-red-600">
+                Impossible de charger les tickets du jour.
+              </p>
+              <Button variant="outline" onClick={() => void ventes.refetch()}>
+                Réessayer
+              </Button>
+            </div>
+          )}
+          {!ventes.isPending && !ventes.isError && liste.length === 0 && (
             <p className="p-3 text-sm text-gray-500">
               Aucune vente aujourd'hui.
             </p>

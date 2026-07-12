@@ -1,4 +1,4 @@
-import { createFileRoute, redirect } from "@tanstack/react-router"
+import { createFileRoute, Link, redirect } from "@tanstack/react-router"
 import { useState } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { authClient } from "@/lib/auth-client"
@@ -9,8 +9,14 @@ import { boutiquesVendables } from "@/lib/pos"
 import { fetchSessionCourante } from "@/lib/pos-api"
 import { OuvertureCaisse } from "@/pos/ouverture-caisse"
 import { EcranVente } from "@/pos/ecran-vente"
+import { Button } from "@/components/ui/button"
 
 // /pos vit HORS du layout _app : plein écran, pas de sidebar (spec §7).
+// Différés P6 : le fetch des destinations vivait dans beforeLoad sans
+// try/catch (erreur réseau = écran d'erreur brut du routeur) — déplacé dans
+// le composant (isError → écran avec Réessayer) ; session.isError dégradait
+// silencieusement en « Ouvrir la caisse » alors qu'une session est
+// peut-être DÉJÀ ouverte — écran d'erreur explicite.
 export const Route = createFileRoute("/pos")({
   beforeLoad: async () => {
     const { data } = await authClient.getSession()
@@ -22,33 +28,84 @@ export const Route = createFileRoute("/pos")({
       throw redirect({ to: "/login" })
     }
     if (me.user.mustChangePassword) throw redirect({ to: "/mon-compte" })
-    // Boutiques vendables : /warehouses/destinations est lisible par tout
-    // membre (types inclus) — l'intersection avec la matrice « vendre » se
-    // fait côté boutiquesVendables ; l'API reste l'autorité.
-    const { warehouses } = await apiFetch<{
-      warehouses: Array<{ id: string; name: string; type: string }>
-    }>("/api/v1/warehouses/destinations")
-    const boutiques = boutiquesVendables(me, warehouses)
-    if (boutiques.length === 0) throw redirect({ to: "/" })
-    return { me, boutiques }
+    return { me }
   },
   component: PagePos,
 })
 
+function EcranErreur({
+  message,
+  onReessayer,
+}: {
+  message: string
+  onReessayer: () => void
+}) {
+  return (
+    <main className="grid min-h-screen place-items-center">
+      <div className="text-center">
+        <p role="alert" className="mb-4 text-red-600">
+          {message}
+        </p>
+        <div className="flex items-center justify-center gap-2">
+          <Button onClick={onReessayer}>Réessayer</Button>
+          <Link to="/" className="rounded border px-4 py-2 text-sm">
+            Retour au tableau de bord
+          </Link>
+        </div>
+      </div>
+    </main>
+  )
+}
+
 function PagePos() {
-  const { me, boutiques } = Route.useRouteContext()
-  const [boutiqueId, setBoutiqueId] = useState(boutiques[0].id)
-  const boutique = boutiques.find((b) => b.id === boutiqueId) ?? boutiques[0]
+  const { me } = Route.useRouteContext()
+  const destinations = useQuery({
+    queryKey: ["pos-destinations"],
+    queryFn: () =>
+      apiFetch<{
+        warehouses: Array<{ id: string; name: string; type: string }>
+      }>("/api/v1/warehouses/destinations"),
+  })
+  const boutiques = boutiquesVendables(me, destinations.data?.warehouses ?? [])
+  const [boutiqueChoisie, setBoutiqueChoisie] = useState<string | null>(null)
+  const premiere = boutiques.length > 0 ? boutiques[0].id : null
+  const boutiqueId = boutiqueChoisie ?? premiere
+  const boutique = boutiques.find((b) => b.id === boutiqueId) ?? null
   const session = useQuery({
     queryKey: ["session-caisse", boutiqueId],
-    queryFn: () => fetchSessionCourante(boutiqueId),
+    queryFn: () => fetchSessionCourante(boutiqueId ?? ""),
+    enabled: boutiqueId !== null,
   })
 
-  if (session.isPending) {
+  if (destinations.isPending || (boutiqueId !== null && session.isPending)) {
     return (
       <main className="grid min-h-screen place-items-center">
         <p className="text-gray-500">Chargement de la caisse…</p>
       </main>
+    )
+  }
+  if (destinations.isError) {
+    return (
+      <EcranErreur
+        message="Impossible de charger les boutiques."
+        onReessayer={() => void destinations.refetch()}
+      />
+    )
+  }
+  if (!boutique || boutiqueId === null) {
+    return (
+      <EcranErreur
+        message="Aucune boutique vendable pour ce compte."
+        onReessayer={() => void destinations.refetch()}
+      />
+    )
+  }
+  if (session.isError) {
+    return (
+      <EcranErreur
+        message="Impossible de vérifier la session de caisse."
+        onReessayer={() => void session.refetch()}
+      />
     )
   }
   const ouverte = session.data?.session ?? null
@@ -57,7 +114,7 @@ function PagePos() {
       <OuvertureCaisse
         boutiques={boutiques}
         boutiqueId={boutiqueId}
-        onChangeBoutique={setBoutiqueId}
+        onChangeBoutique={setBoutiqueChoisie}
         onOuverte={() => void session.refetch()}
       />
     )

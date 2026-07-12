@@ -97,3 +97,20 @@ describe("TicketsDuJour — erreurs de réimpression", () => {
     await waitFor(() => expect(onReimprimer).toHaveBeenCalledWith(sale))
   })
 })
+
+describe("TicketsDuJour — erreur de chargement (différé P6)", () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it("affiche une erreur et Réessayer quand la liste échoue", async () => {
+    const spy = vi
+      .spyOn(posApi, "fetchVentesDuJour")
+      .mockRejectedValue(new Error("réseau"))
+    rendre()
+    await screen.findByText("Impossible de charger les tickets du jour.")
+    spy.mockResolvedValue({ sales: [vente] })
+    fireEvent.click(screen.getByRole("button", { name: /réessayer/i }))
+    await screen.findByText(/N° 1/)
+  })
+})

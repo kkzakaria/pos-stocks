@@ -1,4 +1,9 @@
-import type { SaleCreateInput, SalePaymentInput } from "shared"
+import type {
+  CompanyRole,
+  SaleCreateInput,
+  SalePaymentInput,
+  WarehouseRole,
+} from "shared"
 
 // Article vendable renvoyé par GET /api/v1/pos/catalogue (Task 8)
 export type ArticlePos = {
@@ -228,12 +233,16 @@ export function preparerVente(
   }
 }
 
-type MeLike = {
-  membership: { role: string } | null
+// Sous-ensemble de Me (lib/me.ts) réellement consommé ici — DÉRIVÉ des
+// mêmes types partagés (différé P6 : l'ancien type local à base de `string`
+// pouvait dériver de Me sans erreur de compilation). Exporté : le tableau
+// de bord et la section Ventes (Phase 7) réutilisent la même forme.
+export type MeLike = {
+  membership: { role: CompanyRole } | null
   assignments: Array<{
     warehouseId: string
     warehouseName: string
-    role: string
+    role: WarehouseRole
   }>
 }
 

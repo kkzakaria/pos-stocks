@@ -231,3 +231,26 @@ describe("EcranVente — impression différée jusqu'à reglages résolu", () =>
     await waitFor(() => expect(printSpy).toHaveBeenCalledTimes(1))
   })
 })
+
+describe("EcranVente — erreur de catalogue (différé P6)", () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it("affiche l'erreur et un bouton Réessayer qui recharge le catalogue", async () => {
+    const spy = vi
+      .spyOn(posApi, "fetchCataloguePos")
+      .mockRejectedValue(new Error("réseau"))
+    vi.spyOn(posApi, "fetchReglagesTicket").mockResolvedValue({
+      name: "Org",
+      currency: "XOF",
+      receiptHeader: "",
+      receiptFooter: "",
+    })
+    renderEcran()
+    await screen.findByText("Impossible de charger le catalogue.")
+    spy.mockResolvedValue({ categories: [], articles: [article] })
+    fireEvent.click(screen.getByRole("button", { name: /réessayer/i }))
+    await screen.findByText("Coca 50cl")
+  })
+})
