@@ -25,6 +25,7 @@ import {
 } from "@/components/ui/table"
 import { TableSkeleton } from "@/components/ui/table-skeleton"
 
+/** "estimé" badge flagging a margin whose cost was approximated (weighted average cost unavailable for a lot). */
 function BadgeEstime() {
   return (
     <Badge variant="warning" className="ml-2">
@@ -33,6 +34,7 @@ function BadgeEstime() {
   )
 }
 
+/** Per-product margins report over a period: revenue, cost, and margin (an "estimé" badge when approximated), summary tiles, and CSV export. */
 export function RapportMarges() {
   const [periode, setPeriode] = useState(() => periodePreset("semaine"))
   const [erreurExport, setErreurExport] = useState<string | null>(null)

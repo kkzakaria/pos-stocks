@@ -5,6 +5,11 @@ import { CheckIcon } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 
+/**
+ * DS checkbox, with a ✓ indicator in the checked state. The visual square stays
+ * at 16px but the click area extends to 44px on touch via a `before:`
+ * pseudo-element (touch parity with button/input/select).
+ */
 function Checkbox({ className, ...props }: CheckboxPrimitive.Root.Props) {
   return (
     <CheckboxPrimitive.Root

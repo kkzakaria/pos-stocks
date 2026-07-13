@@ -38,6 +38,10 @@ type Fournisseur = {
   isActive: boolean
 }
 
+/**
+ * Suppliers screen: list with active/inactive status, creation of a
+ * supplier (name, contact, phone), and activation toggle.
+ */
 function FournisseursPage() {
   const peutEcrire = usePeutEcrire()
   const queryClient = useQueryClient()

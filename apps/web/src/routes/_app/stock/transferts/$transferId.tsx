@@ -78,6 +78,12 @@ type ProduitAvecLots = {
   }
 }
 
+/**
+ * Inter-warehouse transfer detail: editing the draft's lines (item,
+ * quantity, lot), shipping or cancellation from the origin, then
+ * reception with entry of received quantities and tracking of
+ * discrepancies.
+ */
 function TransfertDetailPage() {
   const { transferId } = Route.useParams()
   const acces = useAccesStock()

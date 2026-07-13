@@ -55,6 +55,11 @@ const STATUTS_INVENTAIRE_FR: Record<string, string> = {
   closed: "Clos",
 }
 
+/**
+ * Inventory counts list: filter by status (open/closed), counting
+ * progress, and opening of a full warehouse count leading to its detail
+ * page.
+ */
 function InventairesPage() {
   const acces = useAccesStock()
   const { options: entrepots } = useEntrepotsVisibles()

@@ -34,6 +34,11 @@ const lienClasses =
 const sectionClasses =
   "mt-4 mb-1 px-2 text-xs font-medium text-muted-foreground"
 
+/**
+ * Authenticated application shell: navigation sidebar
+ * (POS, sales, catalog, stock, administration) filtered by the user's
+ * roles, plus the main content area.
+ */
 function AppLayout() {
   const { me } = Route.useRouteContext()
   const role = me.membership?.role
@@ -170,6 +175,10 @@ function AppLayout() {
   )
 }
 
+/**
+ * Navigation badge for the low-stock alert count, refreshed every
+ * minute; hidden when no item is below its threshold.
+ */
 function BadgeAlertesStock() {
   const { data } = useQuery({
     queryKey: ["stock-alerts"],

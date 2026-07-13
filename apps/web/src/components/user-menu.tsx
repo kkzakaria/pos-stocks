@@ -41,7 +41,7 @@ function initiales(name: string, email: string): string {
   return source.slice(0, 2).toUpperCase()
 }
 
-/** Menu identité du pied de sidebar : compte, thème, déconnexion. */
+/** Identity menu at the sidebar footer: account, theme, sign-out. */
 export function UserMenu({ me, onSignOut }: { me: Me; onSignOut: () => void }) {
   const { theme, setTheme } = useTheme()
   const nom = me.user.name.trim() || me.user.email

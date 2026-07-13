@@ -4,8 +4,10 @@ import { Select as SelectPrimitive } from "@base-ui/react/select"
 import { cn } from "@/lib/utils"
 import { ChevronDownIcon, CheckIcon, ChevronUpIcon } from "lucide-react"
 
+/** Select root (dropdown list of choices); drives the value and open/closed state. */
 const Select = SelectPrimitive.Root
 
+/** Groups related options in the list (paired with a `SelectLabel`). */
 function SelectGroup({ className, ...props }: SelectPrimitive.Group.Props) {
   return (
     <SelectPrimitive.Group
@@ -16,6 +18,7 @@ function SelectGroup({ className, ...props }: SelectPrimitive.Group.Props) {
   )
 }
 
+/** Displays the selected value (or the placeholder) in the trigger. */
 function SelectValue({ className, ...props }: SelectPrimitive.Value.Props) {
   return (
     <SelectPrimitive.Value
@@ -26,6 +29,11 @@ function SelectValue({ className, ...props }: SelectPrimitive.Value.Props) {
   )
 }
 
+/**
+ * Select trigger: opens the list and shows the value + chevron.
+ * Visually aligned with `Input`; the "default" `size` keeps a 44px touch
+ * target under `pointer-coarse`.
+ */
 function SelectTrigger({
   className,
   size = "default",
@@ -54,6 +62,7 @@ function SelectTrigger({
   )
 }
 
+/** Positioned panel listing the options (portal + positioner), scroll buttons included; depth via a hairline, never a shadow. */
 function SelectContent({
   className,
   children,
@@ -96,6 +105,7 @@ function SelectContent({
   )
 }
 
+/** Section label heading a `SelectGroup`, in muted text. */
 function SelectLabel({
   className,
   ...props
@@ -109,6 +119,7 @@ function SelectLabel({
   )
 }
 
+/** Selectable list option; checks the active entry and keeps a height ≥ 28px. */
 function SelectItem({
   className,
   children,
@@ -137,6 +148,7 @@ function SelectItem({
   )
 }
 
+/** Horizontal hairline separating option groups in the list. */
 function SelectSeparator({
   className,
   ...props
@@ -153,6 +165,7 @@ function SelectSeparator({
   )
 }
 
+/** Upward scroll arrow, shown when the list overflows at the top. */
 function SelectScrollUpButton({
   className,
   ...props
@@ -171,6 +184,7 @@ function SelectScrollUpButton({
   )
 }
 
+/** Downward scroll arrow, shown when the list overflows at the bottom. */
 function SelectScrollDownButton({
   className,
   ...props

@@ -13,6 +13,7 @@ type Props = {
   onFermer: () => void
 }
 
+/** Day's-tickets modal: paginated list of the store's sales for the day, with reprinting on demand. */
 export function TicketsDuJour({ storeId, onReimprimer, onFermer }: Props) {
   const jour = jourLocal()
   const [page, setPage] = useState(1)

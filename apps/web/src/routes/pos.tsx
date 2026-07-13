@@ -33,6 +33,7 @@ export const Route = createFileRoute("/pos")({
   component: PagePos,
 })
 
+/** Full-screen POS error screen: alert message, "Réessayer" button, and fallback to the dashboard. */
 function EcranErreur({
   message,
   onReessayer,
@@ -57,6 +58,7 @@ function EcranErreur({
   )
 }
 
+/** Point-of-sale router: picks the sellable store, then shows the cash-drawer opening or the sales screen depending on whether a session is open. */
 function PagePos() {
   const { me } = Route.useRouteContext()
   const destinations = useQuery({

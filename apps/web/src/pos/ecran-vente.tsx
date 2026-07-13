@@ -45,6 +45,12 @@ type Props = {
 
 type CleLigne = { variantId: string; source: string | null }
 
+/**
+ * POS sales screen: tile catalog, cart, barcode scanning and shortcuts
+ * (`/`, F2), idempotent checkout handling ambiguous network responses
+ * (cart locking) and concurrent stockouts, plus the day's-tickets and
+ * cash-drawer-closing views.
+ */
 export function EcranVente({ me, boutique, session, onSessionFermee }: Props) {
   const queryClient = useQueryClient()
   const catalogue = useQuery({

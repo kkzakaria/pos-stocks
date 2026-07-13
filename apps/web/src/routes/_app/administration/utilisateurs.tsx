@@ -82,6 +82,7 @@ const ROLES_ENTREPOT_FR: Record<WarehouseRole, string> = {
   cashier: "Caissier",
 }
 
+/** Users admin page: account creation (provisional password), role changes, activation, and warehouse assignment; writing is restricted to owner/admin. */
 function UtilisateursPage() {
   const { me } = Route.useRouteContext()
   const peutEcrire =

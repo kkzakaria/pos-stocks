@@ -21,6 +21,7 @@ export const Route = createFileRoute("/_app/ventes/rapports")({
   component: PageRapports,
 })
 
+/** Reports page: Ventes / Marges / Valorisation tabs filtered by permissions (matrix §4), with the initial tab controllable via the `onglet` query param. */
 function PageRapports() {
   const { me } = useRouteContext({ from: "/_app" })
   const role = me.membership?.role

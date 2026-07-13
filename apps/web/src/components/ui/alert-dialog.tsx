@@ -6,16 +6,19 @@ import { AlertDialog as AlertDialogPrimitive } from "@base-ui/react/alert-dialog
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 
+/** Root of a confirmation dialog (irreversible action); drives the open/closed state. */
 function AlertDialog({ ...props }: AlertDialogPrimitive.Root.Props) {
   return <AlertDialogPrimitive.Root data-slot="alert-dialog" {...props} />
 }
 
+/** Trigger element that opens the confirmation dialog on click. */
 function AlertDialogTrigger({ ...props }: AlertDialogPrimitive.Trigger.Props) {
   return (
     <AlertDialogPrimitive.Trigger data-slot="alert-dialog-trigger" {...props} />
   )
 }
 
+/** Full-screen dark overlay behind the dialog; background blur where supported, fades on open/close. */
 function AlertDialogOverlay({
   className,
   ...props
@@ -32,6 +35,7 @@ function AlertDialogOverlay({
   )
 }
 
+/** Centered dialog panel (with overlay and portal); depth via a `ring` hairline, never a shadow. */
 function AlertDialogContent({
   className,
   ...props
@@ -51,6 +55,7 @@ function AlertDialogContent({
   )
 }
 
+/** Dialog header: stacks title and description in a column. */
 function AlertDialogHeader({
   className,
   ...props
@@ -64,6 +69,7 @@ function AlertDialogHeader({
   )
 }
 
+/** Dialog footer: aligns buttons to the right in a row (reverse-stacked on mobile). */
 function AlertDialogFooter({
   className,
   ...props
@@ -80,6 +86,7 @@ function AlertDialogFooter({
   )
 }
 
+/** Dialog title, in the heading font; serves as the dialog's accessible label. */
 function AlertDialogTitle({
   className,
   ...props
@@ -93,6 +100,7 @@ function AlertDialogTitle({
   )
 }
 
+/** Dialog explanatory text, in a muted tone; describes the action's consequence. */
 function AlertDialogDescription({
   className,
   ...props
@@ -106,7 +114,7 @@ function AlertDialogDescription({
   )
 }
 
-/** Bouton de confirmation. `variant` par défaut « destructive » (le cas courant). */
+/** Confirmation button. `variant` defaults to "destructive" (the common case). */
 function AlertDialogAction({
   className,
   variant = "destructive",
@@ -123,6 +131,7 @@ function AlertDialogAction({
   )
 }
 
+/** Cancel button; closes the dialog without acting, in the "outline" `variant`. */
 function AlertDialogCancel({
   className,
   ...props

@@ -37,6 +37,10 @@ export const Route = createFileRoute("/_app/catalogue/categories")({
 
 type Categorie = { id: string; name: string; parentId: string | null }
 
+/**
+ * Catalog categories screen: hierarchical list (parent > child),
+ * creation and editing of a category and its parent attachment.
+ */
 function CategoriesPage() {
   const peutEcrire = usePeutEcrire()
   const queryClient = useQueryClient()

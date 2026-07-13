@@ -6,11 +6,12 @@ import { CheckCircle2, AlertCircle, Info, X } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 
-/** Manager impératif : `toast.success(...)` déclenche depuis n'importe où. */
+/** Imperative manager: `toast.success(...)` fires from anywhere. */
 export const toastManager = Toast.createToastManager()
 
 type Options = { description?: ReactNode }
 
+/** Internal helper: pushes a toast into the manager with a given `type`. */
 function emettre(
   type: string | undefined,
   title: ReactNode,
@@ -19,6 +20,7 @@ function emettre(
   return toastManager.add({ title, description: options?.description, type })
 }
 
+/** Declarative toast API: `success`/`error`/`message` to emit from anywhere. */
 export const toast = {
   success: (title: ReactNode, options?: Options) =>
     emettre("success", title, options),
@@ -33,6 +35,7 @@ const ICONE: Record<string, { Icon: typeof Info; classe: string }> = {
   error: { Icon: AlertCircle, classe: "text-destructive" },
 }
 
+/** Renders the stack of active toasts; icon tinted by type (success/error), hairline rather than shadow. */
 function ListeToasts() {
   const { toasts } = Toast.useToastManager()
   return toasts.map((t) => {
@@ -67,7 +70,7 @@ function ListeToasts() {
   })
 }
 
-/** À monter une fois près de la racine (dans `ToastProvider`). */
+/** Mount once near the root (inside `ToastProvider`). */
 function Toaster() {
   return (
     <Toast.Portal>
@@ -78,7 +81,7 @@ function Toaster() {
   )
 }
 
-/** Fournit le contexte toast + monte le viewport. Enveloppe l'app. */
+/** Provides the toast context + mounts the viewport. Wraps the app. */
 export function ToastProvider({ children }: { children: ReactNode }) {
   return (
     <Toast.Provider toastManager={toastManager}>

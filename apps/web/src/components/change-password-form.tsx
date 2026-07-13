@@ -11,6 +11,11 @@ type Props = {
 const champClasses =
   "h-11 w-full rounded-md border border-input bg-input/20 px-3 text-base outline-none focus:border-ring focus:ring-2 focus:ring-ring/30 dark:bg-input/30"
 
+/**
+ * Password-change form: checks the match and minimum length (12 characters)
+ * client-side before delegating to `onSubmit`, whose returned message
+ * (or `null` = success) drives the display.
+ */
 export function ChangePasswordForm({ onSubmit }: Props) {
   const [currentPassword, setCurrentPassword] = useState("")
   const [newPassword, setNewPassword] = useState("")

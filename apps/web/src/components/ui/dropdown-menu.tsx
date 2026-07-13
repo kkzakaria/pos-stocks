@@ -5,14 +5,17 @@ import { CircleIcon } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 
+/** Dropdown menu root; drives the open/closed state and anchoring. */
 function DropdownMenu({ ...props }: MenuPrimitive.Root.Props) {
   return <MenuPrimitive.Root data-slot="dropdown-menu" {...props} />
 }
 
+/** Trigger element that opens the menu on click. */
 function DropdownMenuTrigger({ ...props }: MenuPrimitive.Trigger.Props) {
   return <MenuPrimitive.Trigger data-slot="dropdown-menu-trigger" {...props} />
 }
 
+/** Positioned menu panel (portal + positioner); depth via a `ring` hairline, never a shadow. */
 function DropdownMenuContent({
   className,
   side = "top",
@@ -48,6 +51,7 @@ function DropdownMenuContent({
   )
 }
 
+/** Clickable menu entry; `variant="destructive"` tints it red, target ≥ 44px on touch. */
 function DropdownMenuItem({
   className,
   variant = "default",
@@ -66,6 +70,7 @@ function DropdownMenuItem({
   )
 }
 
+/** Horizontal hairline separating groups of menu entries. */
 function DropdownMenuSeparator({
   className,
   ...props
@@ -79,10 +84,12 @@ function DropdownMenuSeparator({
   )
 }
 
+/** Groups related menu entries (paired with a `DropdownMenuGroupLabel`). */
 function DropdownMenuGroup({ ...props }: MenuPrimitive.Group.Props) {
   return <MenuPrimitive.Group data-slot="dropdown-menu-group" {...props} />
 }
 
+/** Section label heading a group of entries, in small muted text. */
 function DropdownMenuGroupLabel({
   className,
   ...props
@@ -99,6 +106,7 @@ function DropdownMenuGroupLabel({
   )
 }
 
+/** Group of exclusive choices (radio): only one entry selected at a time. */
 function DropdownMenuRadioGroup({ ...props }: MenuPrimitive.RadioGroup.Props) {
   return (
     <MenuPrimitive.RadioGroup
@@ -108,6 +116,7 @@ function DropdownMenuRadioGroup({ ...props }: MenuPrimitive.RadioGroup.Props) {
   )
 }
 
+/** Entry in a radio group; dot indicating the selected state, target ≥ 44px on touch. */
 function DropdownMenuRadioItem({
   className,
   children,

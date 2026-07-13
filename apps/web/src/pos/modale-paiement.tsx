@@ -22,6 +22,7 @@ const BILLETS = [500, 1000, 2000, 5000, 10000] as const
 // money CUMULABLES (mixte), billets rapides qui s'ADDITIONNENT, monnaie à
 // rendre en énorme dès que reçu ≥ dû. Composant PUR : la vente part par
 // onValider(paiements) — l'idempotence et l'API vivent dans l'écran (T15).
+/** Payment modal: cash (stackable bills) and mobile money can be mixed, change due shown as soon as the amount received covers what's owed, Enter confirms when ready. */
 export function ModalePaiement({
   total,
   enCours,

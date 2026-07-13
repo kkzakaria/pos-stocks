@@ -41,6 +41,11 @@ export const Route = createFileRoute("/_app/stock/")({
   component: NiveauxStockPage,
 })
 
+/**
+ * Per-warehouse stock levels screen: item search, alerts filter,
+ * incoming in-transit stock display, quantity adjustment, and alert
+ * threshold setting.
+ */
 function NiveauxStockPage() {
   const acces = useAccesStock()
   const { options: entrepots, isPending: entrepotsEnCours } =

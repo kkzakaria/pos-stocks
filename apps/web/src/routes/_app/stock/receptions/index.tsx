@@ -62,6 +62,11 @@ const LIBELLES_STATUT: Record<string, string> = {
   received: "Validées",
 }
 
+/**
+ * Supplier receipts list: filter by status (draft/validated) and
+ * creation of a draft (warehouse, supplier, reference) leading to its
+ * detail page.
+ */
 function ReceptionsPage() {
   const acces = useAccesStock()
   const { options: entrepots } = useEntrepotsVisibles()

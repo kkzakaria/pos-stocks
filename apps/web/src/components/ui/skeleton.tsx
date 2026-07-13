@@ -3,8 +3,8 @@ import * as React from "react"
 import { cn } from "@/lib/utils"
 
 /**
- * Bloc de chargement tonal. `animate-pulse` est neutralisé sous
- * `prefers-reduced-motion` par la garde globale de styles.css.
+ * Tonal loading block. `animate-pulse` is neutralized under
+ * `prefers-reduced-motion` by the global guard in styles.css.
  */
 function Skeleton({ className, ...props }: React.ComponentProps<"div">) {
   return (

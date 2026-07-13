@@ -41,6 +41,10 @@ export const Route = createFileRoute("/_app/stock/transferts/")({
   component: TransfertsPage,
 })
 
+/**
+ * Inter-warehouse transfers list: filter by status and creation of a
+ * draft (origin, destination, reference) leading to its detail page.
+ */
 function TransfertsPage() {
   const acces = useAccesStock()
   const { options: entrepots } = useEntrepotsVisibles()

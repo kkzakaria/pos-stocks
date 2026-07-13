@@ -2,7 +2,7 @@ import * as React from "react"
 
 import { cn } from "@/lib/utils"
 
-/** Zone de texte calée sur `Input` : même filet, même fond, même focus-ring. */
+/** Text area aligned with `Input`: same hairline, same background, same focus-ring. */
 function Textarea({ className, ...props }: React.ComponentProps<"textarea">) {
   return (
     <textarea

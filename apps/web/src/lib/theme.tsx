@@ -5,9 +5,9 @@ export type Theme = "light" | "dark" | "system"
 const STORAGE_KEY = "theme"
 
 type ThemeContextValue = {
-  /** Préférence choisie par l'utilisateur (peut être « system »). */
+  /** Preference chosen by the user (may be "system"). */
   theme: Theme
-  /** Thème effectivement appliqué (résout « system »). */
+  /** Theme actually applied (resolves "system"). */
   resolvedTheme: "light" | "dark"
   setTheme: (theme: Theme) => void
 }
@@ -30,12 +30,17 @@ function lireThemeStocke(): Theme {
     : "system"
 }
 
-/** Applique/retire la classe `.dark` sur <html> selon le thème résolu. */
+/** Adds/removes the `.dark` class on <html> according to the resolved theme. */
 function appliquerClasse(resolved: "light" | "dark"): void {
   if (typeof document === "undefined") return
   document.documentElement.classList.toggle("dark", resolved === "dark")
 }
 
+/**
+ * Provides the theme context: reads the persisted preference, resolves "system"
+ * via `prefers-color-scheme` (tracking OS changes), and applies the `.dark`
+ * class on `<html>` according to the effective theme.
+ */
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [theme, setThemeState] = React.useState<Theme>(lireThemeStocke)
   const [systemDark, setSystemDark] = React.useState<boolean>(prefersDark)
@@ -76,6 +81,10 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   return <ThemeContext value={value}>{children}</ThemeContext>
 }
 
+/**
+ * Hook for accessing the current theme; throws an error if used outside a
+ * `<ThemeProvider>`.
+ */
 export function useTheme(): ThemeContextValue {
   const ctx = React.useContext(ThemeContext)
   if (!ctx) {

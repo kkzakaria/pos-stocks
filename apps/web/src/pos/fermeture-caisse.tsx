@@ -17,6 +17,7 @@ type Props = {
 // Fermeture de caisse (spec §7) : saisie du montant compté ; l'attendu
 // (fond + encaissements cash) et l'écart sont calculés PAR LE SERVEUR à la
 // fermeture et affichés au retour.
+/** Cash-drawer closing modal: entry of the counted amount, then display of the expected amount and variance computed by the server. */
 export function FermetureCaisse({ session, onFermee, onAnnuler }: Props) {
   const [compte, setCompte] = useState("")
   const [erreur, setErreur] = useState<string | null>(null)

@@ -39,6 +39,11 @@ const buttonVariants = cva(
   }
 )
 
+/**
+ * DS action button. `variant` carries the intent (primary/outline/ghost/
+ * destructive/link) and `size` the dimensions; touch sizes keep a target
+ * of at least 44px under `pointer-coarse`.
+ */
 function Button({
   className,
   variant = "default",

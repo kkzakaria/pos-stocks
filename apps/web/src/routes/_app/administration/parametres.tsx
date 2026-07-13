@@ -26,6 +26,7 @@ type Reglages = {
   receiptFooter: string
 }
 
+/** Organization settings admin page: name, currency, receipt header and footer; the form is disabled (read-only) for the auditor. */
 function ParametresPage() {
   const { me } = Route.useRouteContext()
   const peutEcrire =

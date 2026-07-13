@@ -42,7 +42,7 @@ const LIBELLES_STATUT_TRANSFERT: Record<string, string> = {
   sent: "Expédié",
 }
 
-/** Chiffre-clé du bandeau de tête : le chiffre est sacré, la mise en page le sert. */
+/** Key figure in the header banner: the number is sacred, the layout serves it. */
 function StatCle({
   label,
   valeur,
@@ -78,6 +78,7 @@ function StatCle({
   )
 }
 
+/** Dashboard section card: title, right-aligned action, and free-form content. */
 function Bloc({
   titre,
   action,
@@ -101,6 +102,7 @@ function Bloc({
 const lienBlocClasses =
   "text-sm text-primary underline-offset-4 hover:underline"
 
+/** "Ventes du jour" block: revenue and tickets per store for the day, with a link to the history. */
 function BlocVentesDuJour() {
   const { du, au } = periodePreset("jour")
   const ventes = useQuery({
@@ -162,6 +164,7 @@ function BlocVentesDuJour() {
   )
 }
 
+/** "Alertes stock bas" block: products below threshold (top 5), sharing its cache with the sidebar badge. */
 function BlocAlertes() {
   // Même queryKey que le badge de la sidebar (_app.tsx) : cache partagé.
   const alertes = useQuery({
@@ -227,6 +230,7 @@ function BlocAlertes() {
   )
 }
 
+/** "Transferts en attente" block: combines transfers being prepared and in transit (top 5). */
 function BlocTransferts() {
   const enPreparation = useQuery({
     queryKey: ["dashboard-transferts", "pending"],
@@ -293,6 +297,7 @@ function BlocTransferts() {
   )
 }
 
+/** "Valeur du stock" block: valuation (quantity × weighted average cost) per warehouse, with a link to the detailed report. */
 function BlocValorisation() {
   const valorisation = useQuery({
     queryKey: ["dashboard-valorisation"],
@@ -343,6 +348,7 @@ function BlocValorisation() {
   )
 }
 
+/** Dashboard page: key-figure banner then summary blocks, filtered by the account's permissions (a pure cashier is redirected to the POS). */
 function TableauDeBord() {
   const { me } = useRouteContext({ from: "/_app" })
   const blocs = blocsTableauDeBord(me)

@@ -61,6 +61,7 @@ const OPTIONS_TYPE = [
   label: string
 }>
 
+/** Warehouses & stores admin page: list, creation, and (de)activation; writing is restricted to owner/admin, the auditor is read-only. */
 function EntrepotsPage() {
   const { me } = Route.useRouteContext()
   const peutEcrire =

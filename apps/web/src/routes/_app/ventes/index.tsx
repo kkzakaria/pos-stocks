@@ -41,6 +41,7 @@ const PRESETS = [
   { id: "mois", libelle: "Ce mois" },
 ] as const
 
+/** Sales history page: list paginated by store and period (presets or dates), filtered to the stores the account can read. */
 function HistoriqueVentes() {
   const { me } = useRouteContext({ from: "/_app" })
   const destinations = useQuery({

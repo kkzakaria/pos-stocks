@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/table"
 import { TableSkeleton } from "@/components/ui/table-skeleton"
 
+/** Valuation report: snapshot of current stock (quantity × weighted average cost) per warehouse and per variant, with total and CSV export. */
 export function RapportValorisation() {
   const [erreurExport, setErreurExport] = useState<string | null>(null)
   const rapport = useQuery({

@@ -1,10 +1,10 @@
 import { cn } from "@/lib/utils"
 
 /**
- * Barre fine de proportion (data-viz registre) : part d'un montant dans un
- * total. Purement visuelle — le chiffre reste lu dans la cellule voisine.
- * Jamais de camembert ni de dégradé ; la donnée reste dans la voix indigo
- * de la marque via la rampe `chart-*`.
+ * Thin proportion bar (data-viz register): an amount's share of a total.
+ * Purely visual — the number stays read in the neighboring cell. Never a
+ * pie chart nor a gradient; the data stays in the brand's indigo voice via
+ * the `chart-*` ramp.
  */
 export function BarreProportion({
   valeur,

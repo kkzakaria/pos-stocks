@@ -9,6 +9,7 @@ type Props = {
   onEncaisser: () => void
 }
 
+/** POS cart: line items (quantity, struck-through negotiated price, source badge, stock alert), total, and checkout button (F2). */
 export function Panier({ lignes, onChoisirLigne, onEncaisser }: Props) {
   const total = totalPanier(lignes)
   return (

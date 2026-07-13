@@ -6,6 +6,7 @@ export const Route = createFileRoute("/_app/mon-compte")({
   component: MonComptePage,
 })
 
+/** "Mon compte" page: identity/role recap and password change (alert when the password is still provisional). */
 function MonComptePage() {
   const { me } = Route.useRouteContext()
   const router = useRouter()

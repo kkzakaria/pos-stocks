@@ -9,6 +9,11 @@ import {
 
 type Props = { password: string; email: string; onClose: () => void }
 
+/**
+ * Non-dismissible dialog showing the provisional password of a newly created
+ * account; offers clipboard copy (with a fallback when it fails outside HTTPS),
+ * the password never being shown again afterwards.
+ */
 export function ProvisionalPasswordDialog({ password, email, onClose }: Props) {
   const [copie, setCopie] = useState<"copié" | "échec" | null>(null)
 

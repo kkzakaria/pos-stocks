@@ -32,6 +32,11 @@ const badgeVariants = cva(
   }
 )
 
+/**
+ * Compact status pill. Tinted `success`/`warning`/`destructive` variants
+ * (translucent background + colored text) for business states; `render` lets it
+ * project onto another element (e.g. a link) via `useRender`.
+ */
 function Badge({
   className,
   variant = "default",

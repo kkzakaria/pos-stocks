@@ -23,6 +23,7 @@ const LIBELLES_METHODE: Record<string, string> = {
   mobile_money: "Mobile money",
 }
 
+/** Ticket detail page: line items (applied unit price, discount, source, lot), payments, and margin (an "estimée" badge when the cost is approximated). */
 function DetailVente() {
   const { saleId } = Route.useParams()
   const detail = useQuery({

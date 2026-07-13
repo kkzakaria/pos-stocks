@@ -37,6 +37,11 @@ type Props = {
 
 // Monté avec key={produit.id} par la page : l'état initial du formulaire
 // est re-semé quand on navigue vers un autre produit.
+/**
+ * "Information" section: form for editing the product fields (name, price,
+ * floor price, threshold, category, barcode, activation) saved via PATCH; empty
+ * fields are normalized to `null` before sending.
+ */
 export function SectionInfos({
   produit,
   productId,

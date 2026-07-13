@@ -33,6 +33,10 @@ export const Route = createFileRoute("/_app/stock/mouvements")({
 
 const LIMITE = 50
 
+/**
+ * Stock movements journal: paginated list filterable by warehouse,
+ * movement type, period, and item, to trace every entry/exit.
+ */
 function MouvementsPage() {
   const { options: entrepots } = useEntrepotsVisibles()
 

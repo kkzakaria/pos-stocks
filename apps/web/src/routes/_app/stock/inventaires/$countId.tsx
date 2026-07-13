@@ -78,7 +78,7 @@ type ReponseCloture = {
   mouvements: number
 }
 
-/** Écart coloré : positif en `success`, négatif en `destructive`, nul neutre. */
+/** Colored discrepancy: positive as `success`, negative as `destructive`, zero neutral. */
 function ecartRendu(delta: number | null) {
   if (delta === null) return <span className="text-muted-foreground">—</span>
   if (delta === 0) return <span className="text-muted-foreground">0</span>
@@ -93,6 +93,11 @@ function ecartRendu(delta: number | null) {
   )
 }
 
+/**
+ * Inventory count detail: entry of counted quantities per item against
+ * the expected stock frozen at opening, then closing which generates the
+ * discrepancy movements and displays the summary.
+ */
 function InventaireDetailPage() {
   const { countId } = Route.useParams()
   const acces = useAccesStock()

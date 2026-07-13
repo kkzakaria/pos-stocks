@@ -32,6 +32,12 @@ type Props = {
   onModifie: () => Promise<unknown>
 }
 
+/**
+ * "Variants" section: table of variants (SKU, attributes, effective price,
+ * status) with creation (key/value attributes, overridable price and floor
+ * price) and active/inactive toggle; the displayed price falls back to the
+ * product's.
+ */
 export function SectionVariantes({
   produit,
   productId,

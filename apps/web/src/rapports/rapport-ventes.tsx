@@ -30,6 +30,7 @@ const PRESETS = [
   { id: "mois", libelle: "Ce mois" },
 ] as const
 
+/** Period selector shared across reports: "Du"/"Au" date bounds and preset buttons (day, 7 days, month). */
 export function SelecteurPeriode({
   periode,
   onChange,
@@ -70,6 +71,7 @@ export function SelecteurPeriode({
   )
 }
 
+/** Row of sales summary tiles: revenue, tickets, average basket, cash, and mobile money. */
 export function TuilesTotaux({ total }: { total: TotalVentes }) {
   const tuiles = [
     { libelle: "Chiffre d'affaires", valeur: formaterMontant(total.ca) },
@@ -93,7 +95,7 @@ export function TuilesTotaux({ total }: { total: TotalVentes }) {
   )
 }
 
-/** Tuiles de chargement, à la densité des tuiles de totaux. */
+/** Loading tiles, matching the density of the totals tiles. */
 export function TuilesSkeleton({ nombre = 5 }: { nombre?: number }) {
   return (
     <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-5">
@@ -104,6 +106,7 @@ export function TuilesSkeleton({ nombre = 5 }: { nombre?: number }) {
   )
 }
 
+/** Reusable report error box: alert message + "Réessayer" button. */
 export function ErreurEtRetry({
   message,
   onRetry,
@@ -123,6 +126,7 @@ export function ErreurEtRetry({
   )
 }
 
+/** Sales report: grouping by store or by product over a period, totals tiles, table, and CSV export. */
 export function RapportVentes() {
   const [periode, setPeriode] = useState(() => periodePreset("semaine"))
   const [groupe, setGroupe] = useState<"boutique" | "produit">("boutique")

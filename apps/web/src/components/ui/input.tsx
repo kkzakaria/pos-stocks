@@ -3,6 +3,11 @@ import { Input as InputPrimitive } from "@base-ui/react/input"
 
 import { cn } from "@/lib/utils"
 
+/**
+ * DS input field: shared hairline, translucent background and focus ring.
+ * Flags errors via `aria-invalid` and keeps a 44px touch height under
+ * `pointer-coarse`.
+ */
 function Input({ className, type, ...props }: React.ComponentProps<"input">) {
   return (
     <InputPrimitive

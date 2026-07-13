@@ -2,8 +2,8 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { TableRow, TableCell } from "@/components/ui/table"
 
 /**
- * Lignes de squelette à poser dans un `<TableBody>` pendant le chargement,
- * à la densité de la table (pas de spinner central).
+ * Skeleton rows to place inside a `<TableBody>` while loading, at the
+ * table's density (no central spinner).
  */
 export function TableSkeleton({
   colonnes,

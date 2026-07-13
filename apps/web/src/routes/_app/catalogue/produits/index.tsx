@@ -54,6 +54,10 @@ type Produit = {
 type Categorie = { id: string; name: string }
 type Reglages = { currency: string }
 
+/**
+ * Catalog products list: search (name, SKU, barcode), filter by
+ * category, and creation of a product leading to its detail page.
+ */
 function ProduitsPage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()

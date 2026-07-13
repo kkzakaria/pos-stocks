@@ -23,6 +23,7 @@ type Props = {
 // Garde d'entrée du POS (spec §7) : impossible de vendre sans session de
 // caisse ouverte. Choix de la boutique si plusieurs affectations + fond de
 // caisse.
+/** Cash-drawer opening screen: store selection (if several assignments) and entry of the opening float before selling is possible. */
 export function OuvertureCaisse({
   boutiques,
   boutiqueId,

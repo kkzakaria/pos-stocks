@@ -4,8 +4,8 @@ import type { LucideIcon } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 /**
- * État vide qui oriente l'action, jamais un simple « rien ici ».
- * Bord tireté discret (affordance calme, pas une carte), voix « registre ».
+ * Empty state that guides toward action, never a plain "nothing here".
+ * Subtle dashed border (a calm affordance, not a card), "register" voice.
  */
 export function EtatVide({
   icon: Icon,

@@ -14,6 +14,7 @@ type Props = {
 // Dépannage sur rupture (spec §5) : « puiser dans… » avec les entrepôts où
 // l'article est disponible et leurs quantités. Le choix pose
 // sourceWarehouseId sur la ligne (badge « réserve » au panier).
+/** Stockout fallback dialog: lists the warehouses where the item is available and sets the chosen source on the cart line. */
 export function DialogueDepannage({
   storeId,
   ligne,

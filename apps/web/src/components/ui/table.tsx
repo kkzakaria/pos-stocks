@@ -4,6 +4,7 @@ import * as React from "react"
 
 import { cn } from "@/lib/utils"
 
+/** DS table; wrapped in a container that scrolls horizontally on wide data. */
 function Table({ className, ...props }: React.ComponentProps<"table">) {
   return (
     <div
@@ -19,6 +20,7 @@ function Table({ className, ...props }: React.ComponentProps<"table">) {
   )
 }
 
+/** Table header (`<thead>`); `sticky` pins the header row at the top for long, dense tables. */
 function TableHeader({
   className,
   sticky = false,
@@ -38,6 +40,7 @@ function TableHeader({
   )
 }
 
+/** Table body (`<tbody>`); removes the last row's hairline. */
 function TableBody({ className, ...props }: React.ComponentProps<"tbody">) {
   return (
     <tbody
@@ -48,6 +51,7 @@ function TableBody({ className, ...props }: React.ComponentProps<"tbody">) {
   )
 }
 
+/** Table footer (`<tfoot>`) on a muted background; typically totals. */
 function TableFooter({ className, ...props }: React.ComponentProps<"tfoot">) {
   return (
     <tfoot
@@ -61,6 +65,7 @@ function TableFooter({ className, ...props }: React.ComponentProps<"tfoot">) {
   )
 }
 
+/** Table row (`<tr>`); hover highlight and selected/expanded state. */
 function TableRow({ className, ...props }: React.ComponentProps<"tr">) {
   return (
     <tr
@@ -74,6 +79,7 @@ function TableRow({ className, ...props }: React.ComponentProps<"tr">) {
   )
 }
 
+/** Table header cell (`<th>`); `numeric` right-aligns with `tabular-nums` (numbers are sacred). */
 function TableHead({
   className,
   numeric = false,
@@ -95,6 +101,7 @@ function TableHead({
   )
 }
 
+/** Table body cell (`<td>`); `numeric` right-aligns with `tabular-nums` for amounts. */
 function TableCell({
   className,
   numeric = false,
@@ -113,6 +120,7 @@ function TableCell({
   )
 }
 
+/** Table caption (`<caption>`) at the bottom, muted text. */
 function TableCaption({
   className,
   ...props

@@ -20,6 +20,10 @@ type Props = {
   onModifie: () => Promise<unknown>
 }
 
+/**
+ * "Lots" section: lists lots per active variant (with an "Expired" badge
+ * derived from the expiry date) and offers adding a lot via a dialog.
+ */
 export function SectionLots({ produit, peutEcrire, onModifie }: Props) {
   const [dialogLotPour, setDialogLotPour] = useState<string | null>(null)
   const [numeroLot, setNumeroLot] = useState("")

@@ -14,6 +14,11 @@ type Props = {
   onModifie: () => Promise<unknown>
 }
 
+/**
+ * Product image section: current preview and upload (JPEG/PNG/WebP, 2 MB max)
+ * via multipart; resets the input after each attempt to allow resubmitting the
+ * same file and versions the URL to bust the cache.
+ */
 export function SectionImage({
   produit,
   productId,

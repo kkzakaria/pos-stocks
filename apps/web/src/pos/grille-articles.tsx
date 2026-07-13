@@ -9,6 +9,7 @@ type Props = {
 
 // Grille de tuiles produits (spec §7) : image, nom, prix, badge rupture ;
 // tuiles ≥ 88 px, utilisables au doigt.
+/** POS product tile grid: image (or initials), name, price, and "Rupture" badge, each tile adding the item to the cart on click. */
 export function GrilleArticles({ articles, onChoisir }: Props) {
   if (articles.length === 0) {
     return <p className="p-6 text-muted-foreground">Aucun article.</p>

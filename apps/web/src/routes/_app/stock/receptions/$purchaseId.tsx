@@ -88,6 +88,11 @@ type ProduitCatalogue = {
   variants: Array<{ id: string; name: string; sku: string; isActive: boolean }>
 }
 
+/**
+ * Supplier receipt detail: editing a draft's lines (item, quantity,
+ * cost, lot/expiry), then validation which brings stock in, or deletion
+ * of the draft.
+ */
 function ReceptionDetailPage() {
   const { purchaseId } = Route.useParams()
   const acces = useAccesStock()

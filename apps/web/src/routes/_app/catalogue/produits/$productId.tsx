@@ -14,6 +14,11 @@ export const Route = createFileRoute("/_app/catalogue/produits/$productId")({
   component: FicheProduitPage,
 })
 
+/**
+ * Product detail: image, general information, variants, and lots
+ * sections (if lot tracking is enabled), each editable according to
+ * permissions.
+ */
 function FicheProduitPage() {
   const { productId } = Route.useParams()
   const peutEcrire = usePeutEcrire()
