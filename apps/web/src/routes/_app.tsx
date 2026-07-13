@@ -39,6 +39,15 @@ function AppLayout() {
     role === "owner" ||
     role === "admin" ||
     me.assignments.some((a) => a.role === "manager" || a.role === "cashier")
+  // Section Ventes (Phase 7) : historique lisible par les rôles org
+  // owner/admin/auditor et TOUTE affectation locale (décision 10 P6, un
+  // caissier relit ses tickets) ; Rapports ouvert en plus à stock_manager
+  // (valorisation seulement — l'écran filtre ses onglets).
+  const accesVentes = estAdmin || me.assignments.length > 0
+  const accesRapports =
+    estAdmin ||
+    role === "stock_manager" ||
+    me.assignments.some((a) => a.role === "manager" || a.role === "auditor")
 
   async function handleSignOut() {
     await authClient.signOut()
@@ -62,6 +71,23 @@ function AppLayout() {
               <Link to="/pos" className={lienClasses}>
                 Point de vente
               </Link>
+            )}
+            {(accesVentes || accesRapports) && (
+              <>
+                <p className="mt-4 mb-1 px-2 text-[11px] font-medium tracking-widest text-gray-400 uppercase">
+                  Ventes
+                </p>
+                {accesVentes && (
+                  <Link to="/ventes" className={lienClasses}>
+                    Historique
+                  </Link>
+                )}
+                {accesRapports && (
+                  <Link to="/ventes/rapports" className={lienClasses}>
+                    Rapports
+                  </Link>
+                )}
+              </>
             )}
             <p className="mt-4 mb-1 px-2 text-[11px] font-medium tracking-widest text-gray-400 uppercase">
               Catalogue
