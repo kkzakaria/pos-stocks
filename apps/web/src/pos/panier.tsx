@@ -13,7 +13,7 @@ export function Panier({ lignes, onChoisirLigne, onEncaisser }: Props) {
   const total = totalPanier(lignes)
   return (
     <aside className="flex h-full w-full flex-col border-l bg-card">
-      <h2 className="border-b px-4 py-3 text-sm font-semibold tracking-widest text-muted-foreground uppercase">
+      <h2 className="border-b px-4 py-3 text-sm font-semibold text-muted-foreground">
         Panier
       </h2>
       <ul className="flex-1 overflow-y-auto">
