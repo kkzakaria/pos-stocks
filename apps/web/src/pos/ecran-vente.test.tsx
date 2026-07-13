@@ -126,7 +126,7 @@ describe("EcranVente — verrouillage panier après échec ambigu", () => {
     await waitFor(() =>
       expect(
         screen.getByRole<HTMLButtonElement>("button", {
-          name: "Diminuer la quantité",
+          name: "Diminuer la quantité de Coca 50cl",
         }).disabled
       ).toBe(false)
     )
@@ -161,7 +161,7 @@ describe("EcranVente — verrouillage panier après échec ambigu", () => {
     await waitFor(() =>
       expect(
         screen.getByRole<HTMLButtonElement>("button", {
-          name: "Diminuer la quantité",
+          name: "Diminuer la quantité de Coca 50cl",
         }).disabled
       ).toBe(false)
     )
@@ -280,6 +280,22 @@ describe("EcranVente — raccourci Suppr : vider le panier", () => {
       screen.getByRole<HTMLButtonElement>("button", { name: /ENCAISSER/ })
         .disabled
     ).toBe(true)
+  })
+
+  it("n'ouvre rien quand le panier est vide", () => {
+    renderEcran()
+    fireEvent.keyDown(window, { key: "Delete" })
+    expect(screen.queryByText("Vider le panier ?")).toBeNull()
+  })
+
+  it("ignore Suppr quand le focus est dans un champ de saisie", async () => {
+    renderEcran()
+    const tuile = await screen.findByRole("button", { name: /Coca 50cl/ })
+    fireEvent.click(tuile)
+    // Focus dans la recherche : Suppr efface un caractère, ne vide pas le panier.
+    screen.getByPlaceholderText(/Rechercher/).focus()
+    fireEvent.keyDown(window, { key: "Delete" })
+    expect(screen.queryByText("Vider le panier ?")).toBeNull()
   })
 })
 

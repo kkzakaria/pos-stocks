@@ -1,7 +1,17 @@
 import { describe, it, expect, vi } from "vitest"
 import { render, screen, fireEvent } from "@testing-library/react"
+import { formaterMontant } from "@/lib/format"
 import { Panier } from "./panier"
 import type { LignePanier } from "@/lib/pos"
+
+// Regex ancrée sur le montant formaté fr-FR (espaces insécables étroites
+// U+202F normalisées) — piège du dépôt : ne pas matcher via un substring brut.
+function texteMontant(montant: number): RegExp {
+  const echappe = formaterMontant(montant)
+    .replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+    .replace(/\s+/g, "\\s+")
+  return new RegExp(`^${echappe}$`)
+}
 
 const ligne = (surcharge: Partial<LignePanier> = {}): LignePanier => ({
   variantId: "v1",
@@ -89,14 +99,14 @@ describe("Panier", () => {
     const onQuantite = vi.fn()
     render(<Panier {...props({ lignes: [ligne()], onQuantite })} />)
     fireEvent.click(
-      screen.getByRole("button", { name: "Augmenter la quantité" })
+      screen.getByRole("button", { name: "Augmenter la quantité de Coca 50cl" })
     )
     expect(onQuantite).toHaveBeenLastCalledWith(
       expect.objectContaining({ variantId: "v1" }),
       3
     )
     fireEvent.click(
-      screen.getByRole("button", { name: "Diminuer la quantité" })
+      screen.getByRole("button", { name: "Diminuer la quantité de Coca 50cl" })
     )
     expect(onQuantite).toHaveBeenLastCalledWith(
       expect.objectContaining({ variantId: "v1" }),
@@ -145,13 +155,47 @@ describe("Panier", () => {
     )
   })
 
+  it("édite le prix : arrondit une saisie décimale (virgule FR) à l'entier XOF", () => {
+    const onPrix = vi.fn()
+    render(
+      <Panier {...props({ lignes: [ligne({ prixPlancher: 400 })], onPrix })} />
+    )
+    fireEvent.click(
+      screen.getByRole("button", { name: "Modifier le prix de Coca 50cl" })
+    )
+    const champ = screen.getByLabelText("Nouveau prix de Coca 50cl")
+    fireEvent.change(champ, { target: { value: "450,5" } })
+    fireEvent.blur(champ)
+    expect(onPrix).toHaveBeenCalledWith(
+      expect.objectContaining({ variantId: "v1" }),
+      451
+    )
+  })
+
+  it("steppers désactivés pendant la saisie clavier de la quantité", () => {
+    render(<Panier {...props({ lignes: [ligne()] })} />)
+    fireEvent.click(
+      screen.getByRole("button", { name: "Saisir la quantité de Coca 50cl" })
+    )
+    expect(
+      screen.getByRole<HTMLButtonElement>("button", {
+        name: "Augmenter la quantité de Coca 50cl",
+      }).disabled
+    ).toBe(true)
+    expect(
+      screen.getByRole<HTMLButtonElement>("button", {
+        name: "Diminuer la quantité de Coca 50cl",
+      }).disabled
+    ).toBe(true)
+  })
+
   it("prix non révisable (sans plancher) : affiché en texte, non éditable", () => {
     render(<Panier {...props({ lignes: [ligne({ prixPlancher: null })] })} />)
     expect(
       screen.queryByRole("button", { name: "Modifier le prix de Coca 50cl" })
     ).toBeNull()
     // le montant reste affiché
-    expect(screen.getAllByText(/500/).length).toBeGreaterThan(0)
+    expect(screen.getAllByText(texteMontant(500)).length).toBeGreaterThan(0)
   })
 
   it("vider le panier : désactivé si vide, sinon confirmation → onVider", async () => {
@@ -193,7 +237,7 @@ describe("Panier", () => {
     ).toBe(true)
     expect(
       screen.getByRole<HTMLButtonElement>("button", {
-        name: "Augmenter la quantité",
+        name: "Augmenter la quantité de Coca 50cl",
       }).disabled
     ).toBe(true)
   })

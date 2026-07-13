@@ -103,7 +103,11 @@ function AppLayout() {
             aria-label="Navigation principale"
             className="flex flex-col gap-0.5"
           >
-            <Link to="/" className={lienClasses}>
+            <Link
+              to="/"
+              activeOptions={{ exact: true }}
+              className={lienClasses}
+            >
               <LayoutDashboard />
               Tableau de bord
             </Link>

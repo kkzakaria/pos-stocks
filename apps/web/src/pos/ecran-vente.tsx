@@ -377,7 +377,9 @@ export function EcranVente({ me, boutique, session, onSessionFermee }: Props) {
               setLignes((l) =>
                 supprimerLigne(l, ligne.variantId, ligne.sourceWarehouseId)
               )
-              setErreurPrix(null)
+              // N'efface que l'erreur rattachée à CETTE ligne : retirer une
+              // autre ligne ne doit pas masquer un refus de prix encore valable.
+              setErreurPrix((e) => (e?.cle === cleLigne(ligne) ? null : e))
             }}
             onDepanner={(ligne) => {
               if (panierVerrouille) return

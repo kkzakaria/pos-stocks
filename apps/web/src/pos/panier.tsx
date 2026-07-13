@@ -86,12 +86,16 @@ export function Panier({
   }
   function valider(ligne: LignePanier) {
     const champ = edition?.champ
-    const n = Number(saisie)
+    // Virgule décimale FR → point, puis arrondi : quantités ET montants sont
+    // des ENTIERS (XOF sans décimale). Sans ça, « 450,5 » (NaN) est abandonné
+    // en silence et « 450.5 » stocke une fraction rejetée plus loin sans
+    // retour visuel.
+    const n = Math.round(Number(saisie.replace(",", ".")))
     // N'applique que si la valeur a changé et reste finie : un blur sans
     // modification ne redéclenche pas une validation serveur inutile.
     if (saisie.trim() !== "" && Number.isFinite(n)) {
       if (champ === "quantite") {
-        const q = Math.max(1, Math.round(n))
+        const q = Math.max(1, n)
         if (q !== ligne.quantite) onQuantite(ligne, q)
       } else if (n !== ligne.prixUnitaire) {
         onPrix(ligne, n)
@@ -216,9 +220,13 @@ export function Panier({
                   <Button
                     variant="outline"
                     size="icon"
-                    disabled={verrouille || ligne.quantite <= 1}
+                    // Désactivé en édition : le blur valide la saisie AVANT le
+                    // click, sinon +/− rejouerait l'ancienne quantité par-dessus.
+                    disabled={
+                      verrouille || enEditionQuantite || ligne.quantite <= 1
+                    }
                     onClick={() => onQuantite(ligne, ligne.quantite - 1)}
-                    aria-label="Diminuer la quantité"
+                    aria-label={`Diminuer la quantité de ${ligne.nom}`}
                   >
                     <Minus />
                   </Button>
@@ -250,9 +258,9 @@ export function Panier({
                   <Button
                     variant="outline"
                     size="icon"
-                    disabled={verrouille}
+                    disabled={verrouille || enEditionQuantite}
                     onClick={() => onQuantite(ligne, ligne.quantite + 1)}
-                    aria-label="Augmenter la quantité"
+                    aria-label={`Augmenter la quantité de ${ligne.nom}`}
                   >
                     <Plus />
                   </Button>
