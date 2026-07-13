@@ -308,4 +308,23 @@ describe("GET /api/v1/sales/:id — marge du détail", () => {
     )
     expect(res.status).toBe(403)
   })
+
+  it("stock_manager + auditor local : détail lisible (200) mais marge null — le rôle d'entreprise coupe la marge avant les rôles locaux", async () => {
+    const seed = await seedMarges()
+    const hybride = await createUserWithRole(
+      seed.organizationId,
+      "stock_manager"
+    )
+    await affecterEntrepot(
+      seed.organizationId,
+      hybride.userId,
+      seed.storeId,
+      "auditor"
+    )
+    const res = await req(hybride.cookie, "GET", `/api/v1/sales/${seed.saleId}`)
+    expect(res.status).toBe(200)
+    const detail = await res.json<DetailVente>()
+    expect(detail.sale.id).toBe(seed.saleId)
+    expect(detail.marge).toBeNull()
+  })
 })
