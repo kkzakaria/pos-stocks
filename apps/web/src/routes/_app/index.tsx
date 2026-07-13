@@ -175,14 +175,14 @@ function BlocTransferts() {
     queryKey: ["dashboard-transferts", "pending"],
     queryFn: () =>
       apiFetch<{ transfers: TransfertEnAttente[] }>(
-        "/api/v1/transfers?statut=pending"
+        "/api/v1/transfers?statut=pending&limit=50"
       ),
   })
   const enTransit = useQuery({
     queryKey: ["dashboard-transferts", "sent"],
     queryFn: () =>
       apiFetch<{ transfers: TransfertEnAttente[] }>(
-        "/api/v1/transfers?statut=sent"
+        "/api/v1/transfers?statut=sent&limit=50"
       ),
   })
   const lignes = [
@@ -198,38 +198,34 @@ function BlocTransferts() {
         </Link>
       }
     >
-      {(enPreparation.isPending || enTransit.isPending) && (
+      {enPreparation.isPending || enTransit.isPending ? (
         <p className="text-sm text-gray-500">Chargement…</p>
-      )}
-      {(enPreparation.isError || enTransit.isError) && (
+      ) : enPreparation.isError || enTransit.isError ? (
         <p role="alert" className="text-sm text-red-600">
           Impossible de charger les transferts.
         </p>
+      ) : lignes.length === 0 ? (
+        <p className="text-sm text-gray-500">Aucun transfert en attente.</p>
+      ) : (
+        <ul className="space-y-1 text-sm">
+          {lignes.slice(0, 5).map((transfert) => (
+            <li key={transfert.id} className="flex justify-between">
+              <span>
+                {transfert.fromWarehouseName} → {transfert.toWarehouseName}
+              </span>
+              <span className="text-gray-500">
+                {LIBELLES_STATUT_TRANSFERT[transfert.status] ??
+                  transfert.status}
+              </span>
+            </li>
+          ))}
+          {lignes.length > 5 && (
+            <li className="text-xs text-gray-500">
+              + {lignes.length - 5} autres transferts
+            </li>
+          )}
+        </ul>
       )}
-      {enPreparation.isSuccess &&
-        enTransit.isSuccess &&
-        (lignes.length === 0 ? (
-          <p className="text-sm text-gray-500">Aucun transfert en attente.</p>
-        ) : (
-          <ul className="space-y-1 text-sm">
-            {lignes.slice(0, 5).map((transfert) => (
-              <li key={transfert.id} className="flex justify-between">
-                <span>
-                  {transfert.fromWarehouseName} → {transfert.toWarehouseName}
-                </span>
-                <span className="text-gray-500">
-                  {LIBELLES_STATUT_TRANSFERT[transfert.status] ??
-                    transfert.status}
-                </span>
-              </li>
-            ))}
-            {lignes.length > 5 && (
-              <li className="text-xs text-gray-500">
-                + {lignes.length - 5} autres transferts
-              </li>
-            )}
-          </ul>
-        ))}
     </Bloc>
   )
 }
