@@ -36,8 +36,11 @@ export function MenuPos({
     window.location.href = "/login"
   }
 
-  const itemClasses =
-    "block w-full rounded px-3 py-2 text-left text-sm hover:bg-accent hover:text-accent-foreground"
+  const itemBase = "block w-full rounded px-3 py-2 text-left text-sm"
+  const itemNeutre = `${itemBase} hover:bg-accent hover:text-accent-foreground`
+  // Le survol neutre partagé écraserait text-destructive ; la déconnexion
+  // garde donc son propre survol destructif.
+  const itemDestructif = `${itemBase} text-destructive hover:bg-destructive/10 hover:text-destructive`
 
   return (
     <div ref={conteneur} className="relative">
@@ -53,7 +56,7 @@ export function MenuPos({
       {ouvert && (
         <div className="absolute right-0 z-20 mt-1 w-56 rounded-lg bg-popover p-1 text-popover-foreground shadow-md ring-1 ring-foreground/10">
           <button
-            className={itemClasses}
+            className={itemNeutre}
             onClick={() => {
               setOuvert(false)
               onTicketsDuJour()
@@ -62,7 +65,7 @@ export function MenuPos({
             Tickets du jour
           </button>
           <button
-            className={itemClasses}
+            className={itemNeutre}
             onClick={() => {
               setOuvert(false)
               onFermerCaisse()
@@ -71,14 +74,11 @@ export function MenuPos({
             Fermer la caisse
           </button>
           {peutRetournerBackOffice && (
-            <Link to="/" className={itemClasses}>
+            <Link to="/" className={itemNeutre}>
               Retour au back-office
             </Link>
           )}
-          <button
-            className={`${itemClasses} text-destructive`}
-            onClick={handleSignOut}
-          >
+          <button className={itemDestructif} onClick={handleSignOut}>
             Se déconnecter
           </button>
         </div>

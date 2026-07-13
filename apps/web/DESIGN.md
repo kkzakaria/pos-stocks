@@ -8,7 +8,7 @@ colors:
   foreground: "oklch(0.145 0 0)"
   card: "oklch(1 0 0)"
   muted: "oklch(0.97 0 0)"
-  muted-foreground: "oklch(0.556 0 0)"
+  muted-foreground: "oklch(0.52 0 0)"
   secondary: "oklch(0.967 0.001 286.375)"
   secondary-foreground: "oklch(0.21 0.006 285.885)"
   border: "oklch(0.922 0 0)"
@@ -145,7 +145,7 @@ Une page d'encre et de papier, ponctuée d'un seul indigo — plus un monde chau
 ### Neutral
 - **Encre** (`oklch(0.145 0 0)`) : le texte principal, le chiffre. Le noir presque pur du registre.
 - **Papier** (`oklch(1 0 0)`) : le fond et la carte en thème clair. Blanc franc, chroma 0 — jamais teinté « pour la chaleur ».
-- **Encre pâle** (`oklch(0.556 0 0)`) : texte secondaire et libellés discrets (`muted-foreground`). Tient le seuil AA sur papier.
+- **Encre pâle** (`oklch(0.52 0 0)`) : texte secondaire et libellés discrets (`muted-foreground`). Tient le seuil AA (≥ 4,5:1) sur toutes les surfaces, y compris `bg-muted`.
 - **Trait** (`oklch(0.922 0 0)`) : bordures, séparateurs, réglure du registre (`border` / `input`).
 - **Barre latérale** (`oklch(0.985 0 0)`) : un gris à peine plus froid que le contenu, pour distinguer la navigation de la page.
 

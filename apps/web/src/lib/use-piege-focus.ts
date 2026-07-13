@@ -36,11 +36,22 @@ export function usePiegeFocus<TConteneur extends HTMLElement>(
 } {
   const conteneurRef = useRef<TConteneur>(null)
 
-  // Focus initial sur la modale (WAI-ARIA APG). Volontairement une seule fois
-  // à l'ouverture : les refs (conteneur, cible) sont stables.
+  // Focus initial sur la modale (WAI-ARIA APG). On mémorise l'élément focalisé
+  // AVANT l'ouverture pour le RESTAURER à la fermeture (retour au déclencheur,
+  // WAI-ARIA APG « Dialog ») — sinon le focus retombe sur <body> et l'usager
+  // clavier/lecteur d'écran perd sa place. Une seule fois à l'ouverture : les
+  // refs (conteneur, cible) sont stables.
   useEffect(() => {
+    const precedent = document.activeElement
     const cible = options?.focusInitial?.current ?? conteneurRef.current
     cible?.focus()
+    return () => {
+      // Ne restaurer que si le déclencheur est encore dans le DOM et focalisable
+      // (un bouton devenu désactivé ignore .focus() sans erreur).
+      if (precedent instanceof HTMLElement && precedent.isConnected) {
+        precedent.focus()
+      }
+    }
   }, [])
 
   // Rattrapage : tout focus qui atterrit HORS de la modale (échappée

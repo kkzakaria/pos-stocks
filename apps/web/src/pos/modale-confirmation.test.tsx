@@ -86,8 +86,10 @@ describe("ModaleConfirmation", () => {
   })
 
   it("affiche la monnaie à rendre quand elle est positive", () => {
-    rendre(600)
-    expect(screen.getByText(/monnaie/i).textContent).toMatch(/600/)
+    // Montant à séparateur : formaterMontant insère un espace insécable étroit
+    // (U+202F), toléré ici par \s comme dans les autres tests POS.
+    rendre(2500)
+    expect(screen.getByText(/monnaie/i).textContent).toMatch(/2\s?500/)
   })
 
   it("masque la monnaie quand aucune n'est due", () => {
