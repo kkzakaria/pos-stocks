@@ -45,27 +45,34 @@ export function Panier({
   onEncaisser,
 }: Props) {
   const total = totalPanier(lignes)
-  // Ligne dont le prix est en cours d'édition inline (null = aucune).
-  const [editionPrix, setEditionPrix] = useState<string | null>(null)
-  const [saisiePrix, setSaisiePrix] = useState("")
+  // Champ en cours d'édition inline : quantité ou prix d'une ligne donnée.
+  const [edition, setEdition] = useState<{
+    cle: string
+    champ: "quantite" | "prix"
+  } | null>(null)
+  const [saisie, setSaisie] = useState("")
 
-  function ouvrirPrix(ligne: LignePanier) {
-    setEditionPrix(cleLigne(ligne))
-    setSaisiePrix(String(ligne.prixUnitaire))
+  function ouvrir(ligne: LignePanier, champ: "quantite" | "prix") {
+    setEdition({ cle: cleLigne(ligne), champ })
+    setSaisie(
+      String(champ === "quantite" ? ligne.quantite : ligne.prixUnitaire)
+    )
   }
-  function validerPrix(ligne: LignePanier) {
-    const n = Number(saisiePrix)
+  function valider(ligne: LignePanier) {
+    const champ = edition?.champ
+    const n = Number(saisie)
     // N'applique que si la valeur a changé et reste finie : un blur sans
     // modification ne redéclenche pas une validation serveur inutile.
-    if (
-      saisiePrix.trim() !== "" &&
-      Number.isFinite(n) &&
-      n !== ligne.prixUnitaire
-    ) {
-      onPrix(ligne, n)
+    if (saisie.trim() !== "" && Number.isFinite(n)) {
+      if (champ === "quantite") {
+        const q = Math.max(1, Math.round(n))
+        if (q !== ligne.quantite) onQuantite(ligne, q)
+      } else if (n !== ligne.prixUnitaire) {
+        onPrix(ligne, n)
+      }
     }
-    setEditionPrix(null)
-    setSaisiePrix("")
+    setEdition(null)
+    setSaisie("")
   }
 
   return (
@@ -81,7 +88,9 @@ export function Panier({
         )}
         {lignes.map((ligne) => {
           const cle = cleLigne(ligne)
-          const enEdition = editionPrix === cle
+          const enEditionQuantite =
+            edition?.cle === cle && edition.champ === "quantite"
+          const enEditionPrix = edition?.cle === cle && edition.champ === "prix"
           const prixNegocie = ligne.prixUnitaire !== ligne.prixCatalogue
           return (
             <li
@@ -136,9 +145,31 @@ export function Panier({
                   >
                     <Minus />
                   </Button>
-                  <span className="min-w-6 text-center text-sm font-semibold tabular-nums">
-                    {ligne.quantite}
-                  </span>
+                  {enEditionQuantite ? (
+                    <Input
+                      autoFocus
+                      inputMode="numeric"
+                      aria-label={`Nouvelle quantité de ${ligne.nom}`}
+                      className="h-8 w-14 text-center tabular-nums"
+                      value={saisie}
+                      onFocus={(e) => e.currentTarget.select()}
+                      onChange={(e) => setSaisie(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") e.currentTarget.blur()
+                      }}
+                      onBlur={() => valider(ligne)}
+                    />
+                  ) : (
+                    <button
+                      type="button"
+                      disabled={verrouille}
+                      onClick={() => ouvrir(ligne, "quantite")}
+                      aria-label={`Saisir la quantité de ${ligne.nom}`}
+                      className="min-w-6 rounded text-center text-sm font-semibold tabular-nums outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/30"
+                    >
+                      {ligne.quantite}
+                    </button>
+                  )}
                   <Button
                     variant="outline"
                     size="icon"
@@ -150,25 +181,25 @@ export function Panier({
                   </Button>
                 </div>
                 <span className="text-muted-foreground">×</span>
-                {enEdition ? (
+                {enEditionPrix ? (
                   <Input
                     autoFocus
                     inputMode="numeric"
                     aria-label={`Nouveau prix de ${ligne.nom}`}
                     className="h-8 w-24 tabular-nums"
-                    value={saisiePrix}
+                    value={saisie}
                     onFocus={(e) => e.currentTarget.select()}
-                    onChange={(e) => setSaisiePrix(e.target.value)}
+                    onChange={(e) => setSaisie(e.target.value)}
                     onKeyDown={(e) => {
                       if (e.key === "Enter") e.currentTarget.blur()
                     }}
-                    onBlur={() => validerPrix(ligne)}
+                    onBlur={() => valider(ligne)}
                   />
                 ) : (
                   <button
                     type="button"
                     disabled={verrouille}
-                    onClick={() => ouvrirPrix(ligne)}
+                    onClick={() => ouvrir(ligne, "prix")}
                     aria-label={`Modifier le prix de ${ligne.nom}`}
                     className="rounded text-sm tabular-nums underline decoration-muted-foreground decoration-dotted underline-offset-2 outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/30 disabled:no-underline"
                   >
@@ -180,12 +211,12 @@ export function Panier({
                 </span>
               </div>
 
-              {enEdition && ligne.prixPlancher !== null && (
+              {enEditionPrix && ligne.prixPlancher !== null && (
                 <p className="mt-0.5 text-xs text-muted-foreground">
                   Min {formaterMontant(ligne.prixPlancher)}
                 </p>
               )}
-              {!enEdition && prixNegocie && (
+              {!enEditionPrix && prixNegocie && (
                 <p className="mt-0.5 text-xs text-muted-foreground">
                   Catalogue{" "}
                   <s className="tabular-nums">

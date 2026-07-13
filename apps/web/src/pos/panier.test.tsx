@@ -103,6 +103,21 @@ describe("Panier", () => {
     )
   })
 
+  it("saisit une quantité précise au clavier (clic sur le nombre, blur)", () => {
+    const onQuantite = vi.fn()
+    render(<Panier {...props({ lignes: [ligne()], onQuantite })} />)
+    fireEvent.click(
+      screen.getByRole("button", { name: "Saisir la quantité de Coca 50cl" })
+    )
+    const champ = screen.getByLabelText("Nouvelle quantité de Coca 50cl")
+    fireEvent.change(champ, { target: { value: "5" } })
+    fireEvent.blur(champ)
+    expect(onQuantite).toHaveBeenCalledWith(
+      expect.objectContaining({ variantId: "v1" }),
+      5
+    )
+  })
+
   it("le retrait inline remonte la ligne", () => {
     const onSupprimer = vi.fn()
     render(<Panier {...props({ lignes: [ligne()], onSupprimer })} />)
