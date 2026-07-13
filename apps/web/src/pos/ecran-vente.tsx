@@ -49,6 +49,10 @@ export function EcranVente({ me, boutique, session, onSessionFermee }: Props) {
   const catalogue = useQuery({
     queryKey: ["pos-catalogue", boutique.id],
     queryFn: () => fetchCataloguePos(boutique.id),
+    // Anomalie E2E P6 : tuiles parfois incomplètes après navigation répétée
+    // (l'invalidation ne vivait que dans onSuccess de la vente). Chaque
+    // retour sur l'écran repart du serveur — décision 11 du plan.
+    refetchOnMount: "always",
   })
   const articles = catalogue.data?.articles ?? []
   const categories = catalogue.data?.categories ?? []
@@ -250,6 +254,18 @@ export function EcranVente({ me, boutique, session, onSessionFermee }: Props) {
         <section className="min-w-0 flex-1 overflow-y-auto">
           {catalogue.isPending ? (
             <p className="p-6 text-gray-500">Chargement du catalogue…</p>
+          ) : catalogue.isError ? (
+            <div className="p-6">
+              <p role="alert" className="mb-3 text-sm text-red-600">
+                Impossible de charger le catalogue.
+              </p>
+              <Button
+                variant="outline"
+                onClick={() => void catalogue.refetch()}
+              >
+                Réessayer
+              </Button>
+            </div>
           ) : (
             <GrilleArticles articles={filtres} onChoisir={ajouterAuPanier} />
           )}

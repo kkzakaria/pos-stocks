@@ -15,7 +15,10 @@ import { Route as AppRouteImport } from './routes/_app'
 import { Route as AppIndexRouteImport } from './routes/_app/index'
 import { Route as AppStockRouteImport } from './routes/_app/stock'
 import { Route as AppMonCompteRouteImport } from './routes/_app/mon-compte'
+import { Route as AppVentesIndexRouteImport } from './routes/_app/ventes/index'
 import { Route as AppStockIndexRouteImport } from './routes/_app/stock/index'
+import { Route as AppVentesRapportsRouteImport } from './routes/_app/ventes/rapports'
+import { Route as AppVentesSaleIdRouteImport } from './routes/_app/ventes/$saleId'
 import { Route as AppStockMouvementsRouteImport } from './routes/_app/stock/mouvements'
 import { Route as AppCatalogueFournisseursRouteImport } from './routes/_app/catalogue/fournisseurs'
 import { Route as AppCatalogueCategoriesRouteImport } from './routes/_app/catalogue/categories'
@@ -60,10 +63,25 @@ const AppMonCompteRoute = AppMonCompteRouteImport.update({
   path: '/mon-compte',
   getParentRoute: () => AppRoute,
 } as any)
+const AppVentesIndexRoute = AppVentesIndexRouteImport.update({
+  id: '/ventes/',
+  path: '/ventes/',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppStockIndexRoute = AppStockIndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => AppStockRoute,
+} as any)
+const AppVentesRapportsRoute = AppVentesRapportsRouteImport.update({
+  id: '/ventes/rapports',
+  path: '/ventes/rapports',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppVentesSaleIdRoute = AppVentesSaleIdRouteImport.update({
+  id: '/ventes/$saleId',
+  path: '/ventes/$saleId',
+  getParentRoute: () => AppRoute,
 } as any)
 const AppStockMouvementsRoute = AppStockMouvementsRouteImport.update({
   id: '/mouvements',
@@ -158,7 +176,10 @@ export interface FileRoutesByFullPath {
   '/catalogue/categories': typeof AppCatalogueCategoriesRoute
   '/catalogue/fournisseurs': typeof AppCatalogueFournisseursRoute
   '/stock/mouvements': typeof AppStockMouvementsRoute
+  '/ventes/$saleId': typeof AppVentesSaleIdRoute
+  '/ventes/rapports': typeof AppVentesRapportsRoute
   '/stock/': typeof AppStockIndexRoute
+  '/ventes/': typeof AppVentesIndexRoute
   '/catalogue/produits/$productId': typeof AppCatalogueProduitsProductIdRoute
   '/stock/inventaires/$countId': typeof AppStockInventairesCountIdRoute
   '/stock/receptions/$purchaseId': typeof AppStockReceptionsPurchaseIdRoute
@@ -179,7 +200,10 @@ export interface FileRoutesByTo {
   '/catalogue/categories': typeof AppCatalogueCategoriesRoute
   '/catalogue/fournisseurs': typeof AppCatalogueFournisseursRoute
   '/stock/mouvements': typeof AppStockMouvementsRoute
+  '/ventes/$saleId': typeof AppVentesSaleIdRoute
+  '/ventes/rapports': typeof AppVentesRapportsRoute
   '/stock': typeof AppStockIndexRoute
+  '/ventes': typeof AppVentesIndexRoute
   '/catalogue/produits/$productId': typeof AppCatalogueProduitsProductIdRoute
   '/stock/inventaires/$countId': typeof AppStockInventairesCountIdRoute
   '/stock/receptions/$purchaseId': typeof AppStockReceptionsPurchaseIdRoute
@@ -203,7 +227,10 @@ export interface FileRoutesById {
   '/_app/catalogue/categories': typeof AppCatalogueCategoriesRoute
   '/_app/catalogue/fournisseurs': typeof AppCatalogueFournisseursRoute
   '/_app/stock/mouvements': typeof AppStockMouvementsRoute
+  '/_app/ventes/$saleId': typeof AppVentesSaleIdRoute
+  '/_app/ventes/rapports': typeof AppVentesRapportsRoute
   '/_app/stock/': typeof AppStockIndexRoute
+  '/_app/ventes/': typeof AppVentesIndexRoute
   '/_app/catalogue/produits/$productId': typeof AppCatalogueProduitsProductIdRoute
   '/_app/stock/inventaires/$countId': typeof AppStockInventairesCountIdRoute
   '/_app/stock/receptions/$purchaseId': typeof AppStockReceptionsPurchaseIdRoute
@@ -227,7 +254,10 @@ export interface FileRouteTypes {
     | '/catalogue/categories'
     | '/catalogue/fournisseurs'
     | '/stock/mouvements'
+    | '/ventes/$saleId'
+    | '/ventes/rapports'
     | '/stock/'
+    | '/ventes/'
     | '/catalogue/produits/$productId'
     | '/stock/inventaires/$countId'
     | '/stock/receptions/$purchaseId'
@@ -248,7 +278,10 @@ export interface FileRouteTypes {
     | '/catalogue/categories'
     | '/catalogue/fournisseurs'
     | '/stock/mouvements'
+    | '/ventes/$saleId'
+    | '/ventes/rapports'
     | '/stock'
+    | '/ventes'
     | '/catalogue/produits/$productId'
     | '/stock/inventaires/$countId'
     | '/stock/receptions/$purchaseId'
@@ -271,7 +304,10 @@ export interface FileRouteTypes {
     | '/_app/catalogue/categories'
     | '/_app/catalogue/fournisseurs'
     | '/_app/stock/mouvements'
+    | '/_app/ventes/$saleId'
+    | '/_app/ventes/rapports'
     | '/_app/stock/'
+    | '/_app/ventes/'
     | '/_app/catalogue/produits/$productId'
     | '/_app/stock/inventaires/$countId'
     | '/_app/stock/receptions/$purchaseId'
@@ -332,12 +368,33 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppMonCompteRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/ventes/': {
+      id: '/_app/ventes/'
+      path: '/ventes'
+      fullPath: '/ventes/'
+      preLoaderRoute: typeof AppVentesIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/stock/': {
       id: '/_app/stock/'
       path: '/'
       fullPath: '/stock/'
       preLoaderRoute: typeof AppStockIndexRouteImport
       parentRoute: typeof AppStockRoute
+    }
+    '/_app/ventes/rapports': {
+      id: '/_app/ventes/rapports'
+      path: '/ventes/rapports'
+      fullPath: '/ventes/rapports'
+      preLoaderRoute: typeof AppVentesRapportsRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/ventes/$saleId': {
+      id: '/_app/ventes/$saleId'
+      path: '/ventes/$saleId'
+      fullPath: '/ventes/$saleId'
+      preLoaderRoute: typeof AppVentesSaleIdRouteImport
+      parentRoute: typeof AppRoute
     }
     '/_app/stock/mouvements': {
       id: '/_app/stock/mouvements'
@@ -475,6 +532,9 @@ interface AppRouteChildren {
   AppAdministrationUtilisateursRoute: typeof AppAdministrationUtilisateursRoute
   AppCatalogueCategoriesRoute: typeof AppCatalogueCategoriesRoute
   AppCatalogueFournisseursRoute: typeof AppCatalogueFournisseursRoute
+  AppVentesSaleIdRoute: typeof AppVentesSaleIdRoute
+  AppVentesRapportsRoute: typeof AppVentesRapportsRoute
+  AppVentesIndexRoute: typeof AppVentesIndexRoute
   AppCatalogueProduitsProductIdRoute: typeof AppCatalogueProduitsProductIdRoute
   AppCatalogueProduitsIndexRoute: typeof AppCatalogueProduitsIndexRoute
 }
@@ -488,6 +548,9 @@ const AppRouteChildren: AppRouteChildren = {
   AppAdministrationUtilisateursRoute: AppAdministrationUtilisateursRoute,
   AppCatalogueCategoriesRoute: AppCatalogueCategoriesRoute,
   AppCatalogueFournisseursRoute: AppCatalogueFournisseursRoute,
+  AppVentesSaleIdRoute: AppVentesSaleIdRoute,
+  AppVentesRapportsRoute: AppVentesRapportsRoute,
+  AppVentesIndexRoute: AppVentesIndexRoute,
   AppCatalogueProduitsProductIdRoute: AppCatalogueProduitsProductIdRoute,
   AppCatalogueProduitsIndexRoute: AppCatalogueProduitsIndexRoute,
 }

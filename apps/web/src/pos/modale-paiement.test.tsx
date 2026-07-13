@@ -120,3 +120,42 @@ describe("ModalePaiement", () => {
     ).toBe(true)
   })
 })
+
+describe("ModalePaiement — piège de focus durci (différé P6)", () => {
+  it("Shift+Tab depuis le conteneur boucle vers le dernier focusable", () => {
+    render(
+      <ModalePaiement
+        total={1000}
+        enCours={false}
+        erreur={null}
+        onValider={vi.fn()}
+        onFermer={vi.fn()}
+      />
+    )
+    const dialogue = screen.getByRole("dialog")
+    dialogue.focus()
+    fireEvent.keyDown(dialogue, { key: "Tab", shiftKey: true })
+    const focusables = dialogue.querySelectorAll<HTMLElement>(
+      'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+    )
+    expect(document.activeElement).toBe(focusables[focusables.length - 1])
+  })
+
+  it("un focus échappé hors de la modale est ramené sur le conteneur", () => {
+    render(
+      <>
+        <button>Dehors</button>
+        <ModalePaiement
+          total={1000}
+          enCours={false}
+          erreur={null}
+          onValider={vi.fn()}
+          onFermer={vi.fn()}
+        />
+      </>
+    )
+    const dehors = screen.getByRole("button", { name: "Dehors" })
+    dehors.focus()
+    expect(document.activeElement).toBe(screen.getByRole("dialog"))
+  })
+})

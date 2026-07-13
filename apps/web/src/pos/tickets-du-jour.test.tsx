@@ -41,7 +41,12 @@ describe("TicketsDuJour — erreurs de réimpression", () => {
   })
 
   it("affiche une erreur (pas de promesse non gérée) et réactive le bouton après un échec", async () => {
-    vi.spyOn(posApi, "fetchVentesDuJour").mockResolvedValue({ sales: [vente] })
+    vi.spyOn(posApi, "fetchVentesDuJour").mockResolvedValue({
+      sales: [vente],
+      total: 1,
+      page: 1,
+      parPage: 50,
+    })
     const fetchVente = vi
       .spyOn(posApi, "fetchVente")
       .mockRejectedValue(new Error("Échec réseau"))
@@ -60,7 +65,12 @@ describe("TicketsDuJour — erreurs de réimpression", () => {
   })
 
   it("appelle onReimprimer au succès", async () => {
-    vi.spyOn(posApi, "fetchVentesDuJour").mockResolvedValue({ sales: [vente] })
+    vi.spyOn(posApi, "fetchVentesDuJour").mockResolvedValue({
+      sales: [vente],
+      total: 1,
+      page: 1,
+      parPage: 50,
+    })
     const sale = {
       id: "sale1",
       ticketNumber: 1,
@@ -95,5 +105,55 @@ describe("TicketsDuJour — erreurs de réimpression", () => {
     const bouton = await screen.findByRole("button", { name: /réimprimer/i })
     fireEvent.click(bouton)
     await waitFor(() => expect(onReimprimer).toHaveBeenCalledWith(sale))
+  })
+})
+
+describe("TicketsDuJour — erreur de chargement (différé P6)", () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it("affiche une erreur et Réessayer quand la liste échoue", async () => {
+    const spy = vi
+      .spyOn(posApi, "fetchVentesDuJour")
+      .mockRejectedValue(new Error("réseau"))
+    rendre()
+    await screen.findByText("Impossible de charger les tickets du jour.")
+    spy.mockResolvedValue({ sales: [vente], total: 1, page: 1, parPage: 50 })
+    fireEvent.click(screen.getByRole("button", { name: /réessayer/i }))
+    await screen.findByText(/N° 1/)
+  })
+})
+
+describe("TicketsDuJour — pagination (différé P6)", () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it("masque la pagination à 50 tickets ou moins", async () => {
+    vi.spyOn(posApi, "fetchVentesDuJour").mockResolvedValue({
+      sales: [vente],
+      total: 1,
+      page: 1,
+      parPage: 50,
+    })
+    rendre()
+    await screen.findByText(/N° 1/)
+    expect(screen.queryByRole("button", { name: "Suivant" })).toBeNull()
+  })
+
+  it("pagine au-delà de 50 tickets : Suivant recharge la page 2", async () => {
+    const spy = vi.spyOn(posApi, "fetchVentesDuJour").mockResolvedValue({
+      sales: [vente],
+      total: 51,
+      page: 1,
+      parPage: 50,
+    })
+    rendre()
+    await screen.findByText(/Page 1 \/ 2/)
+    fireEvent.click(screen.getByRole("button", { name: "Suivant" }))
+    await waitFor(() =>
+      expect(spy).toHaveBeenLastCalledWith("store1", expect.any(String), 2)
+    )
   })
 })

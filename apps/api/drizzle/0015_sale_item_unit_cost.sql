@@ -1,0 +1,1 @@
+ALTER TABLE `sale_items` ADD `unit_cost` integer;

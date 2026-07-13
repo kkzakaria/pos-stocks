@@ -6,7 +6,7 @@ import type { DrizzleD1Database } from "drizzle-orm/d1"
 import type { SQL } from "drizzle-orm"
 import { saleCreateSchema } from "shared"
 import * as schema from "../db/schema"
-import { dateCalendaireValide } from "../lib/dates"
+import { bornesPeriode, dateCalendaireValide } from "../lib/dates"
 import { validerCorps } from "../lib/validation"
 import { estErreurDeclencheur, estViolationUnicite } from "../lib/db-errors"
 import {
@@ -221,6 +221,8 @@ salesRoute.get("/", async (c) => {
   const { organizationId } = c.get("membership")
   const storeId = c.req.query("storeId")
   const jour = c.req.query("jour")
+  const du = c.req.query("du")
+  const au = c.req.query("au")
   const sessionId = c.req.query("sessionId")
   if (!storeId) {
     return c.json(
@@ -231,6 +233,37 @@ salesRoute.get("/", async (c) => {
   if (jour && !dateCalendaireValide(jour)) {
     return c.json(
       { code: "VALIDATION", message: "Date invalide (AAAA-MM-JJ)" },
+      400
+    )
+  }
+  // Période multi-jours (Phase 7) : du et au vont ENSEMBLE, calendaires,
+  // du ≤ au — bornes UTC, fin exclusive au lendemain (motif bornesPeriode).
+  const bornes = du && au ? bornesPeriode(du, au) : null
+  if ((du !== undefined || au !== undefined) && !bornes) {
+    return c.json(
+      {
+        code: "VALIDATION",
+        message:
+          "Période invalide : du et au vont ensemble (AAAA-MM-JJ, du ≤ au)",
+      },
+      400
+    )
+  }
+  // Pagination (différé P6 : limite fixe 200 sans pagination)
+  const page = Number(c.req.query("page") ?? "1")
+  const parPage = Number(c.req.query("parPage") ?? "50")
+  if (
+    !Number.isInteger(page) ||
+    page < 1 ||
+    !Number.isInteger(parPage) ||
+    parPage < 1 ||
+    parPage > 200
+  ) {
+    return c.json(
+      {
+        code: "VALIDATION",
+        message: "Pagination invalide (page ≥ 1, parPage entre 1 et 200)",
+      },
       400
     )
   }
@@ -248,9 +281,18 @@ salesRoute.get("/", async (c) => {
       lt(schema.sales.createdAt, new Date(debut.getTime() + 86_400_000))
     )
   }
+  if (bornes) {
+    conditions.push(gte(schema.sales.createdAt, bornes.debut))
+    conditions.push(lt(schema.sales.createdAt, bornes.finExclue))
+  }
   if (sessionId) {
     conditions.push(eq(schema.sales.registerSessionId, sessionId))
   }
+  const totalRows = await db
+    .select({ total: sql<number>`COUNT(*)` })
+    .from(schema.sales)
+    .where(and(...conditions))
+  const total = totalRows[0]?.total ?? 0
   const rows = await db
     .select({
       id: schema.sales.id,
@@ -265,7 +307,8 @@ salesRoute.get("/", async (c) => {
     .innerJoin(schema.user, eq(schema.sales.cashierId, schema.user.id))
     .where(and(...conditions))
     .orderBy(desc(schema.sales.createdAt), desc(schema.sales.ticketNumber))
-    .limit(200)
+    .limit(parPage)
+    .offset((page - 1) * parPage)
   const ids = rows.map((r) => r.id)
   const agregats =
     ids.length > 0
@@ -282,7 +325,7 @@ salesRoute.get("/", async (c) => {
     ...r,
     itemCount: agregats.find((a) => a.saleId === r.id)?.itemCount ?? 0,
   }))
-  return c.json({ sales: ventes })
+  return c.json({ sales: ventes, total, page, parPage })
 })
 
 // Retour annoté `| null` (piège eslint no-unnecessary-condition — motif
@@ -305,6 +348,67 @@ async function venteBoutique(
   return rows[0] ?? null
 }
 
+// Marge du détail de vente (Phase 7, décision 9 du plan) : réservée à qui a
+// droit aux marges sur la boutique — org owner/admin/auditor OU rôle local
+// manager/auditor. JAMAIS cashier ni stock_manager : la réponse porte
+// marge: null pour eux (aucun coût n'est exposé).
+async function peutVoirMarge(
+  c: Parameters<typeof verifierAccesEntrepot>[0],
+  db: Db,
+  organizationId: string,
+  storeId: string
+): Promise<boolean> {
+  const { role } = c.get("membership")
+  if (role === "owner" || role === "admin" || role === "auditor") {
+    return true
+  }
+  if (role === "stock_manager") {
+    return false
+  }
+  const rows = await db
+    .select({ id: schema.warehouseMembers.id })
+    .from(schema.warehouseMembers)
+    .where(
+      and(
+        eq(schema.warehouseMembers.warehouseId, storeId),
+        eq(schema.warehouseMembers.userId, c.get("user").id),
+        eq(schema.warehouseMembers.organizationId, organizationId),
+        inArray(schema.warehouseMembers.role, ["manager", "auditor"])
+      )
+    )
+    .limit(1)
+  return rows.length > 0
+}
+
+// Coût de la vente au unitCost figé, lignes NULL au CMP courant du niveau
+// (source, variante) — même formule que /reports/margins.
+async function margeVente(
+  db: Db,
+  saleId: string
+): Promise<{ cout: number; marge: number; estime: boolean }> {
+  const rows = await db
+    .select({
+      ca: sql<number>`COALESCE(SUM(${schema.saleItems.quantity} * ${schema.saleItems.unitPrice}), 0)`,
+      cout: sql<number>`COALESCE(SUM(${schema.saleItems.quantity} * COALESCE(${schema.saleItems.unitCost}, ${schema.stockLevels.avgCost}, 0)), 0)`,
+      lignesEstimees: sql<number>`COALESCE(SUM(CASE WHEN ${schema.saleItems.unitCost} IS NULL THEN 1 ELSE 0 END), 0)`,
+    })
+    .from(schema.saleItems)
+    .leftJoin(
+      schema.stockLevels,
+      and(
+        eq(schema.stockLevels.warehouseId, schema.saleItems.sourceWarehouseId),
+        eq(schema.stockLevels.variantId, schema.saleItems.variantId)
+      )
+    )
+    .where(eq(schema.saleItems.saleId, saleId))
+  const agregat = rows[0] ?? { ca: 0, cout: 0, lignesEstimees: 0 }
+  return {
+    cout: agregat.cout,
+    marge: agregat.ca - agregat.cout,
+    estime: agregat.lignesEstimees > 0,
+  }
+}
+
 salesRoute.get("/:id", async (c) => {
   const { organizationId } = c.get("membership")
   const db = drizzle(c.env.DB, { schema })
@@ -314,7 +418,15 @@ salesRoute.get("/:id", async (c) => {
   }
   const refus = await verifierLectureVentes(c, vente.storeId)
   if (refus) return refus
-  return c.json({ sale: await chargerVente(db, organizationId, vente.id) })
+  // marge: null si l'appelant n'y a pas droit (champ ADDITIF — les
+  // consommateurs POS existants lisent { sale } sans changement).
+  const marge = (await peutVoirMarge(c, db, organizationId, vente.storeId))
+    ? await margeVente(db, vente.id)
+    : null
+  return c.json({
+    sale: await chargerVente(db, organizationId, vente.id),
+    marge,
+  })
 })
 
 salesRoute.post("/", async (c) => {
@@ -547,8 +659,19 @@ salesRoute.post("/", async (c) => {
       clientRequestId,
       createdAt: maintenant,
     })
+    // CMP figé (spec §3, Phase 7) : sous-requête évaluée DANS la
+    // transaction du batch — même principe que le gel à l'expédition des
+    // transferts, JAMAIS de lecture JS puis écriture. La ligne stock_levels
+    // (source, variante) existe forcément pour une vente qui aboutit : le
+    // décrément du même batch échouerait sinon au CHECK ; si elle manquait,
+    // la sous-requête rendrait NULL et le batch mourrait de toute façon.
     const insertLignes = lignes.map((ligne) =>
-      db.insert(schema.saleItems).values(ligne)
+      db.insert(schema.saleItems).values({
+        ...ligne,
+        unitCost: sql`(SELECT avg_cost FROM stock_levels
+          WHERE warehouse_id = ${ligne.sourceWarehouseId}
+            AND variant_id = ${ligne.variantId})`,
+      })
     )
     const insertPaiements = paiements.map((p) =>
       db.insert(schema.payments).values({

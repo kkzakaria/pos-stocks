@@ -1,3 +1,4 @@
+import { useState } from "react"
 import { useQuery, useMutation } from "@tanstack/react-query"
 import { formaterMontant } from "@/lib/format"
 import { jourLocal } from "@/lib/pos"
@@ -13,11 +14,14 @@ type Props = {
 
 export function TicketsDuJour({ storeId, onReimprimer, onFermer }: Props) {
   const jour = jourLocal()
+  const [page, setPage] = useState(1)
   const ventes = useQuery({
-    queryKey: ["pos-ventes-jour", storeId, jour],
-    queryFn: () => fetchVentesDuJour(storeId, jour),
+    queryKey: ["pos-ventes-jour", storeId, jour, page],
+    queryFn: () => fetchVentesDuJour(storeId, jour, page),
   })
   const liste = ventes.data?.sales ?? []
+  const total = ventes.data?.total ?? 0
+  const pages = Math.max(1, Math.ceil(total / 50))
   // Un rejet de fetchVente ne doit pas rester une promesse non gérée : le
   // caissier voit l'erreur et le bouton se désactive pendant le chargement.
   const reimpression = useMutation({
@@ -41,7 +45,17 @@ export function TicketsDuJour({ storeId, onReimprimer, onFermer }: Props) {
           {ventes.isPending && (
             <p className="p-3 text-sm text-gray-500">Chargement…</p>
           )}
-          {!ventes.isPending && liste.length === 0 && (
+          {ventes.isError && (
+            <div className="p-3">
+              <p role="alert" className="mb-2 text-sm text-red-600">
+                Impossible de charger les tickets du jour.
+              </p>
+              <Button variant="outline" onClick={() => void ventes.refetch()}>
+                Réessayer
+              </Button>
+            </div>
+          )}
+          {!ventes.isPending && !ventes.isError && liste.length === 0 && (
             <p className="p-3 text-sm text-gray-500">
               Aucune vente aujourd'hui.
             </p>
@@ -82,6 +96,27 @@ export function TicketsDuJour({ storeId, onReimprimer, onFermer }: Props) {
             )
           })}
         </div>
+        {pages > 1 && (
+          <div className="flex items-center justify-between border-t px-5 py-2 text-sm">
+            <Button
+              variant="outline"
+              disabled={page <= 1}
+              onClick={() => setPage((p) => p - 1)}
+            >
+              Précédent
+            </Button>
+            <span className="text-gray-500">
+              Page {page} / {pages} — {total} tickets
+            </span>
+            <Button
+              variant="outline"
+              disabled={page >= pages}
+              onClick={() => setPage((p) => p + 1)}
+            >
+              Suivant
+            </Button>
+          </div>
+        )}
       </div>
     </div>
   )

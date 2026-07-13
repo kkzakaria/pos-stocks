@@ -39,6 +39,15 @@ function AppLayout() {
     role === "owner" ||
     role === "admin" ||
     me.assignments.some((a) => a.role === "manager" || a.role === "cashier")
+  // Section Ventes (Phase 7) : historique lisible par les rôles org
+  // owner/admin/auditor et TOUTE affectation locale (décision 10 P6, un
+  // caissier relit ses tickets) ; Rapports ouvert en plus à stock_manager
+  // (valorisation seulement — l'écran filtre ses onglets).
+  const accesVentes = estAdmin || me.assignments.length > 0
+  const accesRapports =
+    estAdmin ||
+    role === "stock_manager" ||
+    me.assignments.some((a) => a.role === "manager" || a.role === "auditor")
 
   async function handleSignOut() {
     await authClient.signOut()
@@ -47,9 +56,9 @@ function AppLayout() {
 
   return (
     <div className="flex min-h-screen">
-      {/* h-screen + sticky : le bloc déconnexion reste visible, la nav défile si elle déborde */}
-      <aside className="sticky top-0 flex h-screen w-60 flex-col justify-between overflow-y-auto border-r p-4">
-        <div>
+      {/* h-screen + flex justify-between : bloc déconnexion ancré en bas. Premier div scrolle en interne. */}
+      <aside className="sticky top-0 flex h-screen w-60 flex-col justify-between border-r p-4">
+        <div className="min-h-0 overflow-y-auto">
           <h2 className="mb-1 text-lg font-semibold">pos-stocks</h2>
           <p className="mb-6 truncate text-xs text-gray-500">
             {me.membership?.organizationName}
@@ -62,6 +71,23 @@ function AppLayout() {
               <Link to="/pos" className={lienClasses}>
                 Point de vente
               </Link>
+            )}
+            {(accesVentes || accesRapports) && (
+              <>
+                <p className="mt-4 mb-1 px-2 text-[11px] font-medium tracking-widest text-gray-400 uppercase">
+                  Ventes
+                </p>
+                {accesVentes && (
+                  <Link to="/ventes" className={lienClasses}>
+                    Historique
+                  </Link>
+                )}
+                {accesRapports && (
+                  <Link to="/ventes/rapports" className={lienClasses}>
+                    Rapports
+                  </Link>
+                )}
+              </>
             )}
             <p className="mt-4 mb-1 px-2 text-[11px] font-medium tracking-widest text-gray-400 uppercase">
               Catalogue

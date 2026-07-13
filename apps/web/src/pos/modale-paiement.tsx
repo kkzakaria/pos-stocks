@@ -56,6 +56,22 @@ export function ModalePaiement({
     conteneurRef.current?.focus()
   }, [])
 
+  // Durcissement (différé P6, fuite n° 2) : une échappée POINTEUR (clic sur
+  // l'overlay — le fond n'est pas inert) puis Tab reprenait la tabulation
+  // dans la page. Tout focus qui atterrit HORS de la modale est ramené sur
+  // le conteneur.
+  useEffect(() => {
+    const rattraper = (e: FocusEvent) => {
+      const conteneur = conteneurRef.current
+      if (!conteneur) return
+      if (e.target instanceof Node && !conteneur.contains(e.target)) {
+        conteneur.focus()
+      }
+    }
+    document.addEventListener("focusin", rattraper)
+    return () => document.removeEventListener("focusin", rattraper)
+  }, [])
+
   function gererClavier(e: KeyboardEvent<HTMLDivElement>) {
     if (e.key === "Escape") {
       onFermer()
@@ -67,7 +83,13 @@ export function ModalePaiement({
     if (!focusables || focusables.length === 0) return
     const premier = focusables[0]
     const dernier = focusables[focusables.length - 1]
-    if (e.shiftKey && document.activeElement === premier) {
+    // Fuite n° 1 (différé P6) : Shift+Tab quand le focus est sur le
+    // CONTENEUR lui-même (état initial, tabIndex -1) sortait de la modale.
+    if (
+      e.shiftKey &&
+      (document.activeElement === premier ||
+        document.activeElement === conteneurRef.current)
+    ) {
       e.preventDefault()
       dernier.focus()
     } else if (!e.shiftKey && document.activeElement === dernier) {

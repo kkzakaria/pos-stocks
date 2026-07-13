@@ -118,6 +118,20 @@ transfersRoute.get("/", async (c) => {
   ) {
     return c.json({ code: "VALIDATION", message: "Statut invalide" }, 400)
   }
+  const limiteBrute = c.req.query("limit")
+  let limite: number | undefined
+  if (limiteBrute !== undefined) {
+    limite = Number(limiteBrute)
+    if (!Number.isInteger(limite) || limite < 1 || limite > 200) {
+      return c.json(
+        {
+          code: "VALIDATION",
+          message: "limit doit être un entier entre 1 et 200",
+        },
+        400
+      )
+    }
+  }
   const conditions: SQL[] = [
     eq(schema.transfers.organizationId, organizationId),
   ]
@@ -156,7 +170,7 @@ transfersRoute.get("/", async (c) => {
 
   const origine = alias(schema.warehouses, "origine")
   const destination = alias(schema.warehouses, "destination")
-  const rows = await db
+  const requete = db
     .select({
       id: schema.transfers.id,
       fromWarehouseId: schema.transfers.fromWarehouseId,
@@ -174,6 +188,8 @@ transfersRoute.get("/", async (c) => {
     .innerJoin(destination, eq(schema.transfers.toWarehouseId, destination.id))
     .where(and(...conditions))
     .orderBy(desc(schema.transfers.createdAt))
+    .$dynamic()
+  const rows = await (limite === undefined ? requete : requete.limit(limite))
 
   const ids = rows.map((r) => r.id)
   const agregats =

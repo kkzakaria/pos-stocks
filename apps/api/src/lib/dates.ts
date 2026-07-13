@@ -19,3 +19,21 @@ export function dateCalendaireValide(chaine: string): boolean {
     date.getUTCDate() === jour
   )
 }
+
+// Bornes UTC d'une période de rapports [du, au] (spec §6) : début inclus à
+// 00:00 UTC, fin EXCLUSIVE au lendemain de `au` — le motif exact des bornes
+// de journée de routes/sales.ts (gte debut / lt finExclue). null = période
+// invalide (date calendaire impossible ou du > au) → 400 côté route.
+export function bornesPeriode(
+  du: string,
+  au: string
+): { debut: Date; finExclue: Date } | null {
+  if (!dateCalendaireValide(du) || !dateCalendaireValide(au) || du > au) {
+    return null
+  }
+  const debut = new Date(`${du}T00:00:00.000Z`)
+  const finExclue = new Date(
+    new Date(`${au}T00:00:00.000Z`).getTime() + 86_400_000
+  )
+  return { debut, finExclue }
+}

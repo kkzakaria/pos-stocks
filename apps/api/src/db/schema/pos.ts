@@ -131,6 +131,12 @@ export const saleItems = sqliteTable(
     // Prix catalogue au moment de la vente : la remise consentie s'en déduit
     // (rapports Phase 7)
     catalogPrice: integer("catalog_price").notNull(),
+    // CMP de l'entrepôt SOURCE figé au moment exact de la vente (spec §3,
+    // Phase 7) : posé par sous-requête SQL DANS l'INSERT du batch de vente
+    // (routes/sales.ts) — même mécanisme que le gel du CMP à l'expédition
+    // des transferts. NULL = vente antérieure à la colonne : les rapports
+    // la valorisent au CMP courant et la marquent « estimé ».
+    unitCost: integer("unit_cost"),
     createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
   },
   (t) => [

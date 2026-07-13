@@ -432,4 +432,31 @@ describe("transferts — brouillon", () => {
       (await req(ownerCookie, "GET", "/api/v1/transfers?statut=zzz")).status
     ).toBe(400)
   })
+
+  it("liste : limit borne le nombre de résultats, rejette les valeurs invalides", async () => {
+    const { ownerCookie, origineId, destinationId } = await seed()
+    for (let i = 0; i < 3; i++) {
+      await req(ownerCookie, "POST", "/api/v1/transfers", {
+        fromWarehouseId: origineId,
+        toWarehouseId: destinationId,
+      })
+    }
+    const limitee = await req(
+      ownerCookie,
+      "GET",
+      "/api/v1/transfers?statut=pending&limit=2"
+    )
+    expect(
+      (await limitee.json<{ transfers: unknown[] }>()).transfers
+    ).toHaveLength(2)
+    expect(
+      (await req(ownerCookie, "GET", "/api/v1/transfers?limit=0")).status
+    ).toBe(400)
+    expect(
+      (await req(ownerCookie, "GET", "/api/v1/transfers?limit=abc")).status
+    ).toBe(400)
+    expect(
+      (await req(ownerCookie, "GET", "/api/v1/transfers?limit=201")).status
+    ).toBe(400)
+  })
 })
