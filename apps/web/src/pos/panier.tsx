@@ -197,31 +197,38 @@ export function Panier({
                     <Plus />
                   </Button>
                 </div>
-                {enEditionPrix ? (
-                  <Input
-                    autoFocus
-                    inputMode="numeric"
-                    aria-label={`Nouveau prix de ${ligne.nom}`}
-                    className="ml-auto h-8 w-28 text-right tabular-nums"
-                    value={saisie}
-                    onFocus={(e) => e.currentTarget.select()}
-                    onChange={(e) => setSaisie(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") e.currentTarget.blur()
-                    }}
-                    onBlur={() => valider(ligne)}
-                  />
-                ) : (
-                  <button
-                    type="button"
-                    disabled={verrouille}
-                    onClick={() => ouvrir(ligne, "prix")}
-                    aria-label={`Modifier le prix de ${ligne.nom}`}
-                    className="ml-auto rounded text-sm font-semibold tabular-nums underline decoration-muted-foreground decoration-dotted underline-offset-2 outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/30 disabled:no-underline"
-                  >
-                    {formaterMontant(ligne.prixUnitaire)}
-                  </button>
-                )}
+                <div className="ml-auto flex flex-col items-end">
+                  {enEditionPrix ? (
+                    <Input
+                      autoFocus
+                      inputMode="numeric"
+                      aria-label={`Nouveau prix de ${ligne.nom}`}
+                      className="h-8 w-28 text-right tabular-nums"
+                      value={saisie}
+                      onFocus={(e) => e.currentTarget.select()}
+                      onChange={(e) => setSaisie(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") e.currentTarget.blur()
+                      }}
+                      onBlur={() => valider(ligne)}
+                    />
+                  ) : (
+                    <button
+                      type="button"
+                      disabled={verrouille}
+                      onClick={() => ouvrir(ligne, "prix")}
+                      aria-label={`Modifier le prix de ${ligne.nom}`}
+                      className="rounded text-sm font-semibold tabular-nums underline decoration-muted-foreground decoration-dotted underline-offset-2 outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/30 disabled:no-underline"
+                    >
+                      {formaterMontant(ligne.prixUnitaire)}
+                    </button>
+                  )}
+                  {ligne.quantite > 1 && (
+                    <span className="text-xs text-muted-foreground tabular-nums">
+                      {formaterMontant(ligne.quantite * ligne.prixUnitaire)}
+                    </span>
+                  )}
+                </div>
               </div>
 
               {enEditionPrix && ligne.prixPlancher !== null && (
