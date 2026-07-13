@@ -23,6 +23,7 @@ const props = (over: Partial<Parameters<typeof Panier>[0]> = {}) => ({
   onPrix: vi.fn(),
   onSupprimer: vi.fn(),
   onDepanner: vi.fn(),
+  onVider: vi.fn(),
   onEncaisser: vi.fn(),
   ...over,
 })
@@ -151,6 +152,23 @@ describe("Panier", () => {
     ).toBeNull()
     // le montant reste affiché
     expect(screen.getAllByText(/500/).length).toBeGreaterThan(0)
+  })
+
+  it("vider le panier : désactivé si vide, sinon confirmation → onVider", async () => {
+    const onVider = vi.fn()
+    const { rerender } = render(<Panier {...props({ lignes: [], onVider })} />)
+    expect(
+      screen.getByRole<HTMLButtonElement>("button", { name: "Vider le panier" })
+        .disabled
+    ).toBe(true)
+
+    rerender(<Panier {...props({ lignes: [ligne()], onVider })} />)
+    fireEvent.click(screen.getByRole("button", { name: "Vider le panier" }))
+    // La confirmation s'ouvre ; « Vider » n'est appelé qu'après validation.
+    const valider = await screen.findByRole("button", { name: "Vider" })
+    expect(onVider).not.toHaveBeenCalled()
+    fireEvent.click(valider)
+    expect(onVider).toHaveBeenCalledTimes(1)
   })
 
   it("le dépannage inline remonte la ligne", () => {

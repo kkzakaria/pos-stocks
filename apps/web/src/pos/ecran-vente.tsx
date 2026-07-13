@@ -72,6 +72,7 @@ export function EcranVente({ me, boutique, session, onSessionFermee }: Props) {
   } | null>(null)
   const [depannagePour, setDepannagePour] = useState<CleLigne | null>(null)
   const [paiementOuvert, setPaiementOuvert] = useState(false)
+  const [viderOuvert, setViderOuvert] = useState(false)
   const [erreurVente, setErreurVente] = useState<string | null>(null)
   // Verrouillage panier après une soumission AMBIGUË (réponse réseau
   // perdue, cf. onError ci-dessous) : la vente a peut-être été commitée
@@ -136,6 +137,7 @@ export function EcranVente({ me, boutique, session, onSessionFermee }: Props) {
   const panierNonVide = lignes.length > 0
   const modaleOuverte =
     paiementOuvert ||
+    viderOuvert ||
     confirmation !== null ||
     depannagePour !== null ||
     vue !== "vente"
@@ -146,6 +148,22 @@ export function EcranVente({ me, boutique, session, onSessionFermee }: Props) {
       if (e.key === "F2") {
         e.preventDefault()
         if (panierNonVide) setPaiementOuvert(true)
+        return
+      }
+      // Suppr : ouvre la confirmation de vidage — inerte pendant une saisie
+      // (édition quantité/prix, recherche) où « Suppr » efface un caractère,
+      // et quand le panier est vide ou verrouillé.
+      if (e.key === "Delete") {
+        const actif = document.activeElement
+        const dansSaisie =
+          actif instanceof HTMLElement &&
+          (actif.tagName === "INPUT" ||
+            actif.tagName === "TEXTAREA" ||
+            actif.isContentEditable)
+        if (!dansSaisie && panierNonVide && !panierVerrouille) {
+          e.preventDefault()
+          setViderOuvert(true)
+        }
         return
       }
       if (e.key === "/" && document.activeElement !== rechercheRef.current) {
@@ -162,7 +180,7 @@ export function EcranVente({ me, boutique, session, onSessionFermee }: Props) {
     }
     window.addEventListener("keydown", handler)
     return () => window.removeEventListener("keydown", handler)
-  }, [scanner, panierNonVide, modaleOuverte])
+  }, [scanner, panierNonVide, modaleOuverte, panierVerrouille])
 
   const vente = useMutation({
     mutationFn: (paiements: SalePaymentInput[]) =>
@@ -368,6 +386,14 @@ export function EcranVente({ me, boutique, session, onSessionFermee }: Props) {
                 source: ligne.sourceWarehouseId,
               })
             }}
+            onVider={() => {
+              if (panierVerrouille) return
+              setLignes([])
+              setErreurPrix(null)
+              setErreurVente(null)
+            }}
+            viderOuvert={viderOuvert}
+            onViderOuvertChange={setViderOuvert}
             onEncaisser={() => setPaiementOuvert(true)}
           />
         </div>

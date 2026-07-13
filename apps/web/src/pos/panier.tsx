@@ -7,6 +7,17 @@ import type { LignePanier } from "@/lib/pos"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"
 
 /** Stable key for a cart line (variant + optional depannage source warehouse). */
 export function cleLigne(
@@ -25,6 +36,14 @@ type Props = {
   onPrix: (ligne: LignePanier, prix: number) => void
   onSupprimer: (ligne: LignePanier) => void
   onDepanner: (ligne: LignePanier) => void
+  /** Clear the whole cart (confirmed via dialog before firing). */
+  onVider: () => void
+  /**
+   * Optional controlled state for the clear-cart confirmation, so the parent
+   * can open it from the `Suppr`/`Delete` shortcut. Omit for uncontrolled use.
+   */
+  viderOuvert?: boolean
+  onViderOuvertChange?: (ouvert: boolean) => void
   onEncaisser: () => void
 }
 
@@ -34,8 +53,9 @@ type Props = {
  * common adjustments no longer open a side panel. The price is editable only
  * when a floor is set; a non-negotiable price (locked to catalog) renders as
  * plain text. Shows the struck-through catalog price when negotiated, the floor
- * while editing, and a stock-shortage flag; ends with the total and the
- * ENCAISSER (F2) button.
+ * while editing, and a stock-shortage flag. The header carries a confirmed
+ * clear-cart block (Vider, red, `Suppr` shortcut); the footer the total and
+ * the ENCAISSER (F2) button.
  */
 export function Panier({
   lignes,
@@ -45,6 +65,9 @@ export function Panier({
   onPrix,
   onSupprimer,
   onDepanner,
+  onVider,
+  viderOuvert,
+  onViderOuvertChange,
   onEncaisser,
 }: Props) {
   const total = totalPanier(lignes)
@@ -80,9 +103,40 @@ export function Panier({
 
   return (
     <aside className="flex h-full w-full flex-col border-l bg-card">
-      <h2 className="border-b px-4 py-3 text-sm font-semibold text-muted-foreground">
-        Panier
-      </h2>
+      <div className="flex items-center justify-between border-b px-4 py-2">
+        <h2 className="text-sm font-semibold text-muted-foreground">Panier</h2>
+        <AlertDialog open={viderOuvert} onOpenChange={onViderOuvertChange}>
+          <AlertDialogTrigger
+            render={
+              <Button
+                disabled={verrouille || lignes.length === 0}
+                aria-label="Vider le panier"
+                title="Vider le panier (Suppr)"
+                // Rouge fixe (et non le token --destructive, trop clair en
+                // thème sombre) pour garder le texte blanc lisible (AA) sur
+                // les deux thèmes.
+                className="bg-[oklch(0.55_0.22_27)] font-semibold text-white hover:bg-[oklch(0.5_0.22_27)]"
+              />
+            }
+          >
+            <Trash2 />
+            Vider
+          </AlertDialogTrigger>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Vider le panier ?</AlertDialogTitle>
+              <AlertDialogDescription>
+                Tous les articles en cours seront retirés du panier. Cette
+                action est irréversible.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Annuler</AlertDialogCancel>
+              <AlertDialogAction onClick={onVider}>Vider</AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      </div>
       <ul className="min-h-0 flex-1 overflow-y-auto">
         {lignes.length === 0 && (
           <li className="p-4 text-sm text-muted-foreground">
@@ -283,7 +337,7 @@ export function Panier({
           disabled={lignes.length === 0}
           onClick={onEncaisser}
         >
-          ENCAISSER (F2)
+          ENCAISSER
         </Button>
       </div>
     </aside>

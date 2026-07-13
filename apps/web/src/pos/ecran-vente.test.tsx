@@ -242,6 +242,47 @@ describe("EcranVente — impression différée jusqu'à reglages résolu", () =>
   })
 })
 
+describe("EcranVente — raccourci Suppr : vider le panier", () => {
+  beforeEach(() => {
+    vi.spyOn(posApi, "fetchCataloguePos").mockResolvedValue({
+      categories: [],
+      articles: [article],
+    })
+    vi.spyOn(posApi, "fetchReglagesTicket").mockResolvedValue({
+      name: "Org",
+      currency: "XOF",
+      receiptHeader: "",
+      receiptFooter: "",
+    })
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it("ouvre la confirmation puis vide le panier après validation", async () => {
+    renderEcran()
+    const tuile = await screen.findByRole("button", { name: /Coca 50cl/ })
+    fireEvent.click(tuile)
+    // Panier non vide : ENCAISSER actif.
+    expect(
+      screen.getByRole<HTMLButtonElement>("button", { name: /ENCAISSER/ })
+        .disabled
+    ).toBe(false)
+
+    fireEvent.keyDown(window, { key: "Delete" })
+    const valider = await screen.findByRole("button", { name: "Vider" })
+    fireEvent.click(valider)
+
+    // Panier vidé : l'invite de départ réapparaît, ENCAISSER redevient inactif.
+    await screen.findByText("Scannez ou touchez un article.")
+    expect(
+      screen.getByRole<HTMLButtonElement>("button", { name: /ENCAISSER/ })
+        .disabled
+    ).toBe(true)
+  })
+})
+
 describe("EcranVente — erreur de catalogue (différé P6)", () => {
   afterEach(() => {
     vi.restoreAllMocks()
