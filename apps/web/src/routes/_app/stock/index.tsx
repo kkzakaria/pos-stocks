@@ -6,11 +6,21 @@ import { formaterMontant } from "@/lib/format"
 import { useAccesStock } from "@/lib/permissions"
 import { useEntrepotsVisibles } from "@/lib/stock"
 import type { NiveauStock } from "@/lib/stock"
+import { PackageSearch } from "lucide-react"
 import { ErreurChargement } from "@/components/erreur-chargement"
+import { EtatVide } from "@/components/etat-vide"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
+import { Checkbox } from "@/components/ui/checkbox"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import {
   Dialog,
   DialogContent,
@@ -25,11 +35,17 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { TableSkeleton } from "@/components/ui/table-skeleton"
 
 export const Route = createFileRoute("/_app/stock/")({
   component: NiveauxStockPage,
 })
 
+/**
+ * Per-warehouse stock levels screen: item search, alerts filter,
+ * incoming in-transit stock display, quantity adjustment, and alert
+ * threshold setting.
+ */
 function NiveauxStockPage() {
   const acces = useAccesStock()
   const { options: entrepots, isPending: entrepotsEnCours } =
@@ -158,18 +174,25 @@ function NiveauxStockPage() {
       <div className="mb-4 flex flex-wrap items-end gap-3">
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="n-entrepot">Entrepôt</Label>
-          <select
-            id="n-entrepot"
+          <Select
             value={entrepotId}
-            onChange={(e) => setEntrepotId(e.target.value)}
-            className="h-10 rounded-md border px-2 text-sm"
+            onValueChange={(valeur) => setEntrepotId(valeur as string)}
           >
-            {entrepots.map((w) => (
-              <option key={w.id} value={w.id}>
-                {w.name}
-              </option>
-            ))}
-          </select>
+            <SelectTrigger id="n-entrepot" className="w-56">
+              <SelectValue placeholder="Choisir un entrepôt">
+                {(valeur: string) =>
+                  entrepots.find((w) => w.id === valeur)?.name
+                }
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              {entrepots.map((w) => (
+                <SelectItem key={w.id} value={w.id}>
+                  {w.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="n-recherche">
@@ -182,19 +205,19 @@ function NiveauxStockPage() {
             className="w-72"
           />
         </div>
-        <label className="flex h-10 items-center gap-2 text-sm">
-          <input
-            type="checkbox"
+        <div className="flex h-7 items-center gap-2">
+          <Checkbox
+            id="n-alertes"
             checked={alertesSeules}
-            onChange={(e) => setAlertesSeules(e.target.checked)}
+            onCheckedChange={(valeur) => setAlertesSeules(valeur === true)}
           />
-          Alertes seulement
-        </label>
+          <Label htmlFor="n-alertes">Alertes seulement</Label>
+        </div>
       </div>
 
       {(transit.data?.transit.length ?? 0) > 0 && (
-        <div className="mb-6 rounded-md border border-amber-200 bg-amber-50 p-4">
-          <h2 className="mb-2 text-sm font-semibold">
+        <div className="mb-6 rounded-md border border-warning/20 bg-warning/10 p-4">
+          <h2 className="mb-2 text-sm font-semibold text-warning">
             En transit entrant ({transit.data?.transit.length})
           </h2>
           <ul className="flex flex-col gap-1 text-sm">
@@ -213,88 +236,104 @@ function NiveauxStockPage() {
         </div>
       )}
 
-      {entrepotsEnCours || niveaux.isPending ? (
-        <p className="text-sm text-gray-500">Chargement…</p>
-      ) : niveaux.isError ? (
+      {niveaux.isError ? (
         <ErreurChargement
           message="Impossible de charger les niveaux de stock."
           onRetry={() => void niveaux.refetch()}
         />
       ) : (
         <Table>
-          <TableHeader>
+          <TableHeader sticky>
             <TableRow>
               <TableHead>Produit</TableHead>
               <TableHead>Variante</TableHead>
               <TableHead>SKU</TableHead>
-              <TableHead>Quantité</TableHead>
-              <TableHead>CMP</TableHead>
-              <TableHead>Seuil</TableHead>
+              <TableHead numeric>Quantité</TableHead>
+              <TableHead numeric>CMP</TableHead>
+              <TableHead numeric>Seuil</TableHead>
               {peutEcrireIci && <TableHead />}
             </TableRow>
           </TableHeader>
           <TableBody>
-            {niveaux.data.levels.map((n) => (
-              <TableRow key={n.variantId}>
-                <TableCell className="font-medium">{n.productName}</TableCell>
-                <TableCell>{n.variantName}</TableCell>
-                <TableCell className="font-mono text-xs">{n.sku}</TableCell>
-                <TableCell>
-                  <span className="flex items-center gap-2">
-                    {n.quantity}
-                    {n.enAlerte && (
-                      <Badge variant="destructive">Stock bas</Badge>
-                    )}
-                  </span>
+            {entrepotsEnCours || niveaux.isPending ? (
+              <TableSkeleton colonnes={peutEcrireIci ? 7 : 6} />
+            ) : niveaux.data.levels.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={peutEcrireIci ? 7 : 6}>
+                  <EtatVide
+                    icon={PackageSearch}
+                    titre="Aucun article en stock"
+                    message={
+                      alertesSeules
+                        ? "Aucun produit sous son seuil d'alerte dans cet entrepôt."
+                        : "Aucun niveau pour cet entrepôt. Réceptionnez ou transférez du stock pour commencer."
+                    }
+                  />
                 </TableCell>
-                <TableCell>{formaterMontant(n.avgCost)}</TableCell>
-                <TableCell>
-                  {n.seuilEffectif === null
-                    ? "—"
-                    : `${n.seuilEffectif}${n.minStock === null ? " (produit)" : ""}`}
-                </TableCell>
-                {peutEcrireIci && (
-                  <TableCell>
-                    <span className="flex gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => {
-                          setErreurAjustement(null)
-                          setDelta("")
-                          setMotif("")
-                          setAjustementPour(n)
-                        }}
-                      >
-                        Ajuster
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => {
-                          setErreurSeuil(null)
-                          setSeuil(
-                            n.minStock === null ? "" : String(n.minStock)
-                          )
-                          setSeuilPour(n)
-                        }}
-                      >
-                        Seuil
-                      </Button>
+              </TableRow>
+            ) : (
+              niveaux.data.levels.map((n) => (
+                <TableRow key={n.variantId}>
+                  <TableCell className="font-medium">{n.productName}</TableCell>
+                  <TableCell>{n.variantName}</TableCell>
+                  <TableCell className="font-mono text-xs">{n.sku}</TableCell>
+                  <TableCell numeric>
+                    <span className="flex items-center justify-end gap-2">
+                      {n.enAlerte && (
+                        <Badge variant="destructive">Stock bas</Badge>
+                      )}
+                      <span className="tabular-nums">{n.quantity}</span>
                     </span>
                   </TableCell>
-                )}
-              </TableRow>
-            ))}
-            {niveaux.data.levels.length === 0 && (
-              <TableRow>
-                <TableCell
-                  colSpan={peutEcrireIci ? 7 : 6}
-                  className="text-center text-sm text-gray-500"
-                >
-                  Aucun article en stock pour cet entrepôt.
-                </TableCell>
-              </TableRow>
+                  <TableCell numeric>{formaterMontant(n.avgCost)}</TableCell>
+                  <TableCell numeric>
+                    {n.seuilEffectif === null ? (
+                      "—"
+                    ) : (
+                      <>
+                        {n.seuilEffectif}
+                        {n.minStock === null && (
+                          <span className="text-muted-foreground">
+                            {" "}
+                            (produit)
+                          </span>
+                        )}
+                      </>
+                    )}
+                  </TableCell>
+                  {peutEcrireIci && (
+                    <TableCell>
+                      <span className="flex justify-end gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            setErreurAjustement(null)
+                            setDelta("")
+                            setMotif("")
+                            setAjustementPour(n)
+                          }}
+                        >
+                          Ajuster
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            setErreurSeuil(null)
+                            setSeuil(
+                              n.minStock === null ? "" : String(n.minStock)
+                            )
+                            setSeuilPour(n)
+                          }}
+                        >
+                          Seuil
+                        </Button>
+                      </span>
+                    </TableCell>
+                  )}
+                </TableRow>
+              ))
             )}
           </TableBody>
         </Table>
@@ -322,8 +361,9 @@ function NiveauxStockPage() {
                 ajuster.mutate(ajustementPour)
               }}
             >
-              <p className="text-sm text-gray-500">
-                Stock actuel : {ajustementPour.quantity}
+              <p className="text-sm text-muted-foreground">
+                Stock actuel :{" "}
+                <span className="tabular-nums">{ajustementPour.quantity}</span>
               </p>
               <div className="flex flex-col gap-1.5">
                 <Label htmlFor="a-delta">Delta (+ entrée, − sortie)</Label>
@@ -346,7 +386,7 @@ function NiveauxStockPage() {
                 />
               </div>
               {erreurAjustement && (
-                <p role="alert" className="text-sm text-red-700">
+                <p role="alert" className="text-sm text-destructive">
                   {erreurAjustement}
                 </p>
               )}
@@ -394,7 +434,7 @@ function NiveauxStockPage() {
                 />
               </div>
               {erreurSeuil && (
-                <p role="alert" className="text-sm text-red-700">
+                <p role="alert" className="text-sm text-destructive">
                   {erreurSeuil}
                 </p>
               )}

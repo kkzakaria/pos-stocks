@@ -3,6 +3,8 @@ import { createFileRoute } from "@tanstack/react-router"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { apiFetch } from "@/lib/api"
 import { usePeutEcrire } from "@/lib/permissions"
+import { Truck } from "lucide-react"
+import { EtatVide } from "@/components/etat-vide"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -22,6 +24,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { TableSkeleton } from "@/components/ui/table-skeleton"
 
 export const Route = createFileRoute("/_app/catalogue/fournisseurs")({
   component: FournisseursPage,
@@ -35,6 +38,10 @@ type Fournisseur = {
   isActive: boolean
 }
 
+/**
+ * Suppliers screen: list with active/inactive status, creation of a
+ * supplier (name, contact, phone), and activation toggle.
+ */
 function FournisseursPage() {
   const peutEcrire = usePeutEcrire()
   const queryClient = useQueryClient()
@@ -43,12 +50,14 @@ function FournisseursPage() {
     queryKey: ["suppliers"],
     queryFn: () => apiFetch<{ suppliers: Fournisseur[] }>("/api/v1/suppliers"),
   })
+  const fournisseurs = data?.suppliers ?? []
 
   const [dialogOuvert, setDialogOuvert] = useState(false)
   const [nom, setNom] = useState("")
   const [contact, setContact] = useState("")
   const [telephone, setTelephone] = useState("")
   const [erreur, setErreur] = useState<string | null>(null)
+  const [erreurBascule, setErreurBascule] = useState<string | null>(null)
 
   const invalider = () =>
     queryClient.invalidateQueries({ queryKey: ["suppliers"] })
@@ -82,8 +91,12 @@ function FournisseursPage() {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ isActive: !f.isActive }),
       }),
-    onSuccess: invalider,
-    onError: (err) => alert(err instanceof Error ? err.message : "Erreur"),
+    onSuccess: async () => {
+      setErreurBascule(null)
+      await invalider()
+    },
+    onError: (err) =>
+      setErreurBascule(err instanceof Error ? err.message : "Erreur"),
   })
 
   return (
@@ -133,7 +146,7 @@ function FournisseursPage() {
                   />
                 </div>
                 {erreur && (
-                  <p role="alert" className="text-sm text-red-700">
+                  <p role="alert" className="text-sm text-destructive">
                     {erreur}
                   </p>
                 )}
@@ -146,27 +159,50 @@ function FournisseursPage() {
         )}
       </div>
 
-      {isPending ? (
-        <p className="text-sm text-gray-500">Chargement…</p>
-      ) : (
-        <Table>
-          <TableHeader>
+      {erreurBascule && (
+        <p role="alert" className="mb-4 text-sm text-destructive">
+          {erreurBascule}
+        </p>
+      )}
+
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Nom</TableHead>
+            <TableHead>Contact</TableHead>
+            <TableHead>Téléphone</TableHead>
+            <TableHead>Statut</TableHead>
+            {peutEcrire && <TableHead />}
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {isPending ? (
+            <TableSkeleton colonnes={peutEcrire ? 5 : 4} />
+          ) : fournisseurs.length === 0 ? (
             <TableRow>
-              <TableHead>Nom</TableHead>
-              <TableHead>Contact</TableHead>
-              <TableHead>Téléphone</TableHead>
-              <TableHead>Statut</TableHead>
-              {peutEcrire && <TableHead />}
+              <TableCell colSpan={peutEcrire ? 5 : 4}>
+                <EtatVide
+                  icon={Truck}
+                  titre="Aucun fournisseur"
+                  message="Ajoutez un fournisseur pour tracer vos réceptions et vos coûts."
+                  action={
+                    peutEcrire ? (
+                      <Button onClick={() => setDialogOuvert(true)}>
+                        Nouveau fournisseur
+                      </Button>
+                    ) : undefined
+                  }
+                />
+              </TableCell>
             </TableRow>
-          </TableHeader>
-          <TableBody>
-            {(data?.suppliers ?? []).map((f) => (
+          ) : (
+            fournisseurs.map((f) => (
               <TableRow key={f.id}>
                 <TableCell className="font-medium">{f.name}</TableCell>
                 <TableCell>{f.contact ?? "—"}</TableCell>
                 <TableCell>{f.phone ?? "—"}</TableCell>
                 <TableCell>
-                  <Badge variant={f.isActive ? "default" : "secondary"}>
+                  <Badge variant={f.isActive ? "success" : "secondary"}>
                     {f.isActive ? "Actif" : "Inactif"}
                   </Badge>
                 </TableCell>
@@ -182,20 +218,10 @@ function FournisseursPage() {
                   </TableCell>
                 )}
               </TableRow>
-            ))}
-            {data?.suppliers.length === 0 && (
-              <TableRow>
-                <TableCell
-                  colSpan={peutEcrire ? 5 : 4}
-                  className="text-center text-sm text-gray-500"
-                >
-                  Aucun fournisseur.
-                </TableCell>
-              </TableRow>
-            )}
-          </TableBody>
-        </Table>
-      )}
+            ))
+          )}
+        </TableBody>
+      </Table>
     </div>
   )
 }

@@ -5,11 +5,20 @@ import { apiFetch } from "@/lib/api"
 import { formaterMontant } from "@/lib/format"
 import { useAccesStock } from "@/lib/permissions"
 import { useEntrepotsVisibles } from "@/lib/stock"
+import { Truck } from "lucide-react"
 import { ErreurChargement } from "@/components/erreur-chargement"
+import { EtatVide } from "@/components/etat-vide"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import {
   Dialog,
   DialogContent,
@@ -25,6 +34,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { TableSkeleton } from "@/components/ui/table-skeleton"
 
 export const Route = createFileRoute("/_app/stock/receptions/")({
   component: ReceptionsPage,
@@ -46,6 +56,17 @@ type ReceptionListe = {
 
 type Fournisseur = { id: string; name: string; isActive: boolean }
 
+const LIBELLES_STATUT: Record<string, string> = {
+  "": "Tous",
+  draft: "Brouillons",
+  received: "Validées",
+}
+
+/**
+ * Supplier receipts list: filter by status (draft/validated) and
+ * creation of a draft (warehouse, supplier, reference) leading to its
+ * detail page.
+ */
 function ReceptionsPage() {
   const acces = useAccesStock()
   const { options: entrepots } = useEntrepotsVisibles()
@@ -77,6 +98,10 @@ function ReceptionsPage() {
   const [fournisseurId, setFournisseurId] = useState("")
   const [reference, setReference] = useState("")
   const [erreur, setErreur] = useState<string | null>(null)
+
+  const fournisseursActifs = (fournisseurs.data?.suppliers ?? []).filter(
+    (f) => f.isActive
+  )
 
   const creer = useMutation({
     mutationFn: () =>
@@ -123,39 +148,41 @@ function ReceptionsPage() {
               >
                 <div className="flex flex-col gap-1.5">
                   <Label htmlFor="r-entrepot">Entrepôt</Label>
-                  <select
-                    id="r-entrepot"
-                    required
+                  <Select
                     value={entrepotId}
-                    onChange={(e) => setEntrepotId(e.target.value)}
-                    className="h-10 rounded-md border px-2 text-sm"
+                    onValueChange={(valeur) => setEntrepotId(valeur as string)}
                   >
-                    <option value="">— choisir —</option>
-                    {entrepotsEcriture.map((w) => (
-                      <option key={w.id} value={w.id}>
-                        {w.name}
-                      </option>
-                    ))}
-                  </select>
+                    <SelectTrigger id="r-entrepot" className="w-full">
+                      <SelectValue placeholder="— choisir —" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {entrepotsEcriture.map((w) => (
+                        <SelectItem key={w.id} value={w.id}>
+                          {w.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div className="flex flex-col gap-1.5">
                   <Label htmlFor="r-fournisseur">Fournisseur</Label>
-                  <select
-                    id="r-fournisseur"
-                    required
+                  <Select
                     value={fournisseurId}
-                    onChange={(e) => setFournisseurId(e.target.value)}
-                    className="h-10 rounded-md border px-2 text-sm"
+                    onValueChange={(valeur) =>
+                      setFournisseurId(valeur as string)
+                    }
                   >
-                    <option value="">— choisir —</option>
-                    {(fournisseurs.data?.suppliers ?? [])
-                      .filter((f) => f.isActive)
-                      .map((f) => (
-                        <option key={f.id} value={f.id}>
+                    <SelectTrigger id="r-fournisseur" className="w-full">
+                      <SelectValue placeholder="— choisir —" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {fournisseursActifs.map((f) => (
+                        <SelectItem key={f.id} value={f.id}>
                           {f.name}
-                        </option>
+                        </SelectItem>
                       ))}
-                  </select>
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div className="flex flex-col gap-1.5">
                   <Label htmlFor="r-reference">
@@ -168,11 +195,14 @@ function ReceptionsPage() {
                   />
                 </div>
                 {erreur && (
-                  <p role="alert" className="text-sm text-red-700">
+                  <p role="alert" className="text-sm text-destructive">
                     {erreur}
                   </p>
                 )}
-                <Button type="submit" disabled={creer.isPending}>
+                <Button
+                  type="submit"
+                  disabled={creer.isPending || !entrepotId || !fournisseurId}
+                >
                   {creer.isPending ? "Création…" : "Créer le brouillon"}
                 </Button>
               </form>
@@ -183,78 +213,91 @@ function ReceptionsPage() {
 
       <div className="mb-4 flex flex-col gap-1.5">
         <Label htmlFor="r-statut">Statut</Label>
-        <select
-          id="r-statut"
+        <Select
           value={statut}
-          onChange={(e) => setStatut(e.target.value)}
-          className="h-10 w-48 rounded-md border px-2 text-sm"
+          onValueChange={(valeur) => setStatut(valeur as string)}
         >
-          <option value="">Tous</option>
-          <option value="draft">Brouillons</option>
-          <option value="received">Validées</option>
-        </select>
+          <SelectTrigger id="r-statut" className="w-48">
+            <SelectValue placeholder="Tous">
+              {(valeur: string) => LIBELLES_STATUT[valeur] ?? "Tous"}
+            </SelectValue>
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="">Tous</SelectItem>
+            <SelectItem value="draft">Brouillons</SelectItem>
+            <SelectItem value="received">Validées</SelectItem>
+          </SelectContent>
+        </Select>
       </div>
 
-      {receptions.isPending ? (
-        <p className="text-sm text-gray-500">Chargement…</p>
-      ) : receptions.isError ? (
+      {receptions.isError ? (
         <ErreurChargement
           message="Impossible de charger les réceptions."
           onRetry={() => void receptions.refetch()}
         />
       ) : (
         <Table>
-          <TableHeader>
+          <TableHeader sticky>
             <TableRow>
               <TableHead>Date</TableHead>
               <TableHead>Entrepôt</TableHead>
               <TableHead>Fournisseur</TableHead>
               <TableHead>Référence</TableHead>
-              <TableHead>Lignes</TableHead>
-              <TableHead>Total</TableHead>
+              <TableHead numeric>Lignes</TableHead>
+              <TableHead numeric>Total</TableHead>
               <TableHead>Statut</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {receptions.data.purchases.map((r) => (
-              <TableRow
-                key={r.id}
-                className="cursor-pointer"
-                onClick={() =>
-                  void navigate({
-                    to: "/stock/receptions/$purchaseId",
-                    params: { purchaseId: r.id },
-                  })
-                }
-              >
-                <TableCell className="text-sm whitespace-nowrap">
-                  {new Date(r.createdAt).toLocaleDateString("fr-FR")}
-                </TableCell>
-                <TableCell>{r.warehouseName}</TableCell>
-                <TableCell className="font-medium">{r.supplierName}</TableCell>
-                <TableCell className="font-mono text-xs">
-                  {r.reference ?? "—"}
-                </TableCell>
-                <TableCell>{r.itemCount}</TableCell>
-                <TableCell>{formaterMontant(r.totalCost)}</TableCell>
-                <TableCell>
-                  <Badge
-                    variant={r.status === "draft" ? "secondary" : "default"}
-                  >
-                    {r.status === "draft" ? "Brouillon" : "Validée"}
-                  </Badge>
-                </TableCell>
-              </TableRow>
-            ))}
-            {receptions.data.purchases.length === 0 && (
+            {receptions.isPending ? (
+              <TableSkeleton colonnes={7} />
+            ) : receptions.data.purchases.length === 0 ? (
               <TableRow>
-                <TableCell
-                  colSpan={7}
-                  className="text-center text-sm text-gray-500"
-                >
-                  Aucune réception.
+                <TableCell colSpan={7}>
+                  <EtatVide
+                    icon={Truck}
+                    titre="Aucune réception"
+                    message={
+                      peutCreer
+                        ? "Aucune réception pour ce filtre. Créez une réception pour entrer du stock fournisseur."
+                        : "Aucune réception pour ce filtre."
+                    }
+                  />
                 </TableCell>
               </TableRow>
+            ) : (
+              receptions.data.purchases.map((r) => (
+                <TableRow
+                  key={r.id}
+                  className="cursor-pointer"
+                  onClick={() =>
+                    void navigate({
+                      to: "/stock/receptions/$purchaseId",
+                      params: { purchaseId: r.id },
+                    })
+                  }
+                >
+                  <TableCell className="text-sm whitespace-nowrap">
+                    {new Date(r.createdAt).toLocaleDateString("fr-FR")}
+                  </TableCell>
+                  <TableCell>{r.warehouseName}</TableCell>
+                  <TableCell className="font-medium">
+                    {r.supplierName}
+                  </TableCell>
+                  <TableCell className="font-mono text-xs">
+                    {r.reference ?? "—"}
+                  </TableCell>
+                  <TableCell numeric>{r.itemCount}</TableCell>
+                  <TableCell numeric>{formaterMontant(r.totalCost)}</TableCell>
+                  <TableCell>
+                    <Badge
+                      variant={r.status === "draft" ? "warning" : "success"}
+                    >
+                      {r.status === "draft" ? "Brouillon" : "Validée"}
+                    </Badge>
+                  </TableCell>
+                </TableRow>
+              ))
             )}
           </TableBody>
         </Table>

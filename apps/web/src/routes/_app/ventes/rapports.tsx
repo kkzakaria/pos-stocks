@@ -1,8 +1,10 @@
 import { createFileRoute, useRouteContext } from "@tanstack/react-router"
 import { useState } from "react"
+import { FileBarChart } from "lucide-react"
 import { RapportVentes } from "@/rapports/rapport-ventes"
 import { RapportMarges } from "@/rapports/rapport-marges"
 import { RapportValorisation } from "@/rapports/rapport-valorisation"
+import { EtatVide } from "@/components/etat-vide"
 import { Button } from "@/components/ui/button"
 
 type Onglet = "ventes" | "marges" | "valorisation"
@@ -19,6 +21,7 @@ export const Route = createFileRoute("/_app/ventes/rapports")({
   component: PageRapports,
 })
 
+/** Reports page: Ventes / Marges / Valorisation tabs filtered by permissions (matrix §4), with the initial tab controllable via the `onglet` query param. */
 function PageRapports() {
   const { me } = useRouteContext({ from: "/_app" })
   const role = me.membership?.role
@@ -53,9 +56,13 @@ function PageRapports() {
     return (
       <div>
         <h1 className="text-xl font-semibold">Rapports</h1>
-        <p className="mt-2 text-sm text-gray-500">
-          Aucun rapport accessible pour ce compte.
-        </p>
+        <div className="mt-4">
+          <EtatVide
+            icon={FileBarChart}
+            titre="Aucun rapport accessible"
+            message="Ce compte n'a accès à aucun rapport. Demandez les droits nécessaires à un administrateur."
+          />
+        </div>
       </div>
     )
   }

@@ -1,11 +1,20 @@
 import { useState } from "react"
 import { createFileRoute, redirect } from "@tanstack/react-router"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { Store } from "lucide-react"
 import { apiFetch } from "@/lib/api"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
+import { toast } from "@/components/ui/toast"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import {
   Dialog,
   DialogContent,
@@ -21,6 +30,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { TableSkeleton } from "@/components/ui/table-skeleton"
+import { EtatVide } from "@/components/etat-vide"
 
 export const Route = createFileRoute("/_app/administration/entrepots")({
   beforeLoad: ({ context }) => {
@@ -42,6 +53,15 @@ type Warehouse = {
 
 const TYPES = { warehouse: "Entrepôt", store: "Boutique" } as const
 
+const OPTIONS_TYPE = [
+  { value: "store", label: "Boutique (avec point de vente)" },
+  { value: "warehouse", label: "Entrepôt (réserve)" },
+] as const satisfies ReadonlyArray<{
+  value: "warehouse" | "store"
+  label: string
+}>
+
+/** Warehouses & stores admin page: list, creation, and (de)activation; writing is restricted to owner/admin, the auditor is read-only. */
 function EntrepotsPage() {
   const { me } = Route.useRouteContext()
   const peutEcrire =
@@ -75,6 +95,7 @@ function EntrepotsPage() {
       setNom("")
       setAdresse("")
       setErreur(null)
+      toast.success("Entrepôt créé")
     },
     onError: (err) => setErreur(err instanceof Error ? err.message : "Erreur"),
   })
@@ -86,8 +107,12 @@ function EntrepotsPage() {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ isActive: !w.isActive }),
       }),
-    onSuccess: () =>
-      queryClient.invalidateQueries({ queryKey: ["warehouses"] }),
+    onSuccess: async (_res, w) => {
+      await queryClient.invalidateQueries({ queryKey: ["warehouses"] })
+      toast.success(w.isActive ? "Entrepôt désactivé" : "Entrepôt réactivé")
+    },
+    onError: (err) =>
+      toast.error(err instanceof Error ? err.message : "Erreur"),
   })
 
   return (
@@ -119,19 +144,27 @@ function EntrepotsPage() {
                 </div>
                 <div className="flex flex-col gap-1.5">
                   <Label htmlFor="wh-type">Type</Label>
-                  <select
-                    id="wh-type"
+                  <Select
                     value={type}
-                    onChange={(e) =>
-                      setType(e.target.value as "warehouse" | "store")
+                    onValueChange={(valeur) =>
+                      setType(valeur as "warehouse" | "store")
                     }
-                    className="h-10 rounded-md border px-2 text-sm"
                   >
-                    <option value="store">
-                      Boutique (avec point de vente)
-                    </option>
-                    <option value="warehouse">Entrepôt (réserve)</option>
-                  </select>
+                    <SelectTrigger id="wh-type" className="w-full">
+                      <SelectValue>
+                        {(valeur: "warehouse" | "store") =>
+                          OPTIONS_TYPE.find((o) => o.value === valeur)?.label
+                        }
+                      </SelectValue>
+                    </SelectTrigger>
+                    <SelectContent>
+                      {OPTIONS_TYPE.map((o) => (
+                        <SelectItem key={o.value} value={o.value}>
+                          {o.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div className="flex flex-col gap-1.5">
                   <Label htmlFor="wh-adresse">Adresse (optionnel)</Label>
@@ -142,7 +175,7 @@ function EntrepotsPage() {
                   />
                 </div>
                 {erreur && (
-                  <p role="alert" className="text-sm text-red-700">
+                  <p role="alert" className="text-sm text-destructive">
                     {erreur}
                   </p>
                 )}
@@ -155,27 +188,44 @@ function EntrepotsPage() {
         )}
       </div>
 
-      {isPending ? (
-        <p className="text-sm text-gray-500">Chargement…</p>
-      ) : (
-        <Table>
-          <TableHeader>
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Nom</TableHead>
+            <TableHead>Type</TableHead>
+            <TableHead>Adresse</TableHead>
+            <TableHead>Statut</TableHead>
+            {peutEcrire && <TableHead />}
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {isPending ? (
+            <TableSkeleton colonnes={peutEcrire ? 5 : 4} />
+          ) : (data?.warehouses ?? []).length === 0 ? (
             <TableRow>
-              <TableHead>Nom</TableHead>
-              <TableHead>Type</TableHead>
-              <TableHead>Adresse</TableHead>
-              <TableHead>Statut</TableHead>
-              {peutEcrire && <TableHead />}
+              <TableCell colSpan={peutEcrire ? 5 : 4}>
+                <EtatVide
+                  icon={Store}
+                  titre="Aucun entrepôt"
+                  message="Créez une première boutique ou réserve pour démarrer le suivi de stock."
+                  action={
+                    peutEcrire ? (
+                      <Button onClick={() => setDialogOuvert(true)}>
+                        Nouvel entrepôt
+                      </Button>
+                    ) : undefined
+                  }
+                />
+              </TableCell>
             </TableRow>
-          </TableHeader>
-          <TableBody>
-            {(data?.warehouses ?? []).map((w) => (
+          ) : (
+            (data?.warehouses ?? []).map((w) => (
               <TableRow key={w.id}>
                 <TableCell className="font-medium">{w.name}</TableCell>
                 <TableCell>{TYPES[w.type]}</TableCell>
                 <TableCell>{w.address ?? "—"}</TableCell>
                 <TableCell>
-                  <Badge variant={w.isActive ? "default" : "secondary"}>
+                  <Badge variant={w.isActive ? "success" : "secondary"}>
                     {w.isActive ? "Actif" : "Inactif"}
                   </Badge>
                 </TableCell>
@@ -191,20 +241,10 @@ function EntrepotsPage() {
                   </TableCell>
                 )}
               </TableRow>
-            ))}
-            {data?.warehouses.length === 0 && (
-              <TableRow>
-                <TableCell
-                  colSpan={peutEcrire ? 5 : 4}
-                  className="text-center text-sm text-gray-500"
-                >
-                  Aucun entrepôt — créez le premier pour démarrer.
-                </TableCell>
-              </TableRow>
-            )}
-          </TableBody>
-        </Table>
-      )}
+            ))
+          )}
+        </TableBody>
+      </Table>
     </div>
   )
 }

@@ -4,6 +4,15 @@ import { apiFetch } from "@/lib/api"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Checkbox } from "@/components/ui/checkbox"
+import { Textarea } from "@/components/ui/textarea"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import type { Produit } from "./types"
 
 type Categorie = { id: string; name: string }
@@ -28,6 +37,11 @@ type Props = {
 
 // Monté avec key={produit.id} par la page : l'état initial du formulaire
 // est re-semé quand on navigue vers un autre produit.
+/**
+ * "Information" section: form for editing the product fields (name, price,
+ * floor price, threshold, category, barcode, activation) saved via PATCH; empty
+ * fields are normalized to `null` before sending.
+ */
 export function SectionInfos({
   produit,
   productId,
@@ -139,27 +153,40 @@ export function SectionInfos({
               setForm({ ...form, defaultMinStock: e.target.value })
             }
           />
-          <p className="text-xs text-gray-500">
+          <p className="text-xs text-muted-foreground">
             Alerte quand le stock d'un entrepôt passe sous ce seuil —
             surchargeable par entrepôt.
           </p>
         </div>
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="f-categorie">Catégorie</Label>
-          <select
-            id="f-categorie"
-            disabled={!peutEcrire}
+          <Select
             value={form.categoryId}
-            onChange={(e) => setForm({ ...form, categoryId: e.target.value })}
-            className="h-10 rounded-md border px-2 text-sm"
+            onValueChange={(valeur) =>
+              setForm({ ...form, categoryId: valeur as string })
+            }
+            disabled={!peutEcrire}
           >
-            <option value="">— aucune —</option>
-            {(categories.data?.categories ?? []).map((cat) => (
-              <option key={cat.id} value={cat.id}>
-                {cat.name}
-              </option>
-            ))}
-          </select>
+            <SelectTrigger id="f-categorie" className="w-full">
+              <SelectValue placeholder="— aucune —">
+                {(valeur: string) =>
+                  valeur === ""
+                    ? "— aucune —"
+                    : (categories.data?.categories ?? []).find(
+                        (cat) => cat.id === valeur
+                      )?.name
+                }
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="">— aucune —</SelectItem>
+              {(categories.data?.categories ?? []).map((cat) => (
+                <SelectItem key={cat.id} value={cat.id}>
+                  {cat.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="f-barcode">Code-barres</Label>
@@ -172,27 +199,28 @@ export function SectionInfos({
         </div>
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="f-description">Description</Label>
-          <textarea
+          <Textarea
             id="f-description"
             rows={2}
             disabled={!peutEcrire}
             value={form.description}
             onChange={(e) => setForm({ ...form, description: e.target.value })}
-            className="rounded-md border px-3 py-2 text-sm"
           />
         </div>
         {peutEcrire && (
-          <label className="flex items-center gap-2 text-sm">
-            <input
-              type="checkbox"
+          <div className="flex items-center gap-2">
+            <Checkbox
+              id="f-actif"
               checked={form.isActive}
-              onChange={(e) => setForm({ ...form, isActive: e.target.checked })}
+              onCheckedChange={(valeur) =>
+                setForm({ ...form, isActive: valeur === true })
+              }
             />
-            Produit actif
-          </label>
+            <Label htmlFor="f-actif">Produit actif</Label>
+          </div>
         )}
         {message && (
-          <p role="status" className="text-sm font-medium text-gray-700">
+          <p role="status" className="text-sm font-medium text-foreground">
             {message}
           </p>
         )}

@@ -6,6 +6,7 @@ export const Route = createFileRoute("/_app/mon-compte")({
   component: MonComptePage,
 })
 
+/** "Mon compte" page: identity/role recap and password change (alert when the password is still provisional). */
 function MonComptePage() {
   const { me } = Route.useRouteContext()
   const router = useRouter()
@@ -30,13 +31,13 @@ function MonComptePage() {
   return (
     <div className="max-w-xl">
       <h1 className="text-xl font-semibold">Mon compte</h1>
-      <p className="mt-1 text-sm text-gray-500">
+      <p className="mt-1 text-sm text-muted-foreground">
         {me.user.name} · {me.user.email} · rôle : {me.membership?.role ?? "—"}
       </p>
       {me.user.mustChangePassword && (
         <p
           role="alert"
-          className="mt-4 rounded-md bg-orange-50 px-3 py-2 text-sm text-orange-800"
+          className="mt-4 rounded-md border border-warning/20 bg-warning/10 px-3 py-2 text-sm text-warning"
         >
           Votre mot de passe est provisoire : choisissez-en un nouveau pour
           accéder à l'application.

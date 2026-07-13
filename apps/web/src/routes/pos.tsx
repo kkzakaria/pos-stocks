@@ -33,6 +33,7 @@ export const Route = createFileRoute("/pos")({
   component: PagePos,
 })
 
+/** Full-screen POS error screen: alert message, "Réessayer" button, and fallback to the dashboard. */
 function EcranErreur({
   message,
   onReessayer,
@@ -43,20 +44,21 @@ function EcranErreur({
   return (
     <main className="grid min-h-screen place-items-center">
       <div className="text-center">
-        <p role="alert" className="mb-4 text-red-600">
+        <p role="alert" className="mb-4 text-destructive">
           {message}
         </p>
         <div className="flex items-center justify-center gap-2">
           <Button onClick={onReessayer}>Réessayer</Button>
-          <Link to="/" className="rounded border px-4 py-2 text-sm">
+          <Button variant="outline" render={<Link to="/" />}>
             Retour au tableau de bord
-          </Link>
+          </Button>
         </div>
       </div>
     </main>
   )
 }
 
+/** Point-of-sale router: picks the sellable store, then shows the cash-drawer opening or the sales screen depending on whether a session is open. */
 function PagePos() {
   const { me } = Route.useRouteContext()
   const destinations = useQuery({
@@ -80,7 +82,7 @@ function PagePos() {
   if (destinations.isPending || (boutiqueId !== null && session.isPending)) {
     return (
       <main className="grid min-h-screen place-items-center">
-        <p className="text-gray-500">Chargement de la caisse…</p>
+        <p className="text-muted-foreground">Chargement de la caisse…</p>
       </main>
     )
   }

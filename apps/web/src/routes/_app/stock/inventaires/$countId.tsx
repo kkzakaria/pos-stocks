@@ -3,16 +3,30 @@ import { createFileRoute } from "@tanstack/react-router"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { apiFetch } from "@/lib/api"
 import { useAccesStock } from "@/lib/permissions"
+import { PackageSearch } from "lucide-react"
 import { ErreurChargement } from "@/components/erreur-chargement"
+import { EtatVide } from "@/components/etat-vide"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
+import { Skeleton } from "@/components/ui/skeleton"
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"
 import {
   Table,
   TableBody,
@@ -64,6 +78,26 @@ type ReponseCloture = {
   mouvements: number
 }
 
+/** Colored discrepancy: positive as `success`, negative as `destructive`, zero neutral. */
+function ecartRendu(delta: number | null) {
+  if (delta === null) return <span className="text-muted-foreground">—</span>
+  if (delta === 0) return <span className="text-muted-foreground">0</span>
+  return (
+    <span
+      className={
+        delta > 0 ? "font-medium text-success" : "font-medium text-destructive"
+      }
+    >
+      {delta > 0 ? `+${delta}` : delta}
+    </span>
+  )
+}
+
+/**
+ * Inventory count detail: entry of counted quantities per item against
+ * the expected stock frozen at opening, then closing which generates the
+ * discrepancy movements and displays the summary.
+ */
 function InventaireDetailPage() {
   const { countId } = Route.useParams()
   const acces = useAccesStock()
@@ -132,7 +166,13 @@ function InventaireDetailPage() {
     )
   }
   if (!data) {
-    return <p className="text-sm text-gray-500">Chargement…</p>
+    return (
+      <div className="flex flex-col gap-4">
+        <Skeleton className="h-7 w-72" />
+        <Skeleton className="h-4 w-96" />
+        <Skeleton className="h-40 w-full" />
+      </div>
+    )
   }
   const inventaire = data.count
   const ouvert = inventaire.status === "open"
@@ -142,6 +182,7 @@ function InventaireDetailPage() {
   const nonComptes = inventaire.items.filter(
     (i) => i.countedQuantity === null
   ).length
+  const colonnes = ouvert && peutEcrire ? 5 : 4
 
   return (
     <div>
@@ -149,11 +190,11 @@ function InventaireDetailPage() {
         <h1 className="text-xl font-semibold">
           Inventaire — {inventaire.warehouseName}
         </h1>
-        <Badge variant={ouvert ? "secondary" : "default"}>
+        <Badge variant={ouvert ? "warning" : "success"}>
           {ouvert ? "Ouvert" : "Clos"}
         </Badge>
       </div>
-      <p className="mb-6 text-sm text-gray-500">
+      <p className="mb-6 text-sm text-muted-foreground">
         Ouvert le {new Date(inventaire.openedAt).toLocaleString("fr-FR")}
         {inventaire.closedAt
           ? ` — clos le ${new Date(inventaire.closedAt).toLocaleString("fr-FR")}`
@@ -161,101 +202,138 @@ function InventaireDetailPage() {
       </p>
 
       <Table>
-        <TableHeader>
+        <TableHeader sticky>
           <TableRow>
             <TableHead>Article</TableHead>
-            <TableHead>Attendu (à l'ouverture)</TableHead>
-            <TableHead>Compté</TableHead>
+            <TableHead numeric>Attendu (à l'ouverture)</TableHead>
+            <TableHead numeric>Compté</TableHead>
+            <TableHead numeric>Écart</TableHead>
             {ouvert && peutEcrire && <TableHead />}
           </TableRow>
         </TableHeader>
         <TableBody>
-          {inventaire.items.map((item) => (
-            <TableRow key={item.id}>
-              <TableCell>
-                <span className="font-medium">{item.productName}</span>{" "}
-                <span className="text-sm text-gray-500">
-                  {item.variantName} ({item.sku})
-                </span>
-              </TableCell>
-              <TableCell>{item.expectedQuantity}</TableCell>
-              <TableCell>
-                {ouvert && peutEcrire ? (
-                  <Input
-                    aria-label={`Quantité comptée — ${item.sku}`}
-                    type="number"
-                    min={0}
-                    step={1}
-                    className="w-24"
-                    value={
-                      saisies[item.id] ??
-                      (item.countedQuantity === null
-                        ? ""
-                        : String(item.countedQuantity))
-                    }
-                    onChange={(e) =>
-                      setSaisies((s) => ({ ...s, [item.id]: e.target.value }))
-                    }
-                  />
-                ) : item.countedQuantity === null ? (
-                  "— (non compté)"
-                ) : (
-                  item.countedQuantity
-                )}
-              </TableCell>
-              {ouvert && peutEcrire && (
+          {inventaire.items.map((item) => {
+            const ecart =
+              item.countedQuantity === null
+                ? null
+                : item.countedQuantity - item.expectedQuantity
+            return (
+              <TableRow key={item.id}>
                 <TableCell>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={enregistrer.isPending || !(item.id in saisies)}
-                    onClick={() => {
-                      setErreurLigne(null)
-                      const brut = saisies[item.id] ?? ""
-                      enregistrer.mutate({
-                        itemId: item.id,
-                        countedQuantity: brut === "" ? null : Number(brut),
-                      })
-                    }}
-                  >
-                    Enregistrer
-                  </Button>
+                  <span className="font-medium">{item.productName}</span>{" "}
+                  <span className="text-muted-foreground">
+                    {item.variantName} ({item.sku})
+                  </span>
                 </TableCell>
-              )}
+                <TableCell numeric>{item.expectedQuantity}</TableCell>
+                <TableCell numeric>
+                  {ouvert && peutEcrire ? (
+                    <Input
+                      aria-label={`Quantité comptée — ${item.sku}`}
+                      type="number"
+                      min={0}
+                      step={1}
+                      className="ml-auto w-24 text-right"
+                      value={
+                        saisies[item.id] ??
+                        (item.countedQuantity === null
+                          ? ""
+                          : String(item.countedQuantity))
+                      }
+                      onChange={(e) =>
+                        setSaisies((s) => ({ ...s, [item.id]: e.target.value }))
+                      }
+                    />
+                  ) : item.countedQuantity === null ? (
+                    <span className="text-muted-foreground">
+                      — (non compté)
+                    </span>
+                  ) : (
+                    item.countedQuantity
+                  )}
+                </TableCell>
+                <TableCell numeric>{ecartRendu(ecart)}</TableCell>
+                {ouvert && peutEcrire && (
+                  <TableCell>
+                    <span className="flex justify-end">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={
+                          enregistrer.isPending || !(item.id in saisies)
+                        }
+                        onClick={() => {
+                          setErreurLigne(null)
+                          const brut = saisies[item.id] ?? ""
+                          enregistrer.mutate({
+                            itemId: item.id,
+                            countedQuantity: brut === "" ? null : Number(brut),
+                          })
+                        }}
+                      >
+                        Enregistrer
+                      </Button>
+                    </span>
+                  </TableCell>
+                )}
+              </TableRow>
+            )
+          })}
+          {inventaire.items.length === 0 && (
+            <TableRow>
+              <TableCell colSpan={colonnes}>
+                <EtatVide
+                  icon={PackageSearch}
+                  titre="Aucun article"
+                  message="Cet entrepôt n'avait aucun article à l'ouverture de l'inventaire."
+                />
+              </TableCell>
             </TableRow>
-          ))}
+          )}
         </TableBody>
       </Table>
 
       {erreurLigne && (
-        <p role="alert" className="mt-3 text-sm text-red-700">
+        <p role="alert" className="mt-3 text-sm text-destructive">
           {erreurLigne}
         </p>
       )}
 
       {ouvert && peutEcrire && (
         <div className="mt-6 flex items-center gap-3">
-          <Button
-            disabled={cloturer.isPending}
-            onClick={() => {
-              setErreurCloture(null)
-              if (
-                window.confirm(
-                  `Clôturer l'inventaire ? Les écarts génèreront des mouvements de stock.${
-                    nonComptes > 0
-                      ? ` ${nonComptes} ligne(s) non comptée(s) seront ignorées.`
-                      : ""
-                  }`
-                )
-              ) {
-                cloturer.mutate()
-              }
-            }}
-          >
-            {cloturer.isPending ? "Clôture…" : "Clôturer l'inventaire"}
-          </Button>
+          <AlertDialog>
+            <AlertDialogTrigger
+              render={<Button disabled={cloturer.isPending} />}
+            >
+              {cloturer.isPending ? "Clôture…" : "Clôturer l'inventaire"}
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Clôturer l'inventaire ?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Les écarts génèreront des mouvements de stock.
+                  {nonComptes > 0
+                    ? ` ${nonComptes} ligne${nonComptes > 1 ? "s" : ""} non comptée${nonComptes > 1 ? "s" : ""} seront ignorée${nonComptes > 1 ? "s" : ""}.`
+                    : ""}{" "}
+                  Cette action est irréversible.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Retour</AlertDialogCancel>
+                <AlertDialogAction
+                  variant="default"
+                  onClick={() => {
+                    setErreurCloture(null)
+                    cloturer.mutate()
+                  }}
+                >
+                  Clôturer
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
           {erreurCloture && (
-            <p role="alert" className="text-sm text-red-700">
+            <p role="alert" className="text-sm text-destructive">
               {erreurCloture}
             </p>
           )}
@@ -282,37 +360,29 @@ function InventaireDetailPage() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Article</TableHead>
-                    <TableHead>Compté</TableHead>
-                    <TableHead>Stock avant clôture</TableHead>
-                    <TableHead>Écart appliqué</TableHead>
+                    <TableHead numeric>Compté</TableHead>
+                    <TableHead numeric>Stock avant clôture</TableHead>
+                    <TableHead numeric>Écart appliqué</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {recap.ecarts.map((e) => (
                     <TableRow key={e.variantId}>
-                      <TableCell className="text-sm">
+                      <TableCell>
                         {e.productName ?? e.variantId}{" "}
-                        <span className="text-gray-500">
+                        <span className="text-muted-foreground">
                           {e.sku ? `(${e.sku})` : ""}
                         </span>
                       </TableCell>
-                      <TableCell>{e.compte}</TableCell>
-                      <TableCell>{e.quantiteAvantCloture}</TableCell>
-                      <TableCell
-                        className={
-                          e.delta > 0
-                            ? "font-medium text-green-700"
-                            : "font-medium text-red-700"
-                        }
-                      >
-                        {e.delta > 0 ? `+${e.delta}` : e.delta}
-                      </TableCell>
+                      <TableCell numeric>{e.compte}</TableCell>
+                      <TableCell numeric>{e.quantiteAvantCloture}</TableCell>
+                      <TableCell numeric>{ecartRendu(e.delta)}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
               </Table>
             )}
-            <p className="text-sm text-gray-500">
+            <p className="text-sm text-muted-foreground">
               {recap.mouvements} mouvement{recap.mouvements > 1 ? "s" : ""} de
               stock généré{recap.mouvements > 1 ? "s" : ""}
               {recap.nonComptes > 0

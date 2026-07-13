@@ -5,6 +5,7 @@ import { estDateExpiree, formatDateJour } from "@/lib/dates"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Badge } from "@/components/ui/badge"
 import {
   Dialog,
   DialogContent,
@@ -19,6 +20,10 @@ type Props = {
   onModifie: () => Promise<unknown>
 }
 
+/**
+ * "Lots" section: lists lots per active variant (with an "Expired" badge
+ * derived from the expiry date) and offers adding a lot via a dialog.
+ */
 export function SectionLots({ produit, peutEcrire, onModifie }: Props) {
   const [dialogLotPour, setDialogLotPour] = useState<string | null>(null)
   const [numeroLot, setNumeroLot] = useState("")
@@ -66,21 +71,19 @@ export function SectionLots({ produit, peutEcrire, onModifie }: Props) {
               )}
             </div>
             {v.lots.length === 0 ? (
-              <p className="text-sm text-gray-500">Aucun lot.</p>
+              <p className="text-sm text-muted-foreground">Aucun lot.</p>
             ) : (
               <ul className="flex flex-col gap-1">
                 {v.lots.map((lot) => (
                   <li key={lot.id} className="flex items-center gap-3 text-sm">
                     <span className="font-mono">{lot.lotNumber}</span>
-                    <span className="text-gray-500">
+                    <span className="text-muted-foreground">
                       {lot.expiryDate
                         ? formatDateJour(lot.expiryDate)
                         : "sans péremption"}
                     </span>
                     {estDateExpiree(lot.expiryDate) && (
-                      <span className="rounded bg-red-100 px-2 py-0.5 text-xs font-medium text-red-800">
-                        Expiré
-                      </span>
+                      <Badge variant="destructive">Expiré</Badge>
                     )}
                   </li>
                 ))}
@@ -129,7 +132,7 @@ export function SectionLots({ produit, peutEcrire, onModifie }: Props) {
                 />
               </div>
               {erreurLot && (
-                <p role="alert" className="text-sm text-red-700">
+                <p role="alert" className="text-sm text-destructive">
                   {erreurLot}
                 </p>
               )}

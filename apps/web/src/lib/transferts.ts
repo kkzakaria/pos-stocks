@@ -7,16 +7,23 @@ export const STATUTS_TRANSFERT_FR: Record<StatutTransfert, string> = {
   cancelled: "Annulé",
 }
 
+// Statuts en badges sémantiques NON-indigo (l'indigo reste réservé à l'action
+// et à la sélection) : en attente = warning, expédié/en transit = secondary,
+// réceptionné = success, annulé = destructive.
+/**
+ * Maps a transfer status to the corresponding semantic badge variant
+ * (indigo remaining reserved for action and selection).
+ */
 export function varianteBadgeStatut(
   statut: StatutTransfert
-): "default" | "secondary" | "destructive" | "outline" {
+): "warning" | "secondary" | "success" | "destructive" {
   switch (statut) {
     case "pending":
-      return "secondary"
+      return "warning"
     case "sent":
-      return "outline"
+      return "secondary"
     case "received":
-      return "default"
+      return "success"
     case "cancelled":
       return "destructive"
   }
@@ -70,6 +77,12 @@ export type TransfertListe = {
 // Valide la saisie des quantités reçues (chaînes brutes des inputs) contre
 // les quantités expédiées et construit le corps de POST /receive : seuls les
 // écarts sont transmis (ligne vide ou égale à l'expédié = tout reçu).
+/**
+ * `preparerReception`: validates the received quantities (integers ≥ 0, never
+ * greater than the shipped quantity) and transmits only the discrepancies — an
+ * empty line or one equal to the shipped quantity means "all received" and is
+ * omitted from the POST /receive body.
+ */
 export function preparerReception(
   lignes: Array<{ id: string; quantity: number }>,
   saisies: Record<string, string | undefined>

@@ -1,6 +1,7 @@
 import { createFileRoute, Link, useRouteContext } from "@tanstack/react-router"
 import { useState } from "react"
 import { useQuery } from "@tanstack/react-query"
+import { Receipt, Store } from "lucide-react"
 import { apiFetch } from "@/lib/api"
 import { formaterMontant } from "@/lib/format"
 import {
@@ -8,8 +9,27 @@ import {
   fetchVentesPeriode,
   periodePreset,
 } from "@/lib/rapports"
+import { ErreurChargement } from "@/components/erreur-chargement"
+import { EtatVide } from "@/components/etat-vide"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
+import { TableSkeleton } from "@/components/ui/table-skeleton"
 
 export const Route = createFileRoute("/_app/ventes/")({
   component: HistoriqueVentes,
@@ -21,6 +41,7 @@ const PRESETS = [
   { id: "mois", libelle: "Ce mois" },
 ] as const
 
+/** Sales history page: list paginated by store and period (presets or dates), filtered to the stores the account can read. */
 function HistoriqueVentes() {
   const { me } = useRouteContext({ from: "/_app" })
   const destinations = useQuery({
@@ -51,28 +72,37 @@ function HistoriqueVentes() {
   const liste = ventes.data?.sales ?? []
   const total = ventes.data?.total ?? 0
   const pages = Math.max(1, Math.ceil(total / 50))
+  const aucuneBoutique = destinations.isSuccess && boutiques.length === 0
 
   return (
     <div>
       <h1 className="text-xl font-semibold">Historique des ventes</h1>
       <div className="mt-4 flex flex-wrap items-end gap-3">
-        <label className="text-sm">
-          Boutique
-          <select
-            className="mt-1 block rounded border px-2 py-1.5 text-sm"
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="v-boutique">Boutique</Label>
+          <Select
             value={boutiqueId ?? ""}
-            onChange={(e) => {
-              setBoutiqueChoisie(e.target.value)
+            onValueChange={(valeur) => {
+              setBoutiqueChoisie(valeur)
               setPage(1)
             }}
           >
-            {boutiques.map((b) => (
-              <option key={b.id} value={b.id}>
-                {b.name}
-              </option>
-            ))}
-          </select>
-        </label>
+            <SelectTrigger id="v-boutique" className="w-56">
+              <SelectValue placeholder="Choisir une boutique">
+                {(valeur: string) =>
+                  boutiques.find((b) => b.id === valeur)?.name
+                }
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              {boutiques.map((b) => (
+                <SelectItem key={b.id} value={b.id}>
+                  {b.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
         <label className="text-sm">
           Du
           <Input
@@ -111,90 +141,98 @@ function HistoriqueVentes() {
         ))}
       </div>
 
-      {destinations.isSuccess && boutiques.length === 0 && (
-        <p className="mt-6 text-sm text-gray-500">
-          Aucune boutique lisible pour ce compte.
-        </p>
-      )}
-      {ventes.isPending && boutiqueId !== null && periodeValide && (
-        <p className="mt-6 text-sm text-gray-500">Chargement…</p>
-      )}
-      {ventes.isError && (
-        <div className="mt-6">
-          <p role="alert" className="mb-2 text-sm text-red-600">
-            {ventes.error instanceof Error
-              ? ventes.error.message
-              : "Impossible de charger les ventes"}
-          </p>
-          <Button variant="outline" onClick={() => void ventes.refetch()}>
-            Réessayer
-          </Button>
-        </div>
-      )}
-      {ventes.isSuccess && liste.length === 0 && (
-        <p className="mt-6 text-sm text-gray-500">
-          Aucune vente sur cette période.
-        </p>
-      )}
-      {ventes.isSuccess && liste.length > 0 && (
-        <>
-          <table className="mt-4 w-full text-sm">
-            <thead>
-              <tr className="border-b text-left text-gray-500">
-                <th className="py-2">N°</th>
-                <th>Date</th>
-                <th>Caissier</th>
-                <th className="text-right">Articles</th>
-                <th className="text-right">Total</th>
-                <th />
-              </tr>
-            </thead>
-            <tbody>
-              {liste.map((vente) => (
-                <tr key={vente.id} className="border-b">
-                  <td className="py-2">{vente.ticketNumber}</td>
-                  <td>{new Date(vente.createdAt).toLocaleString("fr-FR")}</td>
-                  <td>{vente.cashierName}</td>
-                  <td className="text-right">{vente.itemCount}</td>
-                  <td className="text-right tabular-nums">
-                    {formaterMontant(vente.total, vente.currency)}
-                  </td>
-                  <td className="text-right">
-                    <Link
-                      to="/ventes/$saleId"
-                      params={{ saleId: vente.id }}
-                      className="text-blue-600 hover:underline"
-                    >
-                      Détail
-                    </Link>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          {pages > 1 && (
-            <div className="mt-3 flex items-center justify-between text-sm">
-              <Button
-                variant="outline"
-                disabled={page <= 1}
-                onClick={() => setPage((p) => p - 1)}
-              >
-                Précédent
-              </Button>
-              <span className="text-gray-500">
-                Page {page} / {pages} — {total} ventes
-              </span>
-              <Button
-                variant="outline"
-                disabled={page >= pages}
-                onClick={() => setPage((p) => p + 1)}
-              >
-                Suivant
-              </Button>
-            </div>
-          )}
-        </>
-      )}
+      <div className="mt-4">
+        {aucuneBoutique ? (
+          <EtatVide
+            icon={Store}
+            titre="Aucune boutique lisible"
+            message="Ce compte n'est affecté à aucune boutique. Demandez une affectation à un administrateur."
+          />
+        ) : ventes.isError ? (
+          <ErreurChargement
+            message={
+              ventes.error instanceof Error
+                ? ventes.error.message
+                : "Impossible de charger les ventes."
+            }
+            onRetry={() => void ventes.refetch()}
+          />
+        ) : (
+          <>
+            <Table>
+              <TableHeader sticky>
+                <TableRow>
+                  <TableHead numeric>N°</TableHead>
+                  <TableHead>Date</TableHead>
+                  <TableHead>Caissier</TableHead>
+                  <TableHead numeric>Articles</TableHead>
+                  <TableHead numeric>Total</TableHead>
+                  <TableHead />
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {ventes.isPending ? (
+                  <TableSkeleton colonnes={6} />
+                ) : liste.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={6}>
+                      <EtatVide
+                        icon={Receipt}
+                        titre="Aucune vente"
+                        message="Aucune vente sur cette période. Élargissez la période ou changez de boutique."
+                      />
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  liste.map((vente) => (
+                    <TableRow key={vente.id}>
+                      <TableCell numeric>{vente.ticketNumber}</TableCell>
+                      <TableCell>
+                        {new Date(vente.createdAt).toLocaleString("fr-FR")}
+                      </TableCell>
+                      <TableCell>{vente.cashierName}</TableCell>
+                      <TableCell numeric>{vente.itemCount}</TableCell>
+                      <TableCell numeric>
+                        {formaterMontant(vente.total, vente.currency)}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Link
+                          to="/ventes/$saleId"
+                          params={{ saleId: vente.id }}
+                          className="text-primary hover:underline"
+                        >
+                          Détail
+                        </Link>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+            {liste.length > 0 && pages > 1 && (
+              <div className="mt-3 flex items-center justify-between text-sm">
+                <Button
+                  variant="outline"
+                  disabled={page <= 1}
+                  onClick={() => setPage((p) => p - 1)}
+                >
+                  Précédent
+                </Button>
+                <span className="text-muted-foreground">
+                  Page {page} / {pages} — {total} ventes
+                </span>
+                <Button
+                  variant="outline"
+                  disabled={page >= pages}
+                  onClick={() => setPage((p) => p + 1)}
+                >
+                  Suivant
+                </Button>
+              </div>
+            )}
+          </>
+        )}
+      </div>
     </div>
   )
 }

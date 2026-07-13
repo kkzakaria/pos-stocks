@@ -9,6 +9,7 @@ type Props = {
   onEncaisser: () => void
 }
 
+/** POS cart: line items (quantity, struck-through negotiated price, source badge, stock alert), total, and checkout button (F2). */
 export function Panier({ lignes, onChoisirLigne, onEncaisser }: Props) {
   const total = totalPanier(lignes)
   return (
@@ -26,7 +27,7 @@ export function Panier({ lignes, onChoisirLigne, onEncaisser }: Props) {
           <li key={`${ligne.variantId}|${ligne.sourceWarehouseId ?? ""}`}>
             <button
               onClick={() => onChoisirLigne(ligne)}
-              className={`flex w-full items-start justify-between gap-2 px-4 py-3 text-left hover:bg-muted ${
+              className={`flex w-full items-start justify-between gap-2 px-4 py-3 text-left outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring/30 focus-visible:ring-inset ${
                 ligne.enAlerte ? "bg-destructive/10" : ""
               }`}
             >

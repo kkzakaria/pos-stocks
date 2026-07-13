@@ -4,6 +4,7 @@ import * as React from "react"
 
 import { cn } from "@/lib/utils"
 
+/** DS table; wrapped in a container that scrolls horizontally on wide data. */
 function Table({ className, ...props }: React.ComponentProps<"table">) {
   return (
     <div
@@ -19,16 +20,27 @@ function Table({ className, ...props }: React.ComponentProps<"table">) {
   )
 }
 
-function TableHeader({ className, ...props }: React.ComponentProps<"thead">) {
+/** Table header (`<thead>`); `sticky` pins the header row at the top for long, dense tables. */
+function TableHeader({
+  className,
+  sticky = false,
+  ...props
+}: React.ComponentProps<"thead"> & { sticky?: boolean }) {
   return (
     <thead
       data-slot="table-header"
-      className={cn("[&_tr]:border-b", className)}
+      className={cn(
+        "[&_tr]:border-b",
+        // En-tête collant pour les longues tables denses (le conteneur scrolle).
+        sticky && "[&_th]:sticky [&_th]:top-0 [&_th]:z-10 [&_th]:bg-background",
+        className
+      )}
       {...props}
     />
   )
 }
 
+/** Table body (`<tbody>`); removes the last row's hairline. */
 function TableBody({ className, ...props }: React.ComponentProps<"tbody">) {
   return (
     <tbody
@@ -39,6 +51,7 @@ function TableBody({ className, ...props }: React.ComponentProps<"tbody">) {
   )
 }
 
+/** Table footer (`<tfoot>`) on a muted background; typically totals. */
 function TableFooter({ className, ...props }: React.ComponentProps<"tfoot">) {
   return (
     <tfoot
@@ -52,6 +65,7 @@ function TableFooter({ className, ...props }: React.ComponentProps<"tfoot">) {
   )
 }
 
+/** Table row (`<tr>`); hover highlight and selected/expanded state. */
 function TableRow({ className, ...props }: React.ComponentProps<"tr">) {
   return (
     <tr
@@ -65,12 +79,21 @@ function TableRow({ className, ...props }: React.ComponentProps<"tr">) {
   )
 }
 
-function TableHead({ className, ...props }: React.ComponentProps<"th">) {
+/** Table header cell (`<th>`); `numeric` right-aligns with `tabular-nums` (numbers are sacred). */
+function TableHead({
+  className,
+  numeric = false,
+  scope = "col",
+  ...props
+}: React.ComponentProps<"th"> & { numeric?: boolean }) {
   return (
     <th
       data-slot="table-head"
+      scope={scope}
       className={cn(
-        "h-10 px-2 text-left align-middle font-medium whitespace-nowrap text-foreground [&:has([role=checkbox])]:pr-0",
+        "h-8 px-2 text-left align-middle font-medium whitespace-nowrap text-foreground [&:has([role=checkbox])]:pr-0",
+        // Le chiffre est sacré : colonnes chiffrées alignées à droite, chasse fixe.
+        numeric && "text-right tabular-nums",
         className
       )}
       {...props}
@@ -78,12 +101,18 @@ function TableHead({ className, ...props }: React.ComponentProps<"th">) {
   )
 }
 
-function TableCell({ className, ...props }: React.ComponentProps<"td">) {
+/** Table body cell (`<td>`); `numeric` right-aligns with `tabular-nums` for amounts. */
+function TableCell({
+  className,
+  numeric = false,
+  ...props
+}: React.ComponentProps<"td"> & { numeric?: boolean }) {
   return (
     <td
       data-slot="table-cell"
       className={cn(
         "p-2 align-middle whitespace-nowrap [&:has([role=checkbox])]:pr-0",
+        numeric && "text-right tabular-nums",
         className
       )}
       {...props}
@@ -91,6 +120,7 @@ function TableCell({ className, ...props }: React.ComponentProps<"td">) {
   )
 }
 
+/** Table caption (`<caption>`) at the bottom, muted text. */
 function TableCaption({
   className,
   ...props

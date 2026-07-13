@@ -1,22 +1,40 @@
 import { useState } from "react"
 import { useQuery } from "@tanstack/react-query"
+import { Receipt } from "lucide-react"
 import { formaterMontant } from "@/lib/format"
 import {
   fetchRapportMarges,
   periodePreset,
   telechargerCsv,
 } from "@/lib/rapports"
-import { ErreurEtRetry, SelecteurPeriode } from "@/rapports/rapport-ventes"
+import {
+  ErreurEtRetry,
+  SelecteurPeriode,
+  TuilesSkeleton,
+} from "@/rapports/rapport-ventes"
+import { EtatVide } from "@/components/etat-vide"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
+import { TableSkeleton } from "@/components/ui/table-skeleton"
 
+/** "estimé" badge flagging a margin whose cost was approximated (weighted average cost unavailable for a lot). */
 function BadgeEstime() {
   return (
-    <span className="ml-2 rounded bg-amber-100 px-1.5 py-0.5 text-xs text-amber-800">
+    <Badge variant="warning" className="ml-2">
       estimé
-    </span>
+    </Badge>
   )
 }
 
+/** Per-product margins report over a period: revenue, cost, and margin (an "estimé" badge when approximated), summary tiles, and CSV export. */
 export function RapportMarges() {
   const [periode, setPeriode] = useState(() => periodePreset("semaine"))
   const [erreurExport, setErreurExport] = useState<string | null>(null)
@@ -52,12 +70,19 @@ export function RapportMarges() {
         </Button>
       </div>
       {erreurExport && (
-        <p role="alert" className="mt-2 text-sm text-red-600">
+        <p role="alert" className="mt-2 text-sm text-destructive">
           {erreurExport}
         </p>
       )}
       {rapport.isPending && periodeValide && (
-        <p className="mt-6 text-sm text-gray-500">Chargement…</p>
+        <>
+          <TuilesSkeleton nombre={3} />
+          <Table className="mt-4">
+            <TableBody>
+              <TableSkeleton colonnes={7} />
+            </TableBody>
+          </Table>
+        </>
       )}
       {rapport.isError && (
         <ErreurEtRetry
@@ -72,20 +97,20 @@ export function RapportMarges() {
       {rapport.isSuccess && (
         <>
           <div className="mt-4 grid grid-cols-3 gap-3">
-            <div className="rounded border bg-white p-3">
-              <p className="text-xs text-gray-500">CA</p>
+            <div className="rounded-md bg-card p-3 ring-1 ring-foreground/10">
+              <p className="text-xs text-muted-foreground">CA</p>
               <p className="mt-1 font-semibold tabular-nums">
                 {formaterMontant(rapport.data.total.ca)}
               </p>
             </div>
-            <div className="rounded border bg-white p-3">
-              <p className="text-xs text-gray-500">Coût</p>
+            <div className="rounded-md bg-card p-3 ring-1 ring-foreground/10">
+              <p className="text-xs text-muted-foreground">Coût</p>
               <p className="mt-1 font-semibold tabular-nums">
                 {formaterMontant(rapport.data.total.cout)}
               </p>
             </div>
-            <div className="rounded border bg-white p-3">
-              <p className="text-xs text-gray-500">
+            <div className="rounded-md bg-card p-3 ring-1 ring-foreground/10">
+              <p className="text-xs text-muted-foreground">
                 Marge
                 {rapport.data.total.estime && <BadgeEstime />}
               </p>
@@ -95,43 +120,48 @@ export function RapportMarges() {
             </div>
           </div>
           {rapport.data.lignes.length === 0 ? (
-            <p className="mt-6 text-sm text-gray-500">
-              Aucune vente sur cette période.
-            </p>
+            <EtatVide
+              className="mt-6"
+              icon={Receipt}
+              titre="Aucune vente sur cette période"
+              message="Ajustez la période ou vérifiez qu'un ticket a bien été encaissé."
+            />
           ) : (
-            <table className="mt-4 w-full text-sm">
-              <thead>
-                <tr className="border-b text-left text-gray-500">
-                  <th className="py-2">Produit</th>
-                  <th>Variante</th>
-                  <th>SKU</th>
-                  <th className="text-right">Quantité</th>
-                  <th className="text-right">CA</th>
-                  <th className="text-right">Coût</th>
-                  <th className="text-right">Marge</th>
-                </tr>
-              </thead>
-              <tbody>
+            <Table className="mt-4">
+              <TableHeader sticky>
+                <TableRow>
+                  <TableHead>Produit</TableHead>
+                  <TableHead>Variante</TableHead>
+                  <TableHead>SKU</TableHead>
+                  <TableHead numeric>Quantité</TableHead>
+                  <TableHead numeric>CA</TableHead>
+                  <TableHead numeric>Coût</TableHead>
+                  <TableHead numeric>Marge</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
                 {rapport.data.lignes.map((ligne) => (
-                  <tr key={ligne.variantId} className="border-b">
-                    <td className="py-2">{ligne.productName}</td>
-                    <td>{ligne.variantName}</td>
-                    <td className="text-gray-500">{ligne.sku}</td>
-                    <td className="text-right">{ligne.quantite}</td>
-                    <td className="text-right tabular-nums">
-                      {formaterMontant(ligne.ca)}
-                    </td>
-                    <td className="text-right tabular-nums">
-                      {formaterMontant(ligne.cout)}
-                    </td>
-                    <td className="text-right tabular-nums">
-                      {formaterMontant(ligne.marge)}
-                      {ligne.estime && <BadgeEstime />}
-                    </td>
-                  </tr>
+                  <TableRow key={ligne.variantId}>
+                    <TableCell className="font-medium">
+                      {ligne.productName}
+                    </TableCell>
+                    <TableCell>{ligne.variantName}</TableCell>
+                    <TableCell className="font-mono text-xs text-muted-foreground">
+                      {ligne.sku}
+                    </TableCell>
+                    <TableCell numeric>{ligne.quantite}</TableCell>
+                    <TableCell numeric>{formaterMontant(ligne.ca)}</TableCell>
+                    <TableCell numeric>{formaterMontant(ligne.cout)}</TableCell>
+                    <TableCell numeric>
+                      <span className="inline-flex items-center">
+                        {formaterMontant(ligne.marge)}
+                        {ligne.estime && <BadgeEstime />}
+                      </span>
+                    </TableCell>
+                  </TableRow>
                 ))}
-              </tbody>
-            </table>
+              </TableBody>
+            </Table>
           )}
         </>
       )}

@@ -4,10 +4,19 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { apiFetch } from "@/lib/api"
 import { useAccesStock } from "@/lib/permissions"
 import { useEntrepotsVisibles } from "@/lib/stock"
+import { ClipboardList } from "lucide-react"
 import { ErreurChargement } from "@/components/erreur-chargement"
+import { EtatVide } from "@/components/etat-vide"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import {
   Dialog,
   DialogContent,
@@ -23,6 +32,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { TableSkeleton } from "@/components/ui/table-skeleton"
 
 export const Route = createFileRoute("/_app/stock/inventaires/")({
   component: InventairesPage,
@@ -39,6 +49,17 @@ type InventaireListe = {
   countedCount: number
 }
 
+const STATUTS_INVENTAIRE_FR: Record<string, string> = {
+  "": "Tous",
+  open: "Ouverts",
+  closed: "Clos",
+}
+
+/**
+ * Inventory counts list: filter by status (open/closed), counting
+ * progress, and opening of a full warehouse count leading to its detail
+ * page.
+ */
 function InventairesPage() {
   const acces = useAccesStock()
   const { options: entrepots } = useEntrepotsVisibles()
@@ -102,34 +123,43 @@ function InventairesPage() {
                   ouvrir.mutate()
                 }}
               >
-                <p className="text-sm text-gray-500">
+                <p className="text-sm text-muted-foreground">
                   Les quantités attendues de TOUT l'entrepôt sont figées à
                   l'ouverture. Les ventes restent possibles pendant
                   l'inventaire.
                 </p>
                 <div className="flex flex-col gap-1.5">
                   <Label htmlFor="i-entrepot">Entrepôt</Label>
-                  <select
-                    id="i-entrepot"
-                    required
+                  <Select
                     value={entrepotId}
-                    onChange={(e) => setEntrepotId(e.target.value)}
-                    className="h-10 rounded-md border px-2 text-sm"
+                    onValueChange={(valeur) => setEntrepotId(valeur as string)}
+                    required
                   >
-                    <option value="">— choisir —</option>
-                    {entrepotsEcriture.map((w) => (
-                      <option key={w.id} value={w.id}>
-                        {w.name}
-                      </option>
-                    ))}
-                  </select>
+                    <SelectTrigger id="i-entrepot" className="w-full">
+                      <SelectValue placeholder="— choisir —">
+                        {(valeur: string) =>
+                          entrepotsEcriture.find((w) => w.id === valeur)?.name
+                        }
+                      </SelectValue>
+                    </SelectTrigger>
+                    <SelectContent>
+                      {entrepotsEcriture.map((w) => (
+                        <SelectItem key={w.id} value={w.id}>
+                          {w.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
                 {erreur && (
-                  <p role="alert" className="text-sm text-red-700">
+                  <p role="alert" className="text-sm text-destructive">
                     {erreur}
                   </p>
                 )}
-                <Button type="submit" disabled={ouvrir.isPending}>
+                <Button
+                  type="submit"
+                  disabled={ouvrir.isPending || !entrepotId}
+                >
                   {ouvrir.isPending ? "Ouverture…" : "Ouvrir l'inventaire"}
                 </Button>
               </form>
@@ -140,28 +170,31 @@ function InventairesPage() {
 
       <div className="mb-4 flex flex-col gap-1.5">
         <Label htmlFor="i-statut">Statut</Label>
-        <select
-          id="i-statut"
+        <Select
           value={statut}
-          onChange={(e) => setStatut(e.target.value)}
-          className="h-10 w-48 rounded-md border px-2 text-sm"
+          onValueChange={(valeur) => setStatut(valeur as string)}
         >
-          <option value="">Tous</option>
-          <option value="open">Ouverts</option>
-          <option value="closed">Clos</option>
-        </select>
+          <SelectTrigger id="i-statut" className="w-48">
+            <SelectValue>
+              {(valeur: string) => STATUTS_INVENTAIRE_FR[valeur]}
+            </SelectValue>
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="">Tous</SelectItem>
+            <SelectItem value="open">Ouverts</SelectItem>
+            <SelectItem value="closed">Clos</SelectItem>
+          </SelectContent>
+        </Select>
       </div>
 
-      {inventaires.isPending ? (
-        <p className="text-sm text-gray-500">Chargement…</p>
-      ) : inventaires.isError ? (
+      {inventaires.isError ? (
         <ErreurChargement
           message="Impossible de charger les inventaires."
           onRetry={() => void inventaires.refetch()}
         />
       ) : (
         <Table>
-          <TableHeader>
+          <TableHeader sticky>
             <TableRow>
               <TableHead>Ouvert le</TableHead>
               <TableHead>Entrepôt</TableHead>
@@ -171,48 +204,60 @@ function InventairesPage() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {inventaires.data.counts.map((i) => (
-              <TableRow
-                key={i.id}
-                className="cursor-pointer"
-                onClick={() =>
-                  void navigate({
-                    to: "/stock/inventaires/$countId",
-                    params: { countId: i.id },
-                  })
-                }
-              >
-                <TableCell className="text-sm whitespace-nowrap">
-                  {new Date(i.openedAt).toLocaleString("fr-FR")}
-                </TableCell>
-                <TableCell className="font-medium">{i.warehouseName}</TableCell>
-                <TableCell>
-                  {i.countedCount} / {i.itemCount} compté
-                  {i.countedCount > 1 ? "s" : ""}
-                </TableCell>
-                <TableCell className="text-sm whitespace-nowrap">
-                  {i.closedAt
-                    ? new Date(i.closedAt).toLocaleString("fr-FR")
-                    : "—"}
-                </TableCell>
-                <TableCell>
-                  <Badge
-                    variant={i.status === "open" ? "secondary" : "default"}
-                  >
-                    {i.status === "open" ? "Ouvert" : "Clos"}
-                  </Badge>
-                </TableCell>
-              </TableRow>
-            ))}
-            {inventaires.data.counts.length === 0 && (
+            {inventaires.isPending ? (
+              <TableSkeleton colonnes={5} />
+            ) : inventaires.data.counts.length === 0 ? (
               <TableRow>
-                <TableCell
-                  colSpan={5}
-                  className="text-center text-sm text-gray-500"
-                >
-                  Aucun inventaire.
+                <TableCell colSpan={5}>
+                  <EtatVide
+                    icon={ClipboardList}
+                    titre="Aucun inventaire"
+                    message={
+                      peutOuvrir
+                        ? "Ouvrez un inventaire pour recompter et réconcilier le stock d'un entrepôt."
+                        : "Aucun inventaire ne correspond à ce filtre."
+                    }
+                  />
                 </TableCell>
               </TableRow>
+            ) : (
+              inventaires.data.counts.map((i) => (
+                <TableRow
+                  key={i.id}
+                  className="cursor-pointer"
+                  onClick={() =>
+                    void navigate({
+                      to: "/stock/inventaires/$countId",
+                      params: { countId: i.id },
+                    })
+                  }
+                >
+                  <TableCell className="whitespace-nowrap">
+                    {new Date(i.openedAt).toLocaleString("fr-FR")}
+                  </TableCell>
+                  <TableCell className="font-medium">
+                    {i.warehouseName}
+                  </TableCell>
+                  <TableCell>
+                    <span className="tabular-nums">
+                      {i.countedCount} / {i.itemCount}
+                    </span>{" "}
+                    compté{i.countedCount > 1 ? "s" : ""}
+                  </TableCell>
+                  <TableCell className="whitespace-nowrap">
+                    {i.closedAt
+                      ? new Date(i.closedAt).toLocaleString("fr-FR")
+                      : "—"}
+                  </TableCell>
+                  <TableCell>
+                    <Badge
+                      variant={i.status === "open" ? "warning" : "success"}
+                    >
+                      {i.status === "open" ? "Ouvert" : "Clos"}
+                    </Badge>
+                  </TableCell>
+                </TableRow>
+              ))
             )}
           </TableBody>
         </Table>

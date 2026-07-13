@@ -1,5 +1,6 @@
 import { useState } from "react"
 import { useQuery } from "@tanstack/react-query"
+import { Receipt } from "lucide-react"
 import { formaterMontant } from "@/lib/format"
 import {
   fetchRapportVentesBoutiques,
@@ -8,8 +9,20 @@ import {
   telechargerCsv,
 } from "@/lib/rapports"
 import type { TotalVentes } from "@/lib/rapports"
+import { EtatVide } from "@/components/etat-vide"
+import { BarreProportion } from "@/components/ui/barre-proportion"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Skeleton } from "@/components/ui/skeleton"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
+import { TableSkeleton } from "@/components/ui/table-skeleton"
 
 const PRESETS = [
   { id: "jour", libelle: "Aujourd'hui" },
@@ -17,6 +30,7 @@ const PRESETS = [
   { id: "mois", libelle: "Ce mois" },
 ] as const
 
+/** Period selector shared across reports: "Du"/"Au" date bounds and preset buttons (day, 7 days, month). */
 export function SelecteurPeriode({
   periode,
   onChange,
@@ -57,6 +71,7 @@ export function SelecteurPeriode({
   )
 }
 
+/** Row of sales summary tiles: revenue, tickets, average basket, cash, and mobile money. */
 export function TuilesTotaux({ total }: { total: TotalVentes }) {
   const tuiles = [
     { libelle: "Chiffre d'affaires", valeur: formaterMontant(total.ca) },
@@ -68,8 +83,11 @@ export function TuilesTotaux({ total }: { total: TotalVentes }) {
   return (
     <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-5">
       {tuiles.map((tuile) => (
-        <div key={tuile.libelle} className="rounded border bg-white p-3">
-          <p className="text-xs text-gray-500">{tuile.libelle}</p>
+        <div
+          key={tuile.libelle}
+          className="rounded-md bg-card p-3 ring-1 ring-foreground/10"
+        >
+          <p className="text-xs text-muted-foreground">{tuile.libelle}</p>
           <p className="mt-1 font-semibold tabular-nums">{tuile.valeur}</p>
         </div>
       ))}
@@ -77,6 +95,18 @@ export function TuilesTotaux({ total }: { total: TotalVentes }) {
   )
 }
 
+/** Loading tiles, matching the density of the totals tiles. */
+export function TuilesSkeleton({ nombre = 5 }: { nombre?: number }) {
+  return (
+    <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-5">
+      {Array.from({ length: nombre }).map((_tuile, i) => (
+        <Skeleton key={i} className="h-14" />
+      ))}
+    </div>
+  )
+}
+
+/** Reusable report error box: alert message + "Réessayer" button. */
 export function ErreurEtRetry({
   message,
   onRetry,
@@ -86,7 +116,7 @@ export function ErreurEtRetry({
 }) {
   return (
     <div className="mt-6">
-      <p role="alert" className="mb-2 text-sm text-red-600">
+      <p role="alert" className="mb-2 text-sm text-destructive">
         {message}
       </p>
       <Button variant="outline" onClick={onRetry}>
@@ -96,6 +126,7 @@ export function ErreurEtRetry({
   )
 }
 
+/** Sales report: grouping by store or by product over a period, totals tiles, table, and CSV export. */
 export function RapportVentes() {
   const [periode, setPeriode] = useState(() => periodePreset("semaine"))
   const [groupe, setGroupe] = useState<"boutique" | "produit">("boutique")
@@ -153,13 +184,20 @@ export function RapportVentes() {
         </div>
       </div>
       {erreurExport && (
-        <p role="alert" className="mt-2 text-sm text-red-600">
+        <p role="alert" className="mt-2 text-sm text-destructive">
           {erreurExport}
         </p>
       )}
 
       {active.isPending && periodeValide && (
-        <p className="mt-6 text-sm text-gray-500">Chargement…</p>
+        <>
+          <TuilesSkeleton />
+          <Table className="mt-4">
+            <TableBody>
+              <TableSkeleton colonnes={groupe === "boutique" ? 6 : 7} />
+            </TableBody>
+          </Table>
+        </>
       )}
       {active.isError && (
         <ErreurEtRetry
@@ -176,42 +214,52 @@ export function RapportVentes() {
         <>
           <TuilesTotaux total={boutiquesQ.data.total} />
           {boutiquesQ.data.lignes.length === 0 ? (
-            <p className="mt-6 text-sm text-gray-500">
-              Aucune vente sur cette période.
-            </p>
+            <EtatVide
+              className="mt-6"
+              icon={Receipt}
+              titre="Aucune vente sur cette période"
+              message="Ajustez la période ou vérifiez qu'un ticket a bien été encaissé."
+            />
           ) : (
-            <table className="mt-4 w-full text-sm">
-              <thead>
-                <tr className="border-b text-left text-gray-500">
-                  <th className="py-2">Boutique</th>
-                  <th className="text-right">CA</th>
-                  <th className="text-right">Tickets</th>
-                  <th className="text-right">Panier moyen</th>
-                  <th className="text-right">Espèces</th>
-                  <th className="text-right">Mobile money</th>
-                </tr>
-              </thead>
-              <tbody>
+            <Table className="mt-4">
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Boutique</TableHead>
+                  <TableHead numeric>CA</TableHead>
+                  <TableHead numeric>Tickets</TableHead>
+                  <TableHead numeric>Panier moyen</TableHead>
+                  <TableHead numeric>Espèces</TableHead>
+                  <TableHead numeric>Mobile money</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
                 {boutiquesQ.data.lignes.map((ligne) => (
-                  <tr key={ligne.storeId} className="border-b">
-                    <td className="py-2">{ligne.storeName}</td>
-                    <td className="text-right tabular-nums">
-                      {formaterMontant(ligne.ca)}
-                    </td>
-                    <td className="text-right">{ligne.tickets}</td>
-                    <td className="text-right tabular-nums">
+                  <TableRow key={ligne.storeId}>
+                    <TableCell className="font-medium">
+                      {ligne.storeName}
+                    </TableCell>
+                    <TableCell numeric>
+                      <span className="flex flex-col items-end gap-1">
+                        <span>{formaterMontant(ligne.ca)}</span>
+                        <BarreProportion
+                          className="max-w-24"
+                          valeur={ligne.ca}
+                          total={boutiquesQ.data.total.ca}
+                        />
+                      </span>
+                    </TableCell>
+                    <TableCell numeric>{ligne.tickets}</TableCell>
+                    <TableCell numeric>
                       {formaterMontant(ligne.panierMoyen)}
-                    </td>
-                    <td className="text-right tabular-nums">
-                      {formaterMontant(ligne.cash)}
-                    </td>
-                    <td className="text-right tabular-nums">
+                    </TableCell>
+                    <TableCell numeric>{formaterMontant(ligne.cash)}</TableCell>
+                    <TableCell numeric>
                       {formaterMontant(ligne.mobileMoney)}
-                    </td>
-                  </tr>
+                    </TableCell>
+                  </TableRow>
                 ))}
-              </tbody>
-            </table>
+              </TableBody>
+            </Table>
           )}
         </>
       )}
@@ -220,40 +268,45 @@ export function RapportVentes() {
         <>
           <TuilesTotaux total={produitsQ.data.total} />
           {produitsQ.data.lignes.length === 0 ? (
-            <p className="mt-6 text-sm text-gray-500">
-              Aucune vente sur cette période.
-            </p>
+            <EtatVide
+              className="mt-6"
+              icon={Receipt}
+              titre="Aucune vente sur cette période"
+              message="Ajustez la période ou vérifiez qu'un ticket a bien été encaissé."
+            />
           ) : (
-            <table className="mt-4 w-full text-sm">
-              <thead>
-                <tr className="border-b text-left text-gray-500">
-                  <th className="py-2">Produit</th>
-                  <th>Variante</th>
-                  <th>SKU</th>
-                  <th className="text-right">Quantité</th>
-                  <th className="text-right">CA</th>
-                  <th className="text-right">Remises</th>
-                  <th className="text-right">Tickets</th>
-                </tr>
-              </thead>
-              <tbody>
+            <Table className="mt-4">
+              <TableHeader sticky>
+                <TableRow>
+                  <TableHead>Produit</TableHead>
+                  <TableHead>Variante</TableHead>
+                  <TableHead>SKU</TableHead>
+                  <TableHead numeric>Quantité</TableHead>
+                  <TableHead numeric>CA</TableHead>
+                  <TableHead numeric>Remises</TableHead>
+                  <TableHead numeric>Tickets</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
                 {produitsQ.data.lignes.map((ligne) => (
-                  <tr key={ligne.variantId} className="border-b">
-                    <td className="py-2">{ligne.productName}</td>
-                    <td>{ligne.variantName}</td>
-                    <td className="text-gray-500">{ligne.sku}</td>
-                    <td className="text-right">{ligne.quantite}</td>
-                    <td className="text-right tabular-nums">
-                      {formaterMontant(ligne.ca)}
-                    </td>
-                    <td className="text-right tabular-nums">
+                  <TableRow key={ligne.variantId}>
+                    <TableCell className="font-medium">
+                      {ligne.productName}
+                    </TableCell>
+                    <TableCell>{ligne.variantName}</TableCell>
+                    <TableCell className="font-mono text-xs text-muted-foreground">
+                      {ligne.sku}
+                    </TableCell>
+                    <TableCell numeric>{ligne.quantite}</TableCell>
+                    <TableCell numeric>{formaterMontant(ligne.ca)}</TableCell>
+                    <TableCell numeric>
                       {formaterMontant(ligne.remise)}
-                    </td>
-                    <td className="text-right">{ligne.tickets}</td>
-                  </tr>
+                    </TableCell>
+                    <TableCell numeric>{ligne.tickets}</TableCell>
+                  </TableRow>
                 ))}
-              </tbody>
-            </table>
+              </TableBody>
+            </Table>
           )}
         </>
       )}

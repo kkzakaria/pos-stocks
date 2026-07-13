@@ -1,4 +1,5 @@
 import { useState } from "react"
+import type { KeyboardEvent } from "react"
 import { formaterMontant } from "@/lib/format"
 import { monnaieARendre, resteAPayer } from "@/lib/pos"
 import { usePiegeFocus } from "@/lib/use-piege-focus"
@@ -21,6 +22,7 @@ const BILLETS = [500, 1000, 2000, 5000, 10000] as const
 // money CUMULABLES (mixte), billets rapides qui s'ADDITIONNENT, monnaie à
 // rendre en énorme dès que reçu ≥ dû. Composant PUR : la vente part par
 // onValider(paiements) — l'idempotence et l'API vivent dans l'écran (T15).
+/** Payment modal: cash (stackable bills) and mobile money can be mixed, change due shown as soon as the amount received covers what's owed, Enter confirms when ready. */
 export function ModalePaiement({
   total,
   enCours,
@@ -68,6 +70,21 @@ export function ModalePaiement({
     onValider(paiements)
   }
 
+  // Entrée encaisse : quand le paiement est prêt, Entrée valide la vente —
+  // sauf si le focus est sur un bouton (billet, mobile money…), qui gère son
+  // propre Entrée. Le piège de focus (Échap/Tab) tourne d'abord.
+  function gererClavierPaiement(e: KeyboardEvent<HTMLElement>) {
+    gererClavier(e)
+    if (
+      e.key === "Enter" &&
+      pretAValider &&
+      !(e.target instanceof HTMLButtonElement)
+    ) {
+      e.preventDefault()
+      valider()
+    }
+  }
+
   return (
     <div className="fixed inset-0 z-30 grid place-items-center bg-black/50 p-4">
       <div
@@ -76,7 +93,7 @@ export function ModalePaiement({
         aria-modal="true"
         aria-labelledby="modale-paiement-titre"
         tabIndex={-1}
-        onKeyDown={gererClavier}
+        onKeyDown={gererClavierPaiement}
         className="w-full max-w-lg rounded-lg bg-card p-5 outline-none"
       >
         <div className="mb-4 flex items-start justify-between">
@@ -95,7 +112,7 @@ export function ModalePaiement({
             onClick={onFermer}
             aria-label="Fermer"
             // border-box : 44×44 au doigt (padding absorbé), compact à la souris.
-            className="inline-flex items-center justify-center rounded p-2 text-2xl leading-none pointer-coarse:size-11"
+            className="inline-flex items-center justify-center rounded p-2 text-2xl leading-none outline-none focus-visible:ring-2 focus-visible:ring-ring/30 pointer-coarse:size-11"
           >
             ×
           </button>

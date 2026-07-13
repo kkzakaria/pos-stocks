@@ -4,10 +4,19 @@ import { useQuery } from "@tanstack/react-query"
 import { apiFetch } from "@/lib/api"
 import { useEntrepotsVisibles, LIBELLES_TYPE_MOUVEMENT } from "@/lib/stock"
 import type { MouvementJournal } from "@/lib/stock"
+import { History } from "lucide-react"
 import { ErreurChargement } from "@/components/erreur-chargement"
+import { EtatVide } from "@/components/etat-vide"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import {
   Table,
   TableBody,
@@ -16,6 +25,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { TableSkeleton } from "@/components/ui/table-skeleton"
 
 export const Route = createFileRoute("/_app/stock/mouvements")({
   component: MouvementsPage,
@@ -23,6 +33,10 @@ export const Route = createFileRoute("/_app/stock/mouvements")({
 
 const LIMITE = 50
 
+/**
+ * Stock movements journal: paginated list filterable by warehouse,
+ * movement type, period, and item, to trace every entry/exit.
+ */
 function MouvementsPage() {
   const { options: entrepots } = useEntrepotsVisibles()
 
@@ -78,37 +92,53 @@ function MouvementsPage() {
       <div className="mb-4 flex flex-wrap items-end gap-3">
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="m-entrepot">Entrepôt</Label>
-          <select
-            id="m-entrepot"
+          <Select
             value={entrepotId}
-            onChange={(e) => setEntrepotId(e.target.value)}
-            className="h-10 rounded-md border px-2 text-sm"
+            onValueChange={(valeur) => setEntrepotId(valeur as string)}
           >
-            <option value="">Tous</option>
-            {entrepots.map((w) => (
-              <option key={w.id} value={w.id}>
-                {w.name}
-              </option>
-            ))}
-          </select>
+            <SelectTrigger id="m-entrepot" className="w-56">
+              <SelectValue placeholder="Tous">
+                {(valeur: string) =>
+                  valeur === ""
+                    ? "Tous"
+                    : entrepots.find((w) => w.id === valeur)?.name
+                }
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="">Tous</SelectItem>
+              {entrepots.map((w) => (
+                <SelectItem key={w.id} value={w.id}>
+                  {w.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="m-type">Type</Label>
-          <select
-            id="m-type"
+          <Select
             value={type}
-            onChange={(e) => setType(e.target.value)}
-            className="h-10 rounded-md border px-2 text-sm"
+            onValueChange={(valeur) => setType(valeur as string)}
           >
-            <option value="">Tous</option>
-            {Object.entries(LIBELLES_TYPE_MOUVEMENT).map(
-              ([valeur, libelle]) => (
-                <option key={valeur} value={valeur}>
-                  {libelle}
-                </option>
-              )
-            )}
-          </select>
+            <SelectTrigger id="m-type" className="w-56">
+              <SelectValue placeholder="Tous">
+                {(valeur: string) =>
+                  valeur === "" ? "Tous" : LIBELLES_TYPE_MOUVEMENT[valeur]
+                }
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="">Tous</SelectItem>
+              {Object.entries(LIBELLES_TYPE_MOUVEMENT).map(
+                ([valeur, libelle]) => (
+                  <SelectItem key={valeur} value={valeur}>
+                    {libelle}
+                  </SelectItem>
+                )
+              )}
+            </SelectContent>
+          </Select>
         </div>
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="m-recherche">Produit (nom ou SKU)</Label>
@@ -139,9 +169,7 @@ function MouvementsPage() {
         </div>
       </div>
 
-      {mouvements.isPending ? (
-        <p className="text-sm text-gray-500">Chargement…</p>
-      ) : mouvements.isError ? (
+      {mouvements.isError ? (
         <ErreurChargement
           message="Impossible de charger le journal des mouvements."
           onRetry={() => void mouvements.refetch()}
@@ -149,84 +177,91 @@ function MouvementsPage() {
       ) : (
         <>
           <Table>
-            <TableHeader>
+            <TableHeader sticky>
               <TableRow>
                 <TableHead>Date</TableHead>
                 <TableHead>Entrepôt</TableHead>
                 <TableHead>Article</TableHead>
                 <TableHead>Type</TableHead>
-                <TableHead>Delta</TableHead>
+                <TableHead numeric>Delta</TableHead>
                 <TableHead>Lot</TableHead>
                 <TableHead>Motif</TableHead>
                 <TableHead>Par</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {mouvements.data.movements.map((m) => (
-                <TableRow key={m.id}>
-                  <TableCell className="text-sm whitespace-nowrap">
-                    {new Date(m.createdAt).toLocaleString("fr-FR")}
-                  </TableCell>
-                  <TableCell>{m.warehouseName}</TableCell>
-                  <TableCell>
-                    <span className="font-medium">{m.productName}</span>{" "}
-                    <span className="text-sm text-gray-500">
-                      {m.variantName} ({m.sku})
-                    </span>
-                  </TableCell>
-                  <TableCell>
-                    {LIBELLES_TYPE_MOUVEMENT[m.type] ?? m.type}
-                  </TableCell>
-                  <TableCell
-                    className={
-                      m.delta > 0
-                        ? "font-medium text-green-700"
-                        : "font-medium text-red-700"
-                    }
-                  >
-                    {m.delta > 0 ? `+${m.delta}` : m.delta}
-                  </TableCell>
-                  <TableCell className="font-mono text-xs">
-                    {m.lotNumber ?? "—"}
-                  </TableCell>
-                  <TableCell className="text-sm">{m.reason ?? "—"}</TableCell>
-                  <TableCell className="text-sm">{m.userName}</TableCell>
-                </TableRow>
-              ))}
-              {mouvements.data.movements.length === 0 && (
+              {mouvements.isPending ? (
+                <TableSkeleton colonnes={8} />
+              ) : mouvements.data.movements.length === 0 ? (
                 <TableRow>
-                  <TableCell
-                    colSpan={8}
-                    className="text-center text-sm text-gray-500"
-                  >
-                    Aucun mouvement.
+                  <TableCell colSpan={8}>
+                    <EtatVide
+                      icon={History}
+                      titre="Aucun mouvement"
+                      message="Aucun mouvement ne correspond à ces filtres. Élargissez la période ou réinitialisez les critères."
+                    />
                   </TableCell>
                 </TableRow>
+              ) : (
+                mouvements.data.movements.map((m) => (
+                  <TableRow key={m.id}>
+                    <TableCell className="text-sm whitespace-nowrap">
+                      {new Date(m.createdAt).toLocaleString("fr-FR")}
+                    </TableCell>
+                    <TableCell>{m.warehouseName}</TableCell>
+                    <TableCell>
+                      <span className="font-medium">{m.productName}</span>{" "}
+                      <span className="text-sm text-muted-foreground">
+                        {m.variantName} ({m.sku})
+                      </span>
+                    </TableCell>
+                    <TableCell>
+                      {LIBELLES_TYPE_MOUVEMENT[m.type] ?? m.type}
+                    </TableCell>
+                    <TableCell
+                      numeric
+                      className={
+                        m.delta > 0
+                          ? "font-medium text-success"
+                          : "font-medium text-destructive"
+                      }
+                    >
+                      {m.delta > 0 ? `+${m.delta}` : m.delta}
+                    </TableCell>
+                    <TableCell className="font-mono text-xs">
+                      {m.lotNumber ?? "—"}
+                    </TableCell>
+                    <TableCell className="text-sm">{m.reason ?? "—"}</TableCell>
+                    <TableCell className="text-sm">{m.userName}</TableCell>
+                  </TableRow>
+                ))
               )}
             </TableBody>
           </Table>
-          <div className="mt-4 flex items-center gap-3">
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={page <= 1}
-              onClick={() => setPage((p) => p - 1)}
-            >
-              Précédent
-            </Button>
-            <span className="text-sm text-gray-500">
-              Page {page} / {dernierePage} — {total} mouvement
-              {total > 1 ? "s" : ""}
-            </span>
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={page >= dernierePage}
-              onClick={() => setPage((p) => p + 1)}
-            >
-              Suivant
-            </Button>
-          </div>
+          {!mouvements.isPending && (
+            <div className="mt-4 flex items-center gap-3">
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={page <= 1}
+                onClick={() => setPage((p) => p - 1)}
+              >
+                Précédent
+              </Button>
+              <span className="text-sm text-muted-foreground">
+                Page {page} / {dernierePage} — {total} mouvement
+                {total > 1 ? "s" : ""}
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={page >= dernierePage}
+                onClick={() => setPage((p) => p + 1)}
+              >
+                Suivant
+              </Button>
+            </div>
+          )}
         </>
       )}
     </div>

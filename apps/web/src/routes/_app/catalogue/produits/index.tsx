@@ -1,13 +1,24 @@
 import { useEffect, useState } from "react"
-import { createFileRoute, useNavigate } from "@tanstack/react-router"
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { apiFetch, apiUrl } from "@/lib/api"
 import { formaterMontant } from "@/lib/format"
 import { usePeutEcrire } from "@/lib/permissions"
+import { PackageSearch } from "lucide-react"
+import { EtatVide } from "@/components/etat-vide"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
+import { Checkbox } from "@/components/ui/checkbox"
+import { Textarea } from "@/components/ui/textarea"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import {
   Dialog,
   DialogContent,
@@ -23,6 +34,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { TableSkeleton } from "@/components/ui/table-skeleton"
 
 export const Route = createFileRoute("/_app/catalogue/produits/")({
   component: ProduitsPage,
@@ -42,6 +54,10 @@ type Produit = {
 type Categorie = { id: string; name: string }
 type Reglages = { currency: string }
 
+/**
+ * Catalog products list: search (name, SKU, barcode), filter by
+ * category, and creation of a product leading to its detail page.
+ */
 function ProduitsPage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
@@ -117,6 +133,8 @@ function ProduitsPage() {
     onError: (err) => setErreur(err instanceof Error ? err.message : "Erreur"),
   })
 
+  const listeCategories = categories.data?.categories ?? []
+
   return (
     <div>
       <div className="mb-6 flex items-center justify-between">
@@ -184,26 +202,37 @@ function ProduitsPage() {
                     value={seuilAlerte}
                     onChange={(e) => setSeuilAlerte(e.target.value)}
                   />
-                  <p className="text-xs text-gray-500">
+                  <p className="text-xs text-muted-foreground">
                     Alerte quand le stock d'un entrepôt passe sous ce seuil —
                     surchargeable par entrepôt.
                   </p>
                 </div>
                 <div className="flex flex-col gap-1.5">
                   <Label htmlFor="p-categorie">Catégorie</Label>
-                  <select
-                    id="p-categorie"
+                  <Select
                     value={categorieProduit}
-                    onChange={(e) => setCategorieProduit(e.target.value)}
-                    className="h-10 rounded-md border px-2 text-sm"
+                    onValueChange={(valeur) =>
+                      setCategorieProduit(valeur as string)
+                    }
                   >
-                    <option value="">— aucune —</option>
-                    {(categories.data?.categories ?? []).map((cat) => (
-                      <option key={cat.id} value={cat.id}>
-                        {cat.name}
-                      </option>
-                    ))}
-                  </select>
+                    <SelectTrigger id="p-categorie" className="w-full">
+                      <SelectValue placeholder="— aucune —">
+                        {(valeur: string) =>
+                          valeur === ""
+                            ? "— aucune —"
+                            : listeCategories.find((c) => c.id === valeur)?.name
+                        }
+                      </SelectValue>
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="">— aucune —</SelectItem>
+                      {listeCategories.map((cat) => (
+                        <SelectItem key={cat.id} value={cat.id}>
+                          {cat.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div className="flex flex-col gap-1.5">
                   <Label htmlFor="p-barcode">Code-barres (optionnel)</Label>
@@ -215,24 +244,25 @@ function ProduitsPage() {
                 </div>
                 <div className="flex flex-col gap-1.5">
                   <Label htmlFor="p-description">Description (optionnel)</Label>
-                  <textarea
+                  <Textarea
                     id="p-description"
                     rows={2}
                     value={description}
                     onChange={(e) => setDescription(e.target.value)}
-                    className="rounded-md border px-3 py-2 text-sm"
                   />
                 </div>
-                <label className="flex items-center gap-2 text-sm">
-                  <input
-                    type="checkbox"
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    id="p-suivi-lots"
                     checked={suiviLots}
-                    onChange={(e) => setSuiviLots(e.target.checked)}
+                    onCheckedChange={(valeur) => setSuiviLots(valeur === true)}
                   />
-                  Suivre les lots (péremption)
-                </label>
+                  <Label htmlFor="p-suivi-lots">
+                    Suivre les lots (péremption)
+                  </Label>
+                </div>
                 {erreur && (
-                  <p role="alert" className="text-sm text-red-700">
+                  <p role="alert" className="text-sm text-destructive">
                     {erreur}
                   </p>
                 )}
@@ -257,38 +287,68 @@ function ProduitsPage() {
         </div>
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="p-filtre-categorie">Catégorie</Label>
-          <select
-            id="p-filtre-categorie"
+          <Select
             value={categorie}
-            onChange={(e) => setCategorie(e.target.value)}
-            className="h-10 rounded-md border px-2 text-sm"
+            onValueChange={(valeur) => setCategorie(valeur as string)}
           >
-            <option value="">Toutes</option>
-            {(categories.data?.categories ?? []).map((cat) => (
-              <option key={cat.id} value={cat.id}>
-                {cat.name}
-              </option>
-            ))}
-          </select>
+            <SelectTrigger id="p-filtre-categorie" className="w-56">
+              <SelectValue placeholder="Toutes">
+                {(valeur: string) =>
+                  valeur === ""
+                    ? "Toutes"
+                    : listeCategories.find((c) => c.id === valeur)?.name
+                }
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="">Toutes</SelectItem>
+              {listeCategories.map((cat) => (
+                <SelectItem key={cat.id} value={cat.id}>
+                  {cat.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
       </div>
 
-      {produits.isPending ? (
-        <p className="text-sm text-gray-500">Chargement…</p>
-      ) : (
-        <Table>
-          <TableHeader>
+      <Table>
+        <TableHeader sticky>
+          <TableRow>
+            <TableHead />
+            <TableHead>Nom</TableHead>
+            <TableHead>SKU</TableHead>
+            <TableHead numeric>Prix</TableHead>
+            <TableHead numeric>Variantes</TableHead>
+            <TableHead>Statut</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {produits.isPending ? (
+            <TableSkeleton colonnes={6} />
+          ) : (produits.data?.products ?? []).length === 0 ? (
             <TableRow>
-              <TableHead />
-              <TableHead>Nom</TableHead>
-              <TableHead>SKU</TableHead>
-              <TableHead>Prix</TableHead>
-              <TableHead>Variantes</TableHead>
-              <TableHead>Statut</TableHead>
+              <TableCell colSpan={6}>
+                <EtatVide
+                  icon={PackageSearch}
+                  titre="Aucun produit trouvé"
+                  message={
+                    recherche || categorie
+                      ? "Aucun produit ne correspond à ces critères. Ajustez la recherche ou le filtre."
+                      : "Créez votre premier produit pour démarrer le catalogue."
+                  }
+                  action={
+                    peutEcrire && !recherche && !categorie ? (
+                      <Button onClick={() => setDialogOuvert(true)}>
+                        Nouveau produit
+                      </Button>
+                    ) : undefined
+                  }
+                />
+              </TableCell>
             </TableRow>
-          </TableHeader>
-          <TableBody>
-            {(produits.data?.products ?? []).map((p) => (
+          ) : (
+            (produits.data?.products ?? []).map((p) => (
               <TableRow
                 key={p.id}
                 className="cursor-pointer"
@@ -308,37 +368,38 @@ function ProduitsPage() {
                       className="h-10 w-10 rounded object-cover"
                     />
                   ) : (
-                    <div className="h-10 w-10 rounded bg-gray-100" />
+                    <div className="h-10 w-10 rounded bg-muted" />
                   )}
                 </TableCell>
-                <TableCell className="font-medium">{p.name}</TableCell>
+                <TableCell className="font-medium">
+                  <Link
+                    to="/catalogue/produits/$productId"
+                    params={{ productId: p.id }}
+                    onClick={(e) => e.stopPropagation()}
+                    className="rounded-sm outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring/30"
+                  >
+                    {p.name}
+                  </Link>
+                </TableCell>
                 <TableCell className="font-mono text-xs">{p.sku}</TableCell>
-                <TableCell>{formaterMontant(p.price, devise)}</TableCell>
-                <TableCell>
+                <TableCell numeric>
+                  {formaterMontant(p.price, devise)}
+                </TableCell>
+                <TableCell numeric>
                   <Badge variant="secondary">
                     {p.variants.filter((v) => v.isActive).length}
                   </Badge>
                 </TableCell>
                 <TableCell>
-                  <Badge variant={p.isActive ? "default" : "secondary"}>
+                  <Badge variant={p.isActive ? "success" : "secondary"}>
                     {p.isActive ? "Actif" : "Inactif"}
                   </Badge>
                 </TableCell>
               </TableRow>
-            ))}
-            {produits.data?.products.length === 0 && (
-              <TableRow>
-                <TableCell
-                  colSpan={6}
-                  className="text-center text-sm text-gray-500"
-                >
-                  Aucun produit trouvé.
-                </TableCell>
-              </TableRow>
-            )}
-          </TableBody>
-        </Table>
-      )}
+            ))
+          )}
+        </TableBody>
+      </Table>
     </div>
   )
 }

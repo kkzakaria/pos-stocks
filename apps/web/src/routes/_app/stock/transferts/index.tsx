@@ -5,12 +5,21 @@ import { apiFetch } from "@/lib/api"
 import { useAccesStock } from "@/lib/permissions"
 import { useEntrepotsVisibles } from "@/lib/stock"
 import { STATUTS_TRANSFERT_FR, varianteBadgeStatut } from "@/lib/transferts"
-import type { TransfertListe } from "@/lib/transferts"
+import type { StatutTransfert, TransfertListe } from "@/lib/transferts"
+import { ArrowLeftRight } from "lucide-react"
 import { ErreurChargement } from "@/components/erreur-chargement"
+import { EtatVide } from "@/components/etat-vide"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import {
   Dialog,
   DialogContent,
@@ -26,11 +35,16 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { TableSkeleton } from "@/components/ui/table-skeleton"
 
 export const Route = createFileRoute("/_app/stock/transferts/")({
   component: TransfertsPage,
 })
 
+/**
+ * Inter-warehouse transfers list: filter by status and creation of a
+ * draft (origin, destination, reference) leading to its detail page.
+ */
 function TransfertsPage() {
   const acces = useAccesStock()
   const { options: entrepots } = useEntrepotsVisibles()
@@ -115,43 +129,58 @@ function TransfertsPage() {
               >
                 <div className="flex flex-col gap-1.5">
                   <Label htmlFor="t-origine">Entrepôt d'origine</Label>
-                  <select
-                    id="t-origine"
-                    required
+                  <Select
                     value={origineId}
-                    onChange={(e) => {
-                      const valeur = e.target.value
-                      setOrigineId(valeur)
-                      if (destinationId === valeur) setDestinationId("")
+                    onValueChange={(valeur) => {
+                      const v = valeur as string
+                      setOrigineId(v)
+                      if (destinationId === v) setDestinationId("")
                     }}
-                    className="h-10 rounded-md border px-2 text-sm"
+                    required
                   >
-                    <option value="">— choisir —</option>
-                    {entrepotsOrigine.map((w) => (
-                      <option key={w.id} value={w.id}>
-                        {w.name}
-                      </option>
-                    ))}
-                  </select>
+                    <SelectTrigger id="t-origine" className="w-full">
+                      <SelectValue placeholder="— choisir —">
+                        {(valeur: string) =>
+                          entrepotsOrigine.find((w) => w.id === valeur)?.name
+                        }
+                      </SelectValue>
+                    </SelectTrigger>
+                    <SelectContent>
+                      {entrepotsOrigine.map((w) => (
+                        <SelectItem key={w.id} value={w.id}>
+                          {w.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div className="flex flex-col gap-1.5">
                   <Label htmlFor="t-destination">Entrepôt de destination</Label>
-                  <select
-                    id="t-destination"
-                    required
+                  <Select
                     value={destinationId}
-                    onChange={(e) => setDestinationId(e.target.value)}
-                    className="h-10 rounded-md border px-2 text-sm"
+                    onValueChange={(valeur) =>
+                      setDestinationId(valeur as string)
+                    }
+                    required
                   >
-                    <option value="">— choisir —</option>
-                    {entrepotsDestination
-                      .filter((w) => w.id !== origineId)
-                      .map((w) => (
-                        <option key={w.id} value={w.id}>
-                          {w.name}
-                        </option>
-                      ))}
-                  </select>
+                    <SelectTrigger id="t-destination" className="w-full">
+                      <SelectValue placeholder="— choisir —">
+                        {(valeur: string) =>
+                          entrepotsDestination.find((w) => w.id === valeur)
+                            ?.name
+                        }
+                      </SelectValue>
+                    </SelectTrigger>
+                    <SelectContent>
+                      {entrepotsDestination
+                        .filter((w) => w.id !== origineId)
+                        .map((w) => (
+                          <SelectItem key={w.id} value={w.id}>
+                            {w.name}
+                          </SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div className="flex flex-col gap-1.5">
                   <Label htmlFor="t-reference">Référence (optionnel)</Label>
@@ -162,11 +191,14 @@ function TransfertsPage() {
                   />
                 </div>
                 {erreur && (
-                  <p role="alert" className="text-sm text-red-700">
+                  <p role="alert" className="text-sm text-destructive">
                     {erreur}
                   </p>
                 )}
-                <Button type="submit" disabled={creer.isPending}>
+                <Button
+                  type="submit"
+                  disabled={creer.isPending || !origineId || !destinationId}
+                >
                   {creer.isPending ? "Création…" : "Créer le brouillon"}
                 </Button>
               </form>
@@ -177,81 +209,96 @@ function TransfertsPage() {
 
       <div className="mb-4 flex flex-col gap-1.5">
         <Label htmlFor="t-statut">Statut</Label>
-        <select
-          id="t-statut"
+        <Select
           value={statut}
-          onChange={(e) => setStatut(e.target.value)}
-          className="h-10 w-48 rounded-md border px-2 text-sm"
+          onValueChange={(valeur) => setStatut(valeur as string)}
         >
-          <option value="">Tous</option>
-          {Object.entries(STATUTS_TRANSFERT_FR).map(([valeur, libelle]) => (
-            <option key={valeur} value={valeur}>
-              {libelle}
-            </option>
-          ))}
-        </select>
+          <SelectTrigger id="t-statut" className="w-48">
+            <SelectValue>
+              {(valeur: string) =>
+                valeur === ""
+                  ? "Tous"
+                  : STATUTS_TRANSFERT_FR[valeur as StatutTransfert]
+              }
+            </SelectValue>
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="">Tous</SelectItem>
+            {Object.entries(STATUTS_TRANSFERT_FR).map(([valeur, libelle]) => (
+              <SelectItem key={valeur} value={valeur}>
+                {libelle}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
-      {transferts.isPending ? (
-        <p className="text-sm text-gray-500">Chargement…</p>
-      ) : transferts.isError ? (
+      {transferts.isError ? (
         <ErreurChargement
           message="Impossible de charger les transferts."
           onRetry={() => void transferts.refetch()}
         />
       ) : (
         <Table>
-          <TableHeader>
+          <TableHeader sticky>
             <TableRow>
               <TableHead>Date</TableHead>
               <TableHead>Origine</TableHead>
               <TableHead>Destination</TableHead>
               <TableHead>Référence</TableHead>
-              <TableHead>Lignes</TableHead>
-              <TableHead>Quantité</TableHead>
+              <TableHead numeric>Lignes</TableHead>
+              <TableHead numeric>Quantité</TableHead>
               <TableHead>Statut</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {transferts.data.transfers.map((t) => (
-              <TableRow
-                key={t.id}
-                className="cursor-pointer"
-                onClick={() =>
-                  void navigate({
-                    to: "/stock/transferts/$transferId",
-                    params: { transferId: t.id },
-                  })
-                }
-              >
-                <TableCell className="text-sm whitespace-nowrap">
-                  {new Date(t.createdAt).toLocaleDateString("fr-FR")}
-                </TableCell>
-                <TableCell>{t.fromWarehouseName}</TableCell>
-                <TableCell className="font-medium">
-                  {t.toWarehouseName}
-                </TableCell>
-                <TableCell className="font-mono text-xs">
-                  {t.reference ?? "—"}
-                </TableCell>
-                <TableCell>{t.itemCount}</TableCell>
-                <TableCell>{t.totalQuantity}</TableCell>
-                <TableCell>
-                  <Badge variant={varianteBadgeStatut(t.status)}>
-                    {STATUTS_TRANSFERT_FR[t.status]}
-                  </Badge>
-                </TableCell>
-              </TableRow>
-            ))}
-            {transferts.data.transfers.length === 0 && (
+            {transferts.isPending ? (
+              <TableSkeleton colonnes={7} />
+            ) : transferts.data.transfers.length === 0 ? (
               <TableRow>
-                <TableCell
-                  colSpan={7}
-                  className="text-center text-sm text-gray-500"
-                >
-                  Aucun transfert.
+                <TableCell colSpan={7}>
+                  <EtatVide
+                    icon={ArrowLeftRight}
+                    titre="Aucun transfert"
+                    message={
+                      peutCreer
+                        ? "Créez un transfert pour déplacer du stock entre entrepôts."
+                        : "Aucun transfert ne correspond à ce filtre."
+                    }
+                  />
                 </TableCell>
               </TableRow>
+            ) : (
+              transferts.data.transfers.map((t) => (
+                <TableRow
+                  key={t.id}
+                  className="cursor-pointer"
+                  onClick={() =>
+                    void navigate({
+                      to: "/stock/transferts/$transferId",
+                      params: { transferId: t.id },
+                    })
+                  }
+                >
+                  <TableCell className="whitespace-nowrap">
+                    {new Date(t.createdAt).toLocaleDateString("fr-FR")}
+                  </TableCell>
+                  <TableCell>{t.fromWarehouseName}</TableCell>
+                  <TableCell className="font-medium">
+                    {t.toWarehouseName}
+                  </TableCell>
+                  <TableCell className="font-mono text-xs">
+                    {t.reference ?? "—"}
+                  </TableCell>
+                  <TableCell numeric>{t.itemCount}</TableCell>
+                  <TableCell numeric>{t.totalQuantity}</TableCell>
+                  <TableCell>
+                    <Badge variant={varianteBadgeStatut(t.status)}>
+                      {STATUTS_TRANSFERT_FR[t.status]}
+                    </Badge>
+                  </TableCell>
+                </TableRow>
+              ))
             )}
           </TableBody>
         </Table>

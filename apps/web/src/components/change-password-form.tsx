@@ -1,4 +1,5 @@
 import { useState } from "react"
+import { Button } from "@/components/ui/button"
 
 type Props = {
   onSubmit: (values: {
@@ -8,8 +9,13 @@ type Props = {
 }
 
 const champClasses =
-  "h-11 w-full rounded-md border border-gray-300 px-3 text-base focus:border-gray-500 focus:ring-2 focus:ring-gray-300 focus:outline-none"
+  "h-11 w-full rounded-md border border-input bg-input/20 px-3 text-base outline-none focus:border-ring focus:ring-2 focus:ring-ring/30 dark:bg-input/30"
 
+/**
+ * Password-change form: checks the match and minimum length (12 characters)
+ * client-side before delegating to `onSubmit`, whose returned message
+ * (or `null` = success) drives the display.
+ */
 export function ChangePasswordForm({ onSubmit }: Props) {
   const [currentPassword, setCurrentPassword] = useState("")
   const [newPassword, setNewPassword] = useState("")
@@ -95,22 +101,18 @@ export function ChangePasswordForm({ onSubmit }: Props) {
         />
       </div>
       {error && (
-        <p role="alert" className="text-sm font-medium text-red-700">
+        <p role="alert" className="text-sm font-medium text-destructive">
           {error}
         </p>
       )}
       {success && (
-        <p role="status" className="text-sm font-medium text-green-700">
+        <p role="status" className="text-sm font-medium text-success">
           Mot de passe changé
         </p>
       )}
-      <button
-        type="submit"
-        disabled={loading}
-        className="h-11 rounded-md bg-black text-base font-semibold text-white disabled:opacity-60"
-      >
+      <Button type="submit" disabled={loading} className="h-11 text-base">
         {loading ? "Changement…" : "Changer le mot de passe"}
-      </button>
+      </Button>
     </form>
   )
 }

@@ -4,18 +4,38 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { apiFetch } from "@/lib/api"
 import { formaterMontant } from "@/lib/format"
 import { useAccesStock } from "@/lib/permissions"
+import { PackagePlus } from "lucide-react"
 import { ErreurChargement } from "@/components/erreur-chargement"
+import { EtatVide } from "@/components/etat-vide"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
+import { Skeleton } from "@/components/ui/skeleton"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"
 import {
   Table,
   TableBody,
@@ -68,6 +88,11 @@ type ProduitCatalogue = {
   variants: Array<{ id: string; name: string; sku: string; isActive: boolean }>
 }
 
+/**
+ * Supplier receipt detail: editing a draft's lines (item, quantity,
+ * cost, lot/expiry), then validation which brings stock in, or deletion
+ * of the draft.
+ */
 function ReceptionDetailPage() {
   const { purchaseId } = Route.useParams()
   const acces = useAccesStock()
@@ -196,13 +221,17 @@ function ReceptionDetailPage() {
       setErreurLigne(err instanceof Error ? err.message : "Erreur"),
   })
 
+  const [erreurSuppressionLigne, setErreurSuppressionLigne] = useState<
+    string | null
+  >(null)
   const supprimerLigne = useMutation({
     mutationFn: (itemId: string) =>
       apiFetch(`/api/v1/purchases/${purchaseId}/items/${itemId}`, {
         method: "DELETE",
       }),
     onSuccess: invalider,
-    onError: (err) => alert(err instanceof Error ? err.message : "Erreur"),
+    onError: (err) =>
+      setErreurSuppressionLigne(err instanceof Error ? err.message : "Erreur"),
   })
 
   const [erreurValidation, setErreurValidation] = useState<string | null>(null)
@@ -214,6 +243,9 @@ function ReceptionDetailPage() {
       setErreurValidation(err instanceof Error ? err.message : "Erreur"),
   })
 
+  const [erreurSuppression, setErreurSuppression] = useState<string | null>(
+    null
+  )
   const supprimerBrouillon = useMutation({
     mutationFn: () =>
       apiFetch(`/api/v1/purchases/${purchaseId}`, { method: "DELETE" }),
@@ -221,7 +253,8 @@ function ReceptionDetailPage() {
       await queryClient.invalidateQueries({ queryKey: ["purchases"] })
       void navigate({ to: "/stock/receptions" })
     },
-    onError: (err) => alert(err instanceof Error ? err.message : "Erreur"),
+    onError: (err) =>
+      setErreurSuppression(err instanceof Error ? err.message : "Erreur"),
   })
 
   if (isError) {
@@ -233,7 +266,13 @@ function ReceptionDetailPage() {
     )
   }
   if (!data) {
-    return <p className="text-sm text-gray-500">Chargement…</p>
+    return (
+      <div className="flex flex-col gap-4">
+        <Skeleton className="h-7 w-64" />
+        <Skeleton className="h-4 w-80" />
+        <Skeleton className="h-40 w-full" />
+      </div>
+    )
   }
   const reception = data.purchase
   const brouillon = reception.status === "draft"
@@ -251,11 +290,11 @@ function ReceptionDetailPage() {
         <h1 className="text-xl font-semibold">
           Réception — {reception.supplierName}
         </h1>
-        <Badge variant={brouillon ? "secondary" : "default"}>
+        <Badge variant={brouillon ? "warning" : "success"}>
           {brouillon ? "Brouillon" : "Validée"}
         </Badge>
       </div>
-      <p className="mb-6 text-sm text-gray-500">
+      <p className="mb-6 text-sm text-muted-foreground">
         {reception.warehouseName}
         {reception.reference ? ` — réf. ${reception.reference}` : ""}
         {reception.receivedAt
@@ -275,11 +314,11 @@ function ReceptionDetailPage() {
       </div>
 
       <Table>
-        <TableHeader>
+        <TableHeader sticky>
           <TableRow>
             <TableHead>Article</TableHead>
-            <TableHead>Quantité</TableHead>
-            <TableHead>Coût unitaire</TableHead>
+            <TableHead numeric>Quantité</TableHead>
+            <TableHead numeric>Coût unitaire</TableHead>
             <TableHead>Lot</TableHead>
             <TableHead>Péremption</TableHead>
             {brouillon && peutEcrire && <TableHead />}
@@ -290,12 +329,12 @@ function ReceptionDetailPage() {
             <TableRow key={item.id}>
               <TableCell>
                 <span className="font-medium">{item.productName}</span>{" "}
-                <span className="text-sm text-gray-500">
+                <span className="text-sm text-muted-foreground">
                   {item.variantName} ({item.sku})
                 </span>
               </TableCell>
-              <TableCell>{item.quantity}</TableCell>
-              <TableCell>{formaterMontant(item.unitCost)}</TableCell>
+              <TableCell numeric>{item.quantity}</TableCell>
+              <TableCell numeric>{formaterMontant(item.unitCost)}</TableCell>
               <TableCell className="font-mono text-xs">
                 {item.lotNumber ?? "—"}
               </TableCell>
@@ -317,7 +356,10 @@ function ReceptionDetailPage() {
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => supprimerLigne.mutate(item.id)}
+                      onClick={() => {
+                        setErreurSuppressionLigne(null)
+                        supprimerLigne.mutate(item.id)
+                      }}
                     >
                       Retirer
                     </Button>
@@ -328,48 +370,100 @@ function ReceptionDetailPage() {
           ))}
           {reception.items.length === 0 && (
             <TableRow>
-              <TableCell
-                colSpan={brouillon && peutEcrire ? 6 : 5}
-                className="text-center text-sm text-gray-500"
-              >
-                Aucune ligne.
+              <TableCell colSpan={brouillon && peutEcrire ? 6 : 5}>
+                <EtatVide
+                  icon={PackagePlus}
+                  titre="Aucune ligne"
+                  message={
+                    brouillon && peutEcrire
+                      ? "Ajoutez une ligne pour composer cette réception avant de la valider."
+                      : "Cette réception ne comporte aucune ligne."
+                  }
+                />
               </TableCell>
             </TableRow>
           )}
         </TableBody>
       </Table>
 
+      {erreurSuppressionLigne && (
+        <p role="alert" className="mt-3 text-sm text-destructive">
+          {erreurSuppressionLigne}
+        </p>
+      )}
+
       {brouillon && peutEcrire && (
-        <div className="mt-6 flex items-center gap-3">
-          <Button
-            disabled={valider.isPending || reception.items.length === 0}
-            onClick={() => {
-              setErreurValidation(null)
-              if (
-                window.confirm(
-                  "Valider la réception ? Le stock sera mis à jour et le document deviendra immuable."
-                )
-              ) {
-                valider.mutate()
+        <div className="mt-6 flex flex-wrap items-center gap-3">
+          <AlertDialog>
+            <AlertDialogTrigger
+              render={
+                <Button
+                  disabled={valider.isPending || reception.items.length === 0}
+                />
               }
-            }}
-          >
-            {valider.isPending ? "Validation…" : "Valider la réception"}
-          </Button>
-          <Button
-            variant="outline"
-            disabled={supprimerBrouillon.isPending}
-            onClick={() => {
-              if (window.confirm("Supprimer ce brouillon ?")) {
-                supprimerBrouillon.mutate()
+            >
+              {valider.isPending ? "Validation…" : "Valider la réception"}
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Valider la réception ?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Le stock sera mis à jour et le document deviendra immuable.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Annuler</AlertDialogCancel>
+                <AlertDialogAction
+                  variant="default"
+                  onClick={() => {
+                    setErreurValidation(null)
+                    valider.mutate()
+                  }}
+                >
+                  Valider la réception
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+          <AlertDialog>
+            <AlertDialogTrigger
+              render={
+                <Button
+                  variant="outline"
+                  disabled={supprimerBrouillon.isPending}
+                />
               }
-            }}
-          >
-            Supprimer le brouillon
-          </Button>
+            >
+              Supprimer le brouillon
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Supprimer ce brouillon ?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Cette réception en brouillon sera définitivement supprimée.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Annuler</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={() => {
+                    setErreurSuppression(null)
+                    supprimerBrouillon.mutate()
+                  }}
+                >
+                  Supprimer le brouillon
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
           {erreurValidation && (
-            <p role="alert" className="text-sm text-red-700">
+            <p role="alert" className="text-sm text-destructive">
               {erreurValidation}
+            </p>
+          )}
+          {erreurSuppression && (
+            <p role="alert" className="text-sm text-destructive">
+              {erreurSuppression}
             </p>
           )}
         </div>
@@ -414,20 +508,21 @@ function ReceptionDetailPage() {
                   </div>
                   <div className="flex flex-col gap-1.5">
                     <Label htmlFor="l-variante">Article</Label>
-                    <select
-                      id="l-variante"
-                      required
+                    <Select
                       value={variantId}
-                      onChange={(e) => setVariantId(e.target.value)}
-                      className="h-10 rounded-md border px-2 text-sm"
+                      onValueChange={(valeur) => setVariantId(valeur as string)}
                     >
-                      <option value="">— choisir —</option>
-                      {variantes.map((v) => (
-                        <option key={v.variantId} value={v.variantId}>
-                          {v.libelle}
-                        </option>
-                      ))}
-                    </select>
+                      <SelectTrigger id="l-variante" className="w-full">
+                        <SelectValue placeholder="— choisir —" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {variantes.map((v) => (
+                          <SelectItem key={v.variantId} value={v.variantId}>
+                            {v.libelle}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
                 </>
               )}
@@ -480,11 +575,16 @@ function ReceptionDetailPage() {
                 </div>
               )}
               {erreurLigne && (
-                <p role="alert" className="text-sm text-red-700">
+                <p role="alert" className="text-sm text-destructive">
                   {erreurLigne}
                 </p>
               )}
-              <Button type="submit" disabled={enregistrerLigne.isPending}>
+              <Button
+                type="submit"
+                disabled={
+                  enregistrerLigne.isPending || (!ligneEditee && !variantId)
+                }
+              >
                 {enregistrerLigne.isPending
                   ? "Enregistrement…"
                   : ligneEditee

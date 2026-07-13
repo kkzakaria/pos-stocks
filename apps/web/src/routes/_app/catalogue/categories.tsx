@@ -3,9 +3,18 @@ import { createFileRoute } from "@tanstack/react-router"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { apiFetch } from "@/lib/api"
 import { usePeutEcrire } from "@/lib/permissions"
+import { FolderTree } from "lucide-react"
+import { EtatVide } from "@/components/etat-vide"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import {
   Dialog,
   DialogContent,
@@ -20,6 +29,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { TableSkeleton } from "@/components/ui/table-skeleton"
 
 export const Route = createFileRoute("/_app/catalogue/categories")({
   component: CategoriesPage,
@@ -27,6 +37,10 @@ export const Route = createFileRoute("/_app/catalogue/categories")({
 
 type Categorie = { id: string; name: string; parentId: string | null }
 
+/**
+ * Catalog categories screen: hierarchical list (parent > child),
+ * creation and editing of a category and its parent attachment.
+ */
 function CategoriesPage() {
   const peutEcrire = usePeutEcrire()
   const queryClient = useQueryClient()
@@ -35,9 +49,8 @@ function CategoriesPage() {
     queryKey: ["categories"],
     queryFn: () => apiFetch<{ categories: Categorie[] }>("/api/v1/categories"),
   })
-  const parents = new Map(
-    (data?.categories ?? []).map((cat) => [cat.id, cat.name])
-  )
+  const listeCategories = data?.categories ?? []
+  const parents = new Map(listeCategories.map((cat) => [cat.id, cat.name]))
 
   const [dialogOuvert, setDialogOuvert] = useState(false)
   const [enEdition, setEnEdition] = useState<Categorie | null>(null)
@@ -119,24 +132,33 @@ function CategoriesPage() {
             </div>
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="c-parent">Catégorie parente (optionnel)</Label>
-              <select
-                id="c-parent"
+              <Select
                 value={parentId}
-                onChange={(e) => setParentId(e.target.value)}
-                className="h-10 rounded-md border px-2 text-sm"
+                onValueChange={(valeur) => setParentId(valeur as string)}
               >
-                <option value="">— aucune —</option>
-                {(data?.categories ?? [])
-                  .filter((cat) => cat.id !== enEdition?.id)
-                  .map((cat) => (
-                    <option key={cat.id} value={cat.id}>
-                      {cat.name}
-                    </option>
-                  ))}
-              </select>
+                <SelectTrigger id="c-parent" className="w-full">
+                  <SelectValue placeholder="— aucune —">
+                    {(valeur: string) =>
+                      valeur === ""
+                        ? "— aucune —"
+                        : listeCategories.find((c) => c.id === valeur)?.name
+                    }
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">— aucune —</SelectItem>
+                  {listeCategories
+                    .filter((cat) => cat.id !== enEdition?.id)
+                    .map((cat) => (
+                      <SelectItem key={cat.id} value={cat.id}>
+                        {cat.name}
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
             </div>
             {erreur && (
-              <p role="alert" className="text-sm text-red-700">
+              <p role="alert" className="text-sm text-destructive">
                 {erreur}
               </p>
             )}
@@ -147,18 +169,35 @@ function CategoriesPage() {
         </DialogContent>
       </Dialog>
 
-      {isPending ? (
-        <p className="text-sm text-gray-500">Chargement…</p>
-      ) : (
-        <Table>
-          <TableHeader>
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Catégorie</TableHead>
+            {peutEcrire && <TableHead />}
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {isPending ? (
+            <TableSkeleton colonnes={peutEcrire ? 2 : 1} />
+          ) : listeCategories.length === 0 ? (
             <TableRow>
-              <TableHead>Catégorie</TableHead>
-              {peutEcrire && <TableHead />}
+              <TableCell colSpan={peutEcrire ? 2 : 1}>
+                <EtatVide
+                  icon={FolderTree}
+                  titre="Aucune catégorie"
+                  message="Créez une catégorie pour organiser vos produits."
+                  action={
+                    peutEcrire ? (
+                      <Button onClick={ouvrirCreation}>
+                        Nouvelle catégorie
+                      </Button>
+                    ) : undefined
+                  }
+                />
+              </TableCell>
             </TableRow>
-          </TableHeader>
-          <TableBody>
-            {(data?.categories ?? []).map((cat) => (
+          ) : (
+            listeCategories.map((cat) => (
               <TableRow key={cat.id}>
                 <TableCell className="font-medium">
                   {cat.parentId
@@ -177,20 +216,10 @@ function CategoriesPage() {
                   </TableCell>
                 )}
               </TableRow>
-            ))}
-            {data?.categories.length === 0 && (
-              <TableRow>
-                <TableCell
-                  colSpan={peutEcrire ? 2 : 1}
-                  className="text-center text-sm text-gray-500"
-                >
-                  Aucune catégorie.
-                </TableCell>
-              </TableRow>
-            )}
-          </TableBody>
-        </Table>
-      )}
+            ))
+          )}
+        </TableBody>
+      </Table>
     </div>
   )
 }

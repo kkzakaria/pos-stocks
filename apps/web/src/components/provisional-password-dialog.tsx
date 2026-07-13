@@ -9,6 +9,11 @@ import {
 
 type Props = { password: string; email: string; onClose: () => void }
 
+/**
+ * Non-dismissible dialog showing the provisional password of a newly created
+ * account; offers clipboard copy (with a fallback when it fails outside HTTPS),
+ * the password never being shown again afterwards.
+ */
 export function ProvisionalPasswordDialog({ password, email, onClose }: Props) {
   const [copie, setCopie] = useState<"copié" | "échec" | null>(null)
 
@@ -28,19 +33,19 @@ export function ProvisionalPasswordDialog({ password, email, onClose }: Props) {
         <DialogHeader>
           <DialogTitle>Compte créé</DialogTitle>
         </DialogHeader>
-        <p className="text-sm text-gray-600">
+        <p className="text-sm text-muted-foreground">
           Transmettez ce mot de passe provisoire à <strong>{email}</strong>. Il
           ne sera plus jamais affiché ; l'employé devra le changer à sa première
           connexion.
         </p>
-        <p className="my-2 rounded-md bg-gray-100 px-4 py-3 text-center font-mono text-lg tracking-widest select-all">
+        <p className="my-2 rounded-md bg-muted px-4 py-3 text-center font-mono text-lg tracking-widest select-all">
           {password}
         </p>
         {copie && (
           <p
             role="status"
             className={`text-center text-sm font-medium ${
-              copie === "copié" ? "text-green-700" : "text-red-700"
+              copie === "copié" ? "text-success" : "text-destructive"
             }`}
           >
             {copie === "copié"
