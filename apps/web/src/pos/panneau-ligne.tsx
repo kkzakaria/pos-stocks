@@ -48,7 +48,13 @@ export function PanneauLigne({
             {ligne.sourceNom ? ` — ${ligne.sourceNom}` : ""}
           </p>
         </div>
-        <button onClick={onFermer} aria-label="Fermer" className="p-2 text-xl">
+        <button
+          onClick={onFermer}
+          aria-label="Fermer"
+          // border-box : au doigt le bouton fait 44×44 (le padding est absorbé),
+          // à la souris il garde sa taille compacte d'origine.
+          className="inline-flex items-center justify-center rounded p-2 text-xl leading-none pointer-coarse:size-11"
+        >
           ×
         </button>
       </div>

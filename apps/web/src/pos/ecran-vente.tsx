@@ -218,7 +218,8 @@ export function EcranVente({ me, boutique, session, onSessionFermee }: Props) {
           value={recherche}
           onChange={(e) => setRecherche(e.target.value)}
           placeholder="Rechercher (nom, SKU, code-barres) — touche /"
-          className="max-w-md"
+          // Compact à la souris (back-office), 44px au doigt (comptoir tactile).
+          className="max-w-md pointer-coarse:min-h-11"
         />
         <div className="ml-auto">
           <MenuPos
@@ -238,6 +239,8 @@ export function EcranVente({ me, boutique, session, onSessionFermee }: Props) {
           variant={categorieId === null ? "default" : "outline"}
           aria-pressed={categorieId === null}
           onClick={() => setCategorieId(null)}
+          // Chips denses à la souris, cibles ≥ 44px au doigt (WCAG 2.5.5).
+          className="pointer-coarse:min-h-11 pointer-coarse:px-3"
         >
           Tout
         </Button>
@@ -247,6 +250,7 @@ export function EcranVente({ me, boutique, session, onSessionFermee }: Props) {
             variant={categorieId === cat.id ? "default" : "outline"}
             aria-pressed={categorieId === cat.id}
             onClick={() => setCategorieId(cat.id)}
+            className="pointer-coarse:min-h-11 pointer-coarse:px-3"
           >
             {cat.name}
           </Button>

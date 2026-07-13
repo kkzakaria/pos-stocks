@@ -94,7 +94,8 @@ export function ModalePaiement({
           <button
             onClick={onFermer}
             aria-label="Fermer"
-            className="p-2 text-2xl"
+            // border-box : 44×44 au doigt (padding absorbé), compact à la souris.
+            className="inline-flex items-center justify-center rounded p-2 text-2xl leading-none pointer-coarse:size-11"
           >
             ×
           </button>
