@@ -284,3 +284,33 @@ CodeRabbit PR #9: 5 findings → 3 corrigés (8f8e544 limit GET /transfers, 5341
 PHASE 7 MERGÉE (PR #9, 2026-07-13, merge becbc55) — deploy success (36s), prod vérifiée: health ok, SPA 200, 16 migrations (0015 unit_cost présent). Roadmap 7/7 sur main (fdcdce6). Issue post-v1 groupée: #10.
 Bilan Phase 7: 13 tâches, ~25 commits, 289 api + 76 web (vs 245+55 fin P6), E2E 8/9 (❌ arbitré conforme, confirmé par la revue finale), 5 fixes de couverture en cours de route + 1 fix final (sidebar), 1 migration (0015).
 ROADMAP V1 COMPLÈTE — 7 phases, 9 PRs (dont 2 abandonnées/renumérotées), ~290 tests api + 76 web, 16 migrations D1, 32 triggers.
+
+# Ledger Design — feat/design-context-et-colorize-pos (Impeccable, post-v1, PR #11)
+
+Origine : `/impeccable init` → contexte design de la SPA capté (PRODUCT.md, DESIGN.md + sidecar `.impeccable/design.json`, config live, pointeur CLAUDE.md). Register `product`, plateforme `web`, North Star « Le registre du comptable ». Puis audit UX de l'écran de vente POS (`/impeccable audit src/pos/ecran-vente.tsx`) : **11/20**, remédié par passes ciblées jusqu'à **18/20**.
+
+Passes (toutes sur la surface POS : ecran-vente, grille-articles, panier, panneau-ligne, modale-paiement, menu-pos + nouveau modale-confirmation) :
+- **colorize** (1edc0f4) : ~30 couleurs Tailwind codées en dur → tokens ; 2 échecs de contraste `gray-400` (2,5:1) corrigés ; menu-pos tokenisé séparément (aa69870, oubli de périmètre).
+- **harden** (f599fa2) : `usePiegeFocus` extrait de ModalePaiement (les 2 fuites P6 déjà colmatées) et mutualisé ; nouvelle `ModaleConfirmation` = vrai dialog (role/aria-modal/aria-labelledby/Échap/focus initial) ; `aria-pressed` sur les filtres. +7 tests.
+- **adapt** (9c5219e, e2915c3) : cibles tactiles ≥ 44px au doigt via `@media (pointer: coarse)` (chips, boutons ×, recherche, items de menu) — border-box absorbe le padding, dense à la souris.
+- **optimize** (20ff286) : `loading="lazy"` + `decoding="async"` sur la grille.
+- **polish** (b75baeb) : tuile `shadow-sm` → `ring-1 ring-foreground/10` (règle du filet) ; entête « PANIER » désaturée (eyebrow retirée).
+
+Décisions / arbitrages (tracés au ledger) :
+1. Deux tokens sémantiques AJOUTÉS au système (manquaient) : `--success` (monnaie à rendre) et `--warning` (dépannage/source), définis clair **et** sombre + `@theme inline`. La surface participe désormais au mode sombre (non câblé à un toggle aujourd'hui — pré-existant, hors périmètre).
+2. `--muted-foreground` 0.556 → **0.52** (suite CodeRabbit) : 0.556 échouait AA sur `bg-muted` (4,34:1 ; OK 4,73:1 sur blanc). Changement de token **app-wide** (tout le muted fonce légèrement) — gain strict, validé visuellement au back-office (dashboard, table produits) : lisible, hiérarchie encre/muted préservée.
+3. `usePiegeFocus` restaure le focus au déclencheur à la fermeture (WAI-ARIA APG, garde `isConnected`) — correctif centralisé couvrant paiement + confirmation.
+4. **Détection du mode de pointage** (`pointer: coarse`), pas un breakpoint de taille d'écran : on agrandit au doigt sans alourdir la vue souris (back-office), fidèle au « densité par défaut » du DESIGN.md.
+5. Surfaces flottantes (menu déroulant) = `bg-popover` + `shadow-md` + `ring-1` (convention `ui/select`), PAS la « règle du filet » stricte des cartes en flux — l'ombre légère est légitime sur un overlay.
+6. Contradictions DESIGN.md levées (revue CodeRabbit, docs, 6f9bab2) : « une seule voix » autorise explicitement les aplats d'action/état (bouton primaire, badge) ; « chiffres monospacés » = JetBrains Mono au reçu SEUL, Inter+`tabular-nums` dans l'app (conforme au code + monde clos).
+
+DIFFÉRÉ (décision cadrée, tracé issue #10) :
+- **(a) Pipeline images vignettes/WebP** : approche retenue = jSquash resize-on-upload (pattern Workers documenté). **Différé** : bundle WASM ~1,5 Mo incompatible avec le plan Workers **gratuit** (limite 3 Mo compressé) + risque de fragiliser le harness `vitest-pool-workers` (INTOUCHABLE) en important des `.wasm` dans les tests. Cloudflare Image Resizing écarté (images `private` + prod sur `*.workers.dev` = pas de zone custom). Reprise : plan payant ou CF Images, puis spike de de-risk. Cadrage complet en commentaire de #10.
+
+Vérification :
+- E2E navigateur (agent-browser, stack locale API+web, D1 seedée) : `pointer-coarse` MESURÉ 28px→44px (émulation CDP `mobile:true`+touch), `aria-pressed` réel, pièges de focus paiement + confirmation (role/aria-modal/aria-labelledby résolu/focus initial « Nouvelle vente »/Échap), vente réelle ticket n°10. Lazy-load NON observable (produits seedés sans image).
+- Relecture visuelle back-office (owner) : impact `muted-foreground` app-wide validé, aucune régression.
+
+CodeRabbit PR #11 : **6 findings sur 3 passages**, tous vérifiés puis corrigés (contraste muted AA, restauration focus, hover destructif du logout écrasé par classe partagée, assertion montant → séparateur, 2 contradictions DESIGN.md) ; méthode = vérifier chaque finding, aucun écarté.
+
+DESIGN MERGÉE (PR #11, 2026-07-13, merge commit **55bd4b5**, pas de squash) — **aucune migration D1** (frontend + docs + token), deploy success (migration prod no-op, Worker web redéployé), CI verte 2m22. Branche supprimée. Score audit 11→18. Différé unique : issue #10 (pipeline images).
