@@ -25,6 +25,12 @@ export function GrilleArticles({ articles, onChoisir }: Props) {
             <img
               src={apiUrl(`/api/v1/files/${article.imageKey}`)}
               alt=""
+              // Grille potentiellement longue : le navigateur charge les tuiles
+              // proches du viewport et diffère le reste (matériel modeste,
+              // connexions variables — cf. PRODUCT.md). Décodage hors du thread
+              // principal. La taille est déjà réservée (h-14), donc pas de CLS.
+              loading="lazy"
+              decoding="async"
               className="mb-1 h-14 w-full rounded object-cover"
             />
           ) : (
