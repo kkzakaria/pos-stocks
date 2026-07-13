@@ -158,7 +158,7 @@ Une page d'encre et de papier, ponctuée d'un seul indigo — plus un monde chau
 - **Rack** (`#c2410c` / vif `#e8590c`) : l'unique accent orange, réservé au monde du ticket. **Il ne migre jamais dans l'app.**
 
 ### Named Rules
-**La règle d'une seule voix.** L'indigo n'apparaît que pour l'action, la sélection et l'état — jamais en décor, jamais en aplat de remplissage. Sur un écran donné, il touche moins de 10 % de la surface. Sa rareté fait sa lisibilité.
+**La règle d'une seule voix.** L'indigo n'apparaît que pour l'action, la sélection et l'état — jamais en décor ni en aplat décoratif. Les aplats pleins d'action et d'état (bouton primaire, badge `default`) sont, eux, légitimes : c'est leur rôle. Sur un écran donné, l'indigo touche moins de 10 % de la surface. Sa rareté fait sa lisibilité.
 
 **La règle du monde clos.** L'orange « rack », le vert comptoir, Space Grotesk et JetBrains Mono appartiennent au ticket (connexion + reçu 80 mm). Ils ne franchissent jamais la frontière vers l'app. Inversement, l'app ne pose jamais d'indigo sur le ticket.
 
@@ -181,7 +181,7 @@ Une page d'encre et de papier, ponctuée d'un seul indigo — plus un monde chau
 ### Named Rules
 **La règle d'Inter partout.** Dans l'app, une seule famille. Aucun display, aucun serif décoratif, aucune fonte « pour donner du caractère » à un libellé ou une donnée. Le caractère vient de la graisse et de la hiérarchie.
 
-**La règle des chiffres monospacés.** Sur le reçu — et partout où des montants s'empilent et doivent s'aligner — les chiffres passent en JetBrains Mono. Ailleurs, `formaterMontant` (entiers XOF) suffit ; le chiffre reste l'élément le plus lisible de la ligne.
+**La règle des chiffres monospacés.** JetBrains Mono est réservé au reçu (montants et numéros de ticket), où l'alignement des chiffres compte à l'impression — conforme au monde clos. Dans l'app, les chiffres restent en Inter avec `tabular-nums` (chasse fixe des chiffres, pas de seconde fonte) ; formatés en entiers XOF via `formaterMontant`, ils restent l'élément le plus lisible de la ligne.
 
 ## 4. Elevation
 

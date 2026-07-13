@@ -144,10 +144,10 @@
       "Le chiffre est l'élément le plus lisible de chaque écran."
     ],
     "rules": [
-      { "name": "La règle d'une seule voix", "body": "L'indigo n'apparaît que pour l'action, la sélection et l'état — jamais en décor. Sur un écran donné, il touche moins de 10 % de la surface.", "section": "colors" },
+      { "name": "La règle d'une seule voix", "body": "L'indigo n'apparaît que pour l'action, la sélection et l'état — jamais en décor ni en aplat décoratif ; les aplats pleins d'action/état (bouton primaire, badge) sont légitimes. Sur un écran donné, il touche moins de 10 % de la surface.", "section": "colors" },
       { "name": "La règle du monde clos", "body": "L'orange rack, le vert comptoir, Space Grotesk et JetBrains Mono appartiennent au ticket et ne franchissent jamais la frontière vers l'app ; l'app ne pose jamais d'indigo sur le ticket.", "section": "colors" },
       { "name": "La règle d'Inter partout", "body": "Dans l'app, une seule famille. Aucun display ni serif décoratif ; le caractère vient de la graisse et de la hiérarchie.", "section": "typography" },
-      { "name": "La règle des chiffres monospacés", "body": "Là où des montants s'empilent et doivent s'aligner, les chiffres passent en JetBrains Mono.", "section": "typography" },
+      { "name": "La règle des chiffres monospacés", "body": "JetBrains Mono est réservé au reçu (montants et numéros de ticket) ; dans l'app, les chiffres restent en Inter avec tabular-nums.", "section": "typography" },
       { "name": "La règle du filet", "body": "Une surface se distingue par un trait (ring-1 ring-foreground/10), pas par une ombre. Renforcer le filet ou décaler le gris plutôt qu'ajouter un box-shadow.", "section": "elevation" }
     ],
     "dos": [
