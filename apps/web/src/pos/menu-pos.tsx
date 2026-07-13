@@ -36,7 +36,9 @@ export function MenuPos({
     window.location.href = "/login"
   }
 
-  const itemBase = "block w-full rounded px-3 py-2 text-left text-sm"
+  // py-2 dense à la souris ; py-3 au doigt → ~44px (WCAG 2.5.5) sur le comptoir.
+  const itemBase =
+    "block w-full rounded px-3 py-2 text-left text-sm pointer-coarse:py-3"
   const itemNeutre = `${itemBase} hover:bg-accent hover:text-accent-foreground`
   // Le survol neutre partagé écraserait text-destructive ; la déconnexion
   // garde donc son propre survol destructif.
