@@ -14,7 +14,7 @@
 | 4 | Moteur de stock : journal + niveaux, service atomique, réceptions, ajustements, alertes | `2026-07-10-phase-4-moteur-de-stock.md` | ✅ terminée (2026-07-11, PR #5 mergée) |
 | 5 | Transferts inter-entrepôts et inventaires physiques | `2026-07-11-phase-5-transferts-inventaires.md` | ✅ terminée (2026-07-12, PR #6 mergée) |
 | 6 | POS : sessions de caisse, vente atomique, paiements, ticket 80 mm, FEFO, dépannage — **mini-brainstorming UI avant le plan** | `2026-07-12-phase-6-pos.md` | ✅ terminée (2026-07-12, PR #8 mergée) |
-| 7 | Rapports, tableau de bord, finitions (valorisation, marges, alertes visibles) | à rédiger | — |
+| 7 | Rapports, tableau de bord, finitions (valorisation, marges, alertes visibles) | `2026-07-12-phase-7-rapports.md` | en cours (PR à venir) |
 
 ## Détail des phases
 
@@ -82,8 +82,8 @@ Notes de fin de phase : API `https://pos-stocks-api.koffiz2110.workers.dev`, SPA
 **Livrable** : une boutique vend réellement, tickets imprimés, caisse clôturée.
 
 ### Phase 7 — Rapports & finitions
-- [ ] Rapports ventes (période, boutique, produit), valorisation du stock, marges
-- [ ] Tableau de bord (ventes du jour, alertes, transferts en attente)
-- [ ] Revue transverse : permissions, messages d'erreur français, performances D1
+- [x] Rapports ventes (période, boutique, produit), valorisation du stock, marges — `/api/v1/reports/*` + CSV
+- [x] Tableau de bord (ventes du jour, alertes, transferts en attente, valeur du stock)
+- [x] Revue transverse : permissions (matrice §4 pinnée par tests sur les rapports et les sessions), messages d'erreur français (aucun nouveau code, enveloppe uniforme), performances D1 (agrégats SQL sur index existants, pagination de GET /sales, aucun index nouveau nécessaire)
 
-**Livrable** : v1 complète conforme à la spec.
+**Livrable** : v1 complète conforme à la spec. **Bilan : 7 phases terminées** — coût figé sur les ventes (0015), 3 rapports agrégés + exports CSV, tableau de bord, section Ventes du back-office, différés P6 soldés (2 reports définitifs documentés au ledger : harnais de concurrence CONFLIT_CONCURRENT/SESSION_FERMEE ; volumétrie gelsLignes).
