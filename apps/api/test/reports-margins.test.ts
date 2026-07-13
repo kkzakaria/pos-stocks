@@ -294,4 +294,18 @@ describe("GET /api/v1/sales/:id — marge du détail", () => {
     expect(res.status).toBe(200)
     expect((await res.json<DetailVente>()).marge?.marge).toBe(600)
   })
+
+  it("stock_manager : 403 (lecture ventes refusée, hors matrice spec)", async () => {
+    const seed = await seedMarges()
+    const gestionnaire = await createUserWithRole(
+      seed.organizationId,
+      "stock_manager"
+    )
+    const res = await req(
+      gestionnaire.cookie,
+      "GET",
+      `/api/v1/sales/${seed.saleId}`
+    )
+    expect(res.status).toBe(403)
+  })
 })
