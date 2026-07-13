@@ -6,7 +6,7 @@ import type { DrizzleD1Database } from "drizzle-orm/d1"
 import type { SQL } from "drizzle-orm"
 import { saleCreateSchema } from "shared"
 import * as schema from "../db/schema"
-import { dateCalendaireValide } from "../lib/dates"
+import { bornesPeriode, dateCalendaireValide } from "../lib/dates"
 import { validerCorps } from "../lib/validation"
 import { estErreurDeclencheur, estViolationUnicite } from "../lib/db-errors"
 import {
@@ -221,6 +221,8 @@ salesRoute.get("/", async (c) => {
   const { organizationId } = c.get("membership")
   const storeId = c.req.query("storeId")
   const jour = c.req.query("jour")
+  const du = c.req.query("du")
+  const au = c.req.query("au")
   const sessionId = c.req.query("sessionId")
   if (!storeId) {
     return c.json(
@@ -231,6 +233,37 @@ salesRoute.get("/", async (c) => {
   if (jour && !dateCalendaireValide(jour)) {
     return c.json(
       { code: "VALIDATION", message: "Date invalide (AAAA-MM-JJ)" },
+      400
+    )
+  }
+  // Période multi-jours (Phase 7) : du et au vont ENSEMBLE, calendaires,
+  // du ≤ au — bornes UTC, fin exclusive au lendemain (motif bornesPeriode).
+  const bornes = du && au ? bornesPeriode(du, au) : null
+  if ((du !== undefined || au !== undefined) && !bornes) {
+    return c.json(
+      {
+        code: "VALIDATION",
+        message:
+          "Période invalide : du et au vont ensemble (AAAA-MM-JJ, du ≤ au)",
+      },
+      400
+    )
+  }
+  // Pagination (différé P6 : limite fixe 200 sans pagination)
+  const page = Number(c.req.query("page") ?? "1")
+  const parPage = Number(c.req.query("parPage") ?? "50")
+  if (
+    !Number.isInteger(page) ||
+    page < 1 ||
+    !Number.isInteger(parPage) ||
+    parPage < 1 ||
+    parPage > 200
+  ) {
+    return c.json(
+      {
+        code: "VALIDATION",
+        message: "Pagination invalide (page ≥ 1, parPage entre 1 et 200)",
+      },
       400
     )
   }
@@ -248,9 +281,18 @@ salesRoute.get("/", async (c) => {
       lt(schema.sales.createdAt, new Date(debut.getTime() + 86_400_000))
     )
   }
+  if (bornes) {
+    conditions.push(gte(schema.sales.createdAt, bornes.debut))
+    conditions.push(lt(schema.sales.createdAt, bornes.finExclue))
+  }
   if (sessionId) {
     conditions.push(eq(schema.sales.registerSessionId, sessionId))
   }
+  const totalRows = await db
+    .select({ total: sql<number>`COUNT(*)` })
+    .from(schema.sales)
+    .where(and(...conditions))
+  const total = totalRows[0]?.total ?? 0
   const rows = await db
     .select({
       id: schema.sales.id,
@@ -265,7 +307,8 @@ salesRoute.get("/", async (c) => {
     .innerJoin(schema.user, eq(schema.sales.cashierId, schema.user.id))
     .where(and(...conditions))
     .orderBy(desc(schema.sales.createdAt), desc(schema.sales.ticketNumber))
-    .limit(200)
+    .limit(parPage)
+    .offset((page - 1) * parPage)
   const ids = rows.map((r) => r.id)
   const agregats =
     ids.length > 0
@@ -282,7 +325,7 @@ salesRoute.get("/", async (c) => {
     ...r,
     itemCount: agregats.find((a) => a.saleId === r.id)?.itemCount ?? 0,
   }))
-  return c.json({ sales: ventes })
+  return c.json({ sales: ventes, total, page, parPage })
 })
 
 // Retour annoté `| null` (piège eslint no-unnecessary-condition — motif

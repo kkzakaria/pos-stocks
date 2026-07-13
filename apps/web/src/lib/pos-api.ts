@@ -130,9 +130,16 @@ export function envoyerVente(corps: SaleCreateInput) {
   )
 }
 
-export function fetchVentesDuJour(storeId: string, jour: string) {
-  return apiFetch<{ sales: VenteListe[] }>(
-    `/api/v1/sales?storeId=${storeId}&jour=${jour}`
+export type PageVentes = {
+  sales: VenteListe[]
+  total: number
+  page: number
+  parPage: number
+}
+
+export function fetchVentesDuJour(storeId: string, jour: string, page = 1) {
+  return apiFetch<PageVentes>(
+    `/api/v1/sales?storeId=${storeId}&jour=${jour}&page=${page}&parPage=50`
   )
 }
 
