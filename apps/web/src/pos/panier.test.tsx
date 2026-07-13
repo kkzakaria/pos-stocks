@@ -28,7 +28,7 @@ const props = (over: Partial<Parameters<typeof Panier>[0]> = {}) => ({
 })
 
 describe("Panier", () => {
-  it("affiche les lignes, les sous-totaux et le total", () => {
+  it("affiche les lignes et le total", () => {
     render(
       <Panier
         {...props({

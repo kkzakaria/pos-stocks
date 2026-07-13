@@ -1,5 +1,6 @@
 import { useState } from "react"
 import { Minus, Plus, Trash2, Warehouse } from "lucide-react"
+import { apiUrl } from "@/lib/api"
 import { formaterMontant } from "@/lib/format"
 import { totalPanier } from "@/lib/pos"
 import type { LignePanier } from "@/lib/pos"
@@ -100,7 +101,23 @@ export function Panier({
                 ligne.enAlerte && "bg-destructive/10"
               )}
             >
-              <div className="flex items-start justify-between gap-2">
+              <div className="flex items-start gap-2">
+                {ligne.imageKey ? (
+                  <img
+                    src={apiUrl(`/api/v1/files/${ligne.imageKey}`)}
+                    alt=""
+                    crossOrigin="use-credentials"
+                    loading="lazy"
+                    className="size-10 shrink-0 rounded object-cover"
+                  />
+                ) : (
+                  <div
+                    aria-hidden="true"
+                    className="grid size-10 shrink-0 place-items-center rounded bg-muted text-[10px] font-semibold text-muted-foreground"
+                  >
+                    {ligne.nom.slice(0, 2).toUpperCase()}
+                  </div>
+                )}
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-medium">{ligne.nom}</p>
                   {ligne.sourceNom && (
@@ -180,13 +197,12 @@ export function Panier({
                     <Plus />
                   </Button>
                 </div>
-                <span className="text-muted-foreground">×</span>
                 {enEditionPrix ? (
                   <Input
                     autoFocus
                     inputMode="numeric"
                     aria-label={`Nouveau prix de ${ligne.nom}`}
-                    className="h-8 w-24 tabular-nums"
+                    className="ml-auto h-8 w-28 text-right tabular-nums"
                     value={saisie}
                     onFocus={(e) => e.currentTarget.select()}
                     onChange={(e) => setSaisie(e.target.value)}
@@ -201,14 +217,11 @@ export function Panier({
                     disabled={verrouille}
                     onClick={() => ouvrir(ligne, "prix")}
                     aria-label={`Modifier le prix de ${ligne.nom}`}
-                    className="rounded text-sm tabular-nums underline decoration-muted-foreground decoration-dotted underline-offset-2 outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/30 disabled:no-underline"
+                    className="ml-auto rounded text-sm font-semibold tabular-nums underline decoration-muted-foreground decoration-dotted underline-offset-2 outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/30 disabled:no-underline"
                   >
                     {formaterMontant(ligne.prixUnitaire)}
                   </button>
                 )}
-                <span className="ml-auto text-sm font-semibold tabular-nums">
-                  {formaterMontant(ligne.quantite * ligne.prixUnitaire)}
-                </span>
               </div>
 
               {enEditionPrix && ligne.prixPlancher !== null && (

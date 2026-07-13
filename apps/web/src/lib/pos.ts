@@ -28,6 +28,8 @@ export type LignePanier = {
   variantId: string
   nom: string
   sku: string
+  // Vignette du produit (clé R2) pour l'aperçu au panier ; posée à l'ajout.
+  imageKey?: string | null
   quantite: number
   prixUnitaire: number
   prixCatalogue: number
@@ -91,6 +93,7 @@ export function ajouterArticle(
       variantId: article.variantId,
       nom: article.nom,
       sku: article.sku,
+      imageKey: article.imageKey,
       quantite: 1,
       prixUnitaire: article.price,
       prixCatalogue: article.price,
