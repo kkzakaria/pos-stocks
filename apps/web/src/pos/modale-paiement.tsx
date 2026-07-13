@@ -1,16 +1,11 @@
-import { useEffect, useRef, useState } from "react"
-import type { KeyboardEvent } from "react"
+import { useState } from "react"
 import { formaterMontant } from "@/lib/format"
 import { monnaieARendre, resteAPayer } from "@/lib/pos"
+import { usePiegeFocus } from "@/lib/use-piege-focus"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import type { SalePaymentInput } from "shared"
-
-// Sélecteur des éléments focusables pour le piège de focus (WAI-ARIA APG
-// « Dialog Modal ») : boutons/inputs non désactivés, liens, tabindex explicite.
-const SELECTEUR_FOCUSABLES =
-  'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
 
 type Props = {
   total: number
@@ -38,7 +33,6 @@ export function ModalePaiement({
   const [mobileVisible, setMobileVisible] = useState(false)
   const [montantMobile, setMontantMobile] = useState("")
   const [reference, setReference] = useState("")
-  const conteneurRef = useRef<HTMLDivElement>(null)
 
   const mobile = Math.min(Number(montantMobile || "0"), total)
   const duCash = total - mobile
@@ -49,54 +43,11 @@ export function ModalePaiement({
   const referenceManquante = mobile > 0 && reference.trim() === ""
   const pretAValider = reste === 0 && !referenceManquante && !enCours
 
-  // Focus initial sur la modale (WAI-ARIA APG) : pas d'action par défaut
-  // évidente (billets, mobile money, valider…) — le conteneur reçoit le
-  // focus plutôt qu'un bouton arbitraire (ex. « Fermer », contre-intuitif).
-  useEffect(() => {
-    conteneurRef.current?.focus()
-  }, [])
-
-  // Durcissement (différé P6, fuite n° 2) : une échappée POINTEUR (clic sur
-  // l'overlay — le fond n'est pas inert) puis Tab reprenait la tabulation
-  // dans la page. Tout focus qui atterrit HORS de la modale est ramené sur
-  // le conteneur.
-  useEffect(() => {
-    const rattraper = (e: FocusEvent) => {
-      const conteneur = conteneurRef.current
-      if (!conteneur) return
-      if (e.target instanceof Node && !conteneur.contains(e.target)) {
-        conteneur.focus()
-      }
-    }
-    document.addEventListener("focusin", rattraper)
-    return () => document.removeEventListener("focusin", rattraper)
-  }, [])
-
-  function gererClavier(e: KeyboardEvent<HTMLDivElement>) {
-    if (e.key === "Escape") {
-      onFermer()
-      return
-    }
-    if (e.key !== "Tab") return
-    const focusables =
-      conteneurRef.current?.querySelectorAll<HTMLElement>(SELECTEUR_FOCUSABLES)
-    if (!focusables || focusables.length === 0) return
-    const premier = focusables[0]
-    const dernier = focusables[focusables.length - 1]
-    // Fuite n° 1 (différé P6) : Shift+Tab quand le focus est sur le
-    // CONTENEUR lui-même (état initial, tabIndex -1) sortait de la modale.
-    if (
-      e.shiftKey &&
-      (document.activeElement === premier ||
-        document.activeElement === conteneurRef.current)
-    ) {
-      e.preventDefault()
-      dernier.focus()
-    } else if (!e.shiftKey && document.activeElement === dernier) {
-      e.preventDefault()
-      premier.focus()
-    }
-  }
+  // Piège de focus mutualisé (usePiegeFocus) : focus initial sur le conteneur
+  // — pas d'action par défaut évidente ici (billets, mobile money, valider…) —,
+  // rattrapage des échappées pointeur, bouclage Tab/Shift+Tab et Échap pour
+  // fermer. Les deux fuites P6 sont colmatées dans le hook.
+  const { conteneurRef, gererClavier } = usePiegeFocus<HTMLDivElement>(onFermer)
 
   function valider() {
     const paiements: SalePaymentInput[] = []
@@ -126,11 +77,14 @@ export function ModalePaiement({
         aria-labelledby="modale-paiement-titre"
         tabIndex={-1}
         onKeyDown={gererClavier}
-        className="w-full max-w-lg rounded-lg bg-white p-5 outline-none"
+        className="w-full max-w-lg rounded-lg bg-card p-5 outline-none"
       >
         <div className="mb-4 flex items-start justify-between">
           <div>
-            <p id="modale-paiement-titre" className="text-sm text-gray-500">
+            <p
+              id="modale-paiement-titre"
+              className="text-sm text-muted-foreground"
+            >
               Total à encaisser
             </p>
             <p className="text-5xl font-bold tabular-nums">
@@ -140,7 +94,8 @@ export function ModalePaiement({
           <button
             onClick={onFermer}
             aria-label="Fermer"
-            className="p-2 text-2xl"
+            // border-box : 44×44 au doigt (padding absorbé), compact à la souris.
+            className="inline-flex items-center justify-center rounded p-2 text-2xl leading-none pointer-coarse:size-11"
           >
             ×
           </button>
@@ -173,7 +128,7 @@ export function ModalePaiement({
             Effacer
           </Button>
         </div>
-        <p className="mb-3 text-sm text-gray-600">
+        <p className="mb-3 text-sm text-muted-foreground">
           Reçu : <strong>{formaterMontant(recu)}</strong>
           {reste > 0 && (
             <span className="ml-2">
@@ -226,13 +181,13 @@ export function ModalePaiement({
         {monnaie > 0 && (
           <p
             data-testid="monnaie"
-            className="my-3 rounded bg-green-50 py-3 text-center text-4xl font-bold text-green-700 tabular-nums"
+            className="my-3 rounded bg-success/10 py-3 text-center text-4xl font-bold text-success tabular-nums"
           >
             Monnaie : {formaterMontant(monnaie)}
           </p>
         )}
         {erreur && (
-          <p role="alert" className="mb-2 text-sm text-red-600">
+          <p role="alert" className="mb-2 text-sm text-destructive">
             {erreur}
           </p>
         )}

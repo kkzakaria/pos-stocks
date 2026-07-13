@@ -27,6 +27,7 @@ import { GrilleArticles } from "@/pos/grille-articles"
 import { Panier } from "@/pos/panier"
 import { PanneauLigne } from "@/pos/panneau-ligne"
 import { ModalePaiement } from "@/pos/modale-paiement"
+import { ModaleConfirmation } from "@/pos/modale-confirmation"
 import { DialogueDepannage } from "@/pos/dialogue-depannage"
 import { MenuPos } from "@/pos/menu-pos"
 import { ImpressionTicket } from "@/pos/ticket-recu"
@@ -207,8 +208,8 @@ export function EcranVente({ me, boutique, session, onSessionFermee }: Props) {
   })
 
   return (
-    <main className="flex h-screen flex-col bg-gray-50 print:hidden">
-      <header className="flex items-center gap-3 border-b bg-white px-4 py-2">
+    <main className="flex h-screen flex-col bg-muted print:hidden">
+      <header className="flex items-center gap-3 border-b bg-card px-4 py-2">
         <h1 className="text-lg font-semibold whitespace-nowrap">
           {boutique.name}
         </h1>
@@ -217,7 +218,8 @@ export function EcranVente({ me, boutique, session, onSessionFermee }: Props) {
           value={recherche}
           onChange={(e) => setRecherche(e.target.value)}
           placeholder="Rechercher (nom, SKU, code-barres) — touche /"
-          className="max-w-md"
+          // Compact à la souris (back-office), 44px au doigt (comptoir tactile).
+          className="max-w-md pointer-coarse:min-h-11"
         />
         <div className="ml-auto">
           <MenuPos
@@ -228,10 +230,17 @@ export function EcranVente({ me, boutique, session, onSessionFermee }: Props) {
           />
         </div>
       </header>
-      <div className="flex gap-1 overflow-x-auto border-b bg-white px-2 py-1">
+      <div
+        role="group"
+        aria-label="Filtrer par catégorie"
+        className="flex gap-1 overflow-x-auto border-b bg-card px-2 py-1"
+      >
         <Button
           variant={categorieId === null ? "default" : "outline"}
+          aria-pressed={categorieId === null}
           onClick={() => setCategorieId(null)}
+          // Chips denses à la souris, cibles ≥ 44px au doigt (WCAG 2.5.5).
+          className="pointer-coarse:min-h-11 pointer-coarse:px-3"
         >
           Tout
         </Button>
@@ -239,24 +248,31 @@ export function EcranVente({ me, boutique, session, onSessionFermee }: Props) {
           <Button
             key={cat.id}
             variant={categorieId === cat.id ? "default" : "outline"}
+            aria-pressed={categorieId === cat.id}
             onClick={() => setCategorieId(cat.id)}
+            className="pointer-coarse:min-h-11 pointer-coarse:px-3"
           >
             {cat.name}
           </Button>
         ))}
       </div>
       {erreurVente && (
-        <p role="alert" className="bg-red-100 px-4 py-2 text-sm text-red-800">
+        <p
+          role="alert"
+          className="bg-destructive/10 px-4 py-2 text-sm text-destructive"
+        >
           {erreurVente}
         </p>
       )}
       <div className="flex min-h-0 flex-1">
         <section className="min-w-0 flex-1 overflow-y-auto">
           {catalogue.isPending ? (
-            <p className="p-6 text-gray-500">Chargement du catalogue…</p>
+            <p className="p-6 text-muted-foreground">
+              Chargement du catalogue…
+            </p>
           ) : catalogue.isError ? (
             <div className="p-6">
-              <p role="alert" className="mb-3 text-sm text-red-600">
+              <p role="alert" className="mb-3 text-sm text-destructive">
                 Impossible de charger le catalogue.
               </p>
               <Button
@@ -381,45 +397,11 @@ export function EcranVente({ me, boutique, session, onSessionFermee }: Props) {
 
       {confirmation && (
         <>
-          <div className="fixed inset-0 z-40 grid place-items-center bg-black/60 p-4 print:hidden">
-            <div className="w-full max-w-md rounded-lg bg-white p-6 text-center">
-              <p className="text-lg font-semibold">
-                Vente n° {confirmation.ticketNumber} enregistrée
-              </p>
-              {confirmation.payments.some((p) => (p.changeGiven ?? 0) > 0) && (
-                <p className="my-4 text-5xl font-bold text-green-700 tabular-nums">
-                  Monnaie :{" "}
-                  {formaterMontant(
-                    confirmation.payments.reduce(
-                      (somme, p) => somme + (p.changeGiven ?? 0),
-                      0
-                    )
-                  )}
-                </p>
-              )}
-              <div className="mt-4 flex gap-2">
-                <Button
-                  variant="outline"
-                  className="min-h-14 flex-1"
-                  // `<ImpressionTicket>` reste monté (via portail vers
-                  // document.body, `onImprime` no-op) tant que la
-                  // confirmation est affichée : le ticket est déjà dans le
-                  // DOM hors de `<main>`, donc `window.print()` direct
-                  // suffit à le réimprimer.
-                  onClick={() => window.print()}
-                >
-                  Réimprimer
-                </Button>
-                <Button
-                  autoFocus
-                  className="min-h-14 flex-1 text-lg"
-                  onClick={() => setConfirmation(null)}
-                >
-                  Nouvelle vente
-                </Button>
-              </div>
-            </div>
-          </div>
+          <ModaleConfirmation
+            vente={confirmation}
+            onNouvelleVente={() => setConfirmation(null)}
+            onReimprimer={() => window.print()}
+          />
           {!reglages.isPending && (
             <ImpressionTicket
               sale={confirmation}

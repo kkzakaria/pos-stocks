@@ -1,0 +1,173 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-07-13T00:00:00Z",
+  "title": "Design System: POS-Stocks",
+  "extensions": {
+    "colorMeta": {
+      "primary": {
+        "role": "primary",
+        "displayName": "Indigo du registre",
+        "canonical": "oklch(0.488 0.243 264.376)",
+        "tonalRamp": [
+          "oklch(0.20 0.10 264)",
+          "oklch(0.29 0.15 264)",
+          "oklch(0.38 0.20 264)",
+          "oklch(0.488 0.243 264)",
+          "oklch(0.58 0.22 264)",
+          "oklch(0.70 0.16 264)",
+          "oklch(0.82 0.10 264)",
+          "oklch(0.94 0.04 264)"
+        ]
+      },
+      "foreground": {
+        "role": "neutral",
+        "displayName": "Encre",
+        "canonical": "oklch(0.145 0 0)",
+        "tonalRamp": [
+          "oklch(0.145 0 0)",
+          "oklch(0.21 0 0)",
+          "oklch(0.34 0 0)",
+          "oklch(0.45 0 0)",
+          "oklch(0.52 0 0)",
+          "oklch(0.71 0 0)",
+          "oklch(0.85 0 0)",
+          "oklch(0.97 0 0)"
+        ]
+      },
+      "ticket-comptoir": {
+        "role": "tertiary",
+        "displayName": "Comptoir",
+        "canonical": "#14261d",
+        "tonalRamp": [
+          "oklch(0.18 0.03 158)",
+          "oklch(0.26 0.03 158)",
+          "oklch(0.34 0.04 158)",
+          "oklch(0.44 0.05 158)",
+          "oklch(0.55 0.06 158)",
+          "oklch(0.68 0.06 158)",
+          "oklch(0.82 0.05 158)",
+          "oklch(0.94 0.02 158)"
+        ]
+      },
+      "ticket-rack": {
+        "role": "tertiary",
+        "displayName": "Rack (orange, monde du ticket)",
+        "canonical": "#c2410c",
+        "tonalRamp": [
+          "oklch(0.30 0.11 38)",
+          "oklch(0.40 0.15 38)",
+          "oklch(0.48 0.18 38)",
+          "oklch(0.55 0.19 38)",
+          "oklch(0.64 0.18 38)",
+          "oklch(0.74 0.15 38)",
+          "oklch(0.85 0.10 38)",
+          "oklch(0.94 0.04 38)"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "display": { "displayName": "Display", "purpose": "Titres du ticket de connexion uniquement (Space Grotesk)." },
+      "body": { "displayName": "Body", "purpose": "Corps de l'app en Inter 12 px — libellés, cellules, texte courant." },
+      "mono": { "displayName": "Mono", "purpose": "Chiffres alignés du reçu et numéros de ticket (JetBrains Mono)." }
+    },
+    "shadows": [
+      { "name": "ticket", "value": "0 1px 2px rgb(0 0 0 / 0.25), 0 24px 48px -16px rgb(0 0 0 / 0.5)", "purpose": "Seule ombre du système : le reçu posé sur le comptoir. Interdite dans l'app." }
+    ],
+    "motion": [
+      { "name": "press", "value": "translateY(1px)", "purpose": "Micro-appui fonctionnel sur les boutons (sauf déclencheurs de menu)." },
+      { "name": "ticket-print", "value": "cubic-bezier(0.22, 1, 0.36, 1)", "purpose": "Sortie « impression » du reçu ; désactivée sous prefers-reduced-motion." }
+    ],
+    "breakpoints": [
+      { "name": "sm", "value": "640px" },
+      { "name": "md", "value": "768px" },
+      { "name": "lg", "value": "1024px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Action principale. Indigo plein, compact (28 px), éclaircit au survol.",
+      "html": "<button class=\"ds-btn-primary\">Valider la vente</button>",
+      "css": ".ds-btn-primary { display: inline-flex; align-items: center; justify-content: center; height: 1.75rem; padding: 0 0.5rem; border: 1px solid transparent; border-radius: 0.5rem; background: oklch(0.488 0.243 264.376); color: oklch(0.97 0.014 254.604); font: 500 0.75rem/1.5 'Inter Variable', sans-serif; white-space: nowrap; cursor: pointer; transition: background 0.15s, transform 0.1s; } .ds-btn-primary:hover { background: oklch(0.488 0.243 264.376 / 0.8); } .ds-btn-primary:focus-visible { outline: none; border-color: oklch(0.708 0 0); box-shadow: 0 0 0 2px oklch(0.708 0 0 / 0.3); } .ds-btn-primary:active { transform: translateY(1px); }"
+    },
+    {
+      "name": "Outline Button",
+      "kind": "button",
+      "refersTo": "button-outline",
+      "description": "Action secondaire cernée d'un filet ; le fond n'apparaît qu'au survol.",
+      "html": "<button class=\"ds-btn-outline\">Annuler</button>",
+      "css": ".ds-btn-outline { display: inline-flex; align-items: center; justify-content: center; height: 1.75rem; padding: 0 0.5rem; border: 1px solid oklch(0.922 0 0); border-radius: 0.5rem; background: transparent; color: oklch(0.145 0 0); font: 500 0.75rem/1.5 'Inter Variable', sans-serif; cursor: pointer; transition: background 0.15s; } .ds-btn-outline:hover { background: oklch(0.922 0 0 / 0.5); } .ds-btn-outline:focus-visible { outline: none; border-color: oklch(0.708 0 0); box-shadow: 0 0 0 2px oklch(0.708 0 0 / 0.3); }"
+    },
+    {
+      "name": "Destructive Button",
+      "kind": "button",
+      "refersTo": "button-destructive",
+      "description": "Action risquée : teinte destructive, jamais un aplat rouge plein.",
+      "html": "<button class=\"ds-btn-destructive\">Supprimer</button>",
+      "css": ".ds-btn-destructive { display: inline-flex; align-items: center; justify-content: center; height: 1.75rem; padding: 0 0.5rem; border: 1px solid transparent; border-radius: 0.5rem; background: oklch(0.577 0.245 27.325 / 0.1); color: oklch(0.577 0.245 27.325); font: 500 0.75rem/1.5 'Inter Variable', sans-serif; cursor: pointer; transition: background 0.15s; } .ds-btn-destructive:hover { background: oklch(0.577 0.245 27.325 / 0.2); }"
+    },
+    {
+      "name": "Text Input",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "Champ compact aligné sur les boutons ; focus en halo indigo-neutre.",
+      "html": "<input class=\"ds-input\" type=\"text\" placeholder=\"Référence produit\" />",
+      "css": ".ds-input { height: 1.75rem; width: 16rem; max-width: 100%; padding: 0.125rem 0.5rem; border: 1px solid oklch(0.922 0 0); border-radius: 0.5rem; background: oklch(0.922 0 0 / 0.2); color: oklch(0.145 0 0); font: 400 0.75rem/1.5 'Inter Variable', sans-serif; outline: none; transition: border-color 0.15s, box-shadow 0.15s; } .ds-input::placeholder { color: oklch(0.556 0 0); } .ds-input:focus-visible { border-color: oklch(0.708 0 0); box-shadow: 0 0 0 2px oklch(0.708 0 0 / 0.3); }"
+    },
+    {
+      "name": "Card",
+      "kind": "card",
+      "refersTo": "card",
+      "description": "Conteneur plat cerné d'un filet — jamais d'ombre dans l'app.",
+      "html": "<div class=\"ds-card\"><div class=\"ds-card-title\">Stock — Boutique Centre</div><div class=\"ds-card-desc\">42 références suivies</div></div>",
+      "css": ".ds-card { display: flex; flex-direction: column; gap: 0.25rem; padding: 1rem; border-radius: 0.625rem; background: oklch(1 0 0); color: oklch(0.145 0 0); box-shadow: inset 0 0 0 1px oklch(0.145 0 0 / 0.1); } .ds-card-title { font: 500 0.875rem/1.4 'Inter Variable', sans-serif; } .ds-card-desc { font: 400 0.75rem/1.55 'Inter Variable', sans-serif; color: oklch(0.556 0 0); }"
+    },
+    {
+      "name": "Badge",
+      "kind": "chip",
+      "refersTo": "badge-default",
+      "description": "Pilule d'état ; même logique de couleur que les boutons.",
+      "html": "<span class=\"ds-badge\">En stock</span>",
+      "css": ".ds-badge { display: inline-flex; align-items: center; height: 1.25rem; padding: 0.125rem 0.5rem; border-radius: 9999px; background: oklch(0.488 0.243 264.376); color: oklch(0.97 0.014 254.604); font: 500 0.625rem/1.4 'Inter Variable', sans-serif; white-space: nowrap; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "Le registre du comptable",
+    "overview": "Le système visuel est un registre numérique : une page blanche, réglée de traits fins, où le chiffre est l'encre. On n'orne pas un livre de comptes — on l'aligne, on le rend lisible, on fait en sorte que chaque montant se tienne à l'audit. La densité est assumée, la couleur rare et fonctionnelle : un indigo profond porte l'action et la sélection, tout le reste est encre, papier et gris tramés. Une exception assumée : le monde du ticket de caisse (connexion + reçu 80 mm), où le papier thermique, le vert comptoir, l'orange rack, Space Grotesk et JetBrains Mono forment un composant chaud et isolé.",
+    "keyCharacteristics": [
+      "Dense par défaut : contrôles compacts (28 px), échelle de type serrée, information au premier plan.",
+      "Plat et tonal : pas d'ombres dans l'app ; la profondeur vient de traits fins (ring-1) et de couches de gris.",
+      "Une seule voix chromatique : l'indigo pour l'action, la sélection, l'état — jamais pour décorer.",
+      "Inter partout dans l'app ; Space Grotesk et JetBrains Mono réservés au monde du ticket.",
+      "Le chiffre est l'élément le plus lisible de chaque écran."
+    ],
+    "rules": [
+      { "name": "La règle d'une seule voix", "body": "L'indigo n'apparaît que pour l'action, la sélection et l'état — jamais en décor ni en aplat décoratif ; les aplats pleins d'action/état (bouton primaire, badge) sont légitimes. Sur un écran donné, il touche moins de 10 % de la surface.", "section": "colors" },
+      { "name": "La règle du monde clos", "body": "L'orange rack, le vert comptoir, Space Grotesk et JetBrains Mono appartiennent au ticket et ne franchissent jamais la frontière vers l'app ; l'app ne pose jamais d'indigo sur le ticket.", "section": "colors" },
+      { "name": "La règle d'Inter partout", "body": "Dans l'app, une seule famille. Aucun display ni serif décoratif ; le caractère vient de la graisse et de la hiérarchie.", "section": "typography" },
+      { "name": "La règle des chiffres monospacés", "body": "JetBrains Mono est réservé au reçu (montants et numéros de ticket) ; dans l'app, les chiffres restent en Inter avec tabular-nums.", "section": "typography" },
+      { "name": "La règle du filet", "body": "Une surface se distingue par un trait (ring-1 ring-foreground/10), pas par une ombre. Renforcer le filet ou décaler le gris plutôt qu'ajouter un box-shadow.", "section": "elevation" }
+    ],
+    "dos": [
+      "Do garder l'indigo pour l'action, la sélection et l'état — moins de 10 % de la surface.",
+      "Do distinguer les surfaces par un filet (ring-1 ring-foreground/10) et des couches de gris, jamais par une ombre.",
+      "Do rester dense : contrôles h-7, corps text-xs, tables serrées là où le gestionnaire en a besoin.",
+      "Do utiliser Inter pour tout dans l'app ; réserver Space Grotesk / JetBrains Mono au monde du ticket.",
+      "Do rendre le focus toujours visible (ring/30) — l'app se pilote au clavier, surtout au POS.",
+      "Do teinter les états destructifs (destructive/10), pas les remplir de rouge plein.",
+      "Do formater les montants en entiers XOF via formaterMontant ; le chiffre est l'élément le plus lisible de la ligne."
+    ],
+    "donts": [
+      "Don't faire un ERP obèse : pas d'écrans gris saturés, de menus sans fin, de codes cryptiques.",
+      "Don't faire un POS grand public ludique : pas d'arrondis exagérés, de couleurs vives multiples, de gamification.",
+      "Don't faire un template admin générique : pas de cartes grises anonymes empilées sans hiérarchie.",
+      "Don't faire du clinquant marketing : pas de dégradés, de texte en dégradé, de hero-metrics, de motion décoratif.",
+      "Don't ajouter d'ombre portée dans l'app pour détacher un élément — renforcer le filet ou décaler le gris.",
+      "Don't laisser fuir l'orange rack, le vert comptoir ou les fontes du ticket dans l'app.",
+      "Don't poser de bordure latérale colorée (border-left/right > 1px) en guise d'accent — filet complet ou fond teinté.",
+      "Don't laisser un gris trop pâle sous le seuil AA sur les placeholders et le texte muted."
+    ]
+  }
+}

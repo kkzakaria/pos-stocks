@@ -73,3 +73,14 @@ CD : `deploy.yml` migre la D1 de prod puis déploie les deux Workers via `bunx w
 ## Process de développement
 
 Chaque évolution significative suit le cycle établi : brainstorming/cadrage → amendement de la spec → plan détaillé (`docs/superpowers/plans/`) → exécution par subagents avec revue par tâche → E2E navigateur → revue finale de branche + vague de fix unique → PR avec revue CodeRabbit (corriger le fondé, écarter en citant les différés tracés au ledger) → **merge uniquement sur feu vert explicite de l'utilisateur** (merge commit, pas de squash). Jamais de secret commité (`.dev.vars` est gitignoré, seul `.dev.vars.example` est versionné).
+
+## Contexte design (Impeccable)
+
+Le contexte design de la SPA vit dans `apps/web/` : `PRODUCT.md` (stratégie — register `product`, plateforme `web`) et `DESIGN.md` (système visuel — tokens, typo, composants). Config du mode live pré-remplie dans `apps/web/.impeccable/live/config.json`.
+
+- **Positionnement** : *l'exactitude vérifiable* — chaque mouvement et chaque montant sont traçables et réconciliables.
+- **Personnalité** : précis, efficace, fiable ; ressenti *rapide et sans friction*, en tension avec la rigueur d'audit.
+- **Principes** : le chiffre est sacré · vite sans bâcler · tout se lit, tout se prouve · familiarité gagnante · la densité au service du métier.
+- **Anti-références** : ERP obèse (SAP/Sage), POS grand public ludique, template admin générique, clinquant marketing.
+
+Pour faire évoluer une interface, passer par le skill `/impeccable` (les commandes lisent `PRODUCT.md` et `DESIGN.md`).

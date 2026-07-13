@@ -39,16 +39,22 @@ export function PanneauLigne({
   }
 
   return (
-    <div className="flex h-full w-full flex-col border-l bg-white">
+    <div className="flex h-full w-full flex-col border-l bg-card">
       <div className="flex items-center justify-between border-b px-4 py-3">
         <div>
           <p className="text-sm font-semibold">{ligne.nom}</p>
-          <p className="text-xs text-gray-500">
+          <p className="text-xs text-muted-foreground">
             {ligne.quantite} × {formaterMontant(ligne.prixUnitaire)}
             {ligne.sourceNom ? ` — ${ligne.sourceNom}` : ""}
           </p>
         </div>
-        <button onClick={onFermer} aria-label="Fermer" className="p-2 text-xl">
+        <button
+          onClick={onFermer}
+          aria-label="Fermer"
+          // border-box : au doigt le bouton fait 44×44 (le padding est absorbé),
+          // à la souris il garde sa taille compacte d'origine.
+          className="inline-flex items-center justify-center rounded p-2 text-xl leading-none pointer-coarse:size-11"
+        >
           ×
         </button>
       </div>
@@ -82,7 +88,10 @@ export function PanneauLigne({
           : saisie}
       </p>
       {erreurPrix && (
-        <p role="alert" className="px-4 pb-2 text-center text-sm text-red-600">
+        <p
+          role="alert"
+          className="px-4 pb-2 text-center text-sm text-destructive"
+        >
           {erreurPrix}
         </p>
       )}
