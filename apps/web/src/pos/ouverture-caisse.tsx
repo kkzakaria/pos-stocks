@@ -3,6 +3,13 @@ import { useMutation } from "@tanstack/react-query"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { formaterMontant } from "@/lib/format"
 import { ouvrirSession } from "@/lib/pos-api"
 
@@ -32,9 +39,9 @@ export function OuvertureCaisse({
   const fondValide = /^\d*$/.test(fond)
 
   return (
-    <main className="grid min-h-screen place-items-center bg-gray-50 p-4">
+    <main className="grid min-h-screen place-items-center bg-muted p-4">
       <form
-        className="w-full max-w-sm rounded-lg border bg-white p-6"
+        className="w-full max-w-sm rounded-lg border bg-card p-6"
         onSubmit={(e) => {
           e.preventDefault()
           setErreur(null)
@@ -42,24 +49,31 @@ export function OuvertureCaisse({
         }}
       >
         <h1 className="mb-1 text-xl font-semibold">Ouvrir la caisse</h1>
-        <p className="mb-5 text-sm text-gray-500">
+        <p className="mb-5 text-sm text-muted-foreground">
           Une session de caisse est requise avant de vendre.
         </p>
         {boutiques.length > 1 && (
           <div className="mb-4">
             <Label htmlFor="boutique">Boutique</Label>
-            <select
-              id="boutique"
-              className="mt-1 w-full rounded border px-3 py-2"
+            <Select
               value={boutiqueId}
-              onChange={(e) => onChangeBoutique(e.target.value)}
+              onValueChange={(valeur) => onChangeBoutique(valeur as string)}
             >
-              {boutiques.map((b) => (
-                <option key={b.id} value={b.id}>
-                  {b.name}
-                </option>
-              ))}
-            </select>
+              <SelectTrigger id="boutique" className="mt-1 w-full">
+                <SelectValue>
+                  {(valeur: string) =>
+                    boutiques.find((b) => b.id === valeur)?.name
+                  }
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                {boutiques.map((b) => (
+                  <SelectItem key={b.id} value={b.id}>
+                    {b.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
         )}
         <div className="mb-4">
@@ -73,13 +87,13 @@ export function OuvertureCaisse({
             placeholder="0"
           />
           {fond !== "" && fondValide && (
-            <p className="mt-1 text-sm text-gray-500">
+            <p className="mt-1 text-sm text-muted-foreground">
               {formaterMontant(Number(fond))}
             </p>
           )}
         </div>
         {erreur && (
-          <p role="alert" className="mb-3 text-sm text-red-600">
+          <p role="alert" className="mb-3 text-sm text-destructive">
             {erreur}
           </p>
         )}

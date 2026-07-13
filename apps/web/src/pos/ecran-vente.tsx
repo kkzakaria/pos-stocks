@@ -124,9 +124,17 @@ export function EcranVente({ me, boutique, session, onSessionFermee }: Props) {
     [articles, ajouterAuPanier]
   )
 
-  // Scan douchette GLOBAL + raccourcis `/` (recherche) et `F2` (encaisser)
+  // Scan douchette GLOBAL + raccourcis `/` (recherche) et `F2` (encaisser) —
+  // inertes quand une modale est ouverte (sinon `/` focaliserait la recherche
+  // derrière l'overlay, et un scan ajouterait un article invisible).
   const panierNonVide = lignes.length > 0
+  const modaleOuverte =
+    paiementOuvert ||
+    confirmation !== null ||
+    depannagePour !== null ||
+    vue !== "vente"
   useEffect(() => {
+    if (modaleOuverte) return
     const surScan = creerBufferScan(scanner)
     const handler = (e: KeyboardEvent) => {
       if (e.key === "F2") {
@@ -139,11 +147,16 @@ export function EcranVente({ me, boutique, session, onSessionFermee }: Props) {
         rechercheRef.current?.focus()
         return
       }
+      // Le champ de recherche gère ses propres frappes (saisie manuelle ET
+      // douchette dans le champ) via son onKeyDown : ne pas doubler avec le
+      // buffer de scan global, sinon un scan focus-recherche ajoute 2 articles
+      // (le 1er résultat filtré + le code scanné). Revue finale de branche.
+      if (document.activeElement === rechercheRef.current) return
       surScan(e)
     }
     window.addEventListener("keydown", handler)
     return () => window.removeEventListener("keydown", handler)
-  }, [scanner, panierNonVide])
+  }, [scanner, panierNonVide, modaleOuverte])
 
   const vente = useMutation({
     mutationFn: (paiements: SalePaymentInput[]) =>
@@ -217,6 +230,19 @@ export function EcranVente({ me, boutique, session, onSessionFermee }: Props) {
           ref={rechercheRef}
           value={recherche}
           onChange={(e) => setRecherche(e.target.value)}
+          onKeyDown={(e) => {
+            // Entrée ajoute le premier résultat filtré et vide la recherche :
+            // encaissement clavier sans douchette ni clic sur la tuile.
+            if (
+              e.key === "Enter" &&
+              recherche.trim() !== "" &&
+              filtres.length > 0
+            ) {
+              e.preventDefault()
+              ajouterAuPanier(filtres[0])
+              setRecherche("")
+            }
+          }}
           placeholder="Rechercher (nom, SKU, code-barres) — touche /"
           // Compact à la souris (back-office), 44px au doigt (comptoir tactile).
           className="max-w-md pointer-coarse:min-h-11"

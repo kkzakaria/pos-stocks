@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query"
 import { fetchDisponibilites } from "@/lib/pos-api"
+import { usePiegeFocus } from "@/lib/use-piege-focus"
 import type { LignePanier } from "@/lib/pos"
 import { Button } from "@/components/ui/button"
 
@@ -24,29 +25,40 @@ export function DialogueDepannage({
     queryFn: () => fetchDisponibilites(storeId, ligne.variantId),
   })
   const disponibilites = dispo.data?.disponibilites ?? []
+  const { conteneurRef, gererClavier } = usePiegeFocus<HTMLDivElement>(onFermer)
   return (
     <div className="fixed inset-0 z-30 grid place-items-center bg-black/50 p-4">
-      <div className="w-full max-w-md rounded-lg bg-white p-5">
+      <div
+        ref={conteneurRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="depannage-titre"
+        tabIndex={-1}
+        onKeyDown={gererClavier}
+        className="w-full max-w-md rounded-lg bg-card p-5 outline-none"
+      >
         <div className="mb-3 flex items-start justify-between">
           <div>
-            <h2 className="text-lg font-semibold">Puiser dans…</h2>
-            <p className="text-sm text-gray-500">{ligne.nom}</p>
+            <h2 id="depannage-titre" className="text-lg font-semibold">
+              Puiser dans…
+            </h2>
+            <p className="text-sm text-muted-foreground">{ligne.nom}</p>
           </div>
           <button
             onClick={onFermer}
             aria-label="Fermer"
-            className="p-2 text-xl"
+            className="inline-flex items-center justify-center rounded p-2 text-xl leading-none outline-none focus-visible:ring-2 focus-visible:ring-ring/30 pointer-coarse:size-11"
           >
             ×
           </button>
         </div>
         {dispo.isPending && (
-          <p className="py-4 text-sm text-gray-500">
+          <p className="py-4 text-sm text-muted-foreground">
             Recherche des disponibilités…
           </p>
         )}
         {!dispo.isPending && disponibilites.length === 0 && (
-          <p className="py-4 text-sm text-gray-500">
+          <p className="py-4 text-sm text-muted-foreground">
             Aucun autre entrepôt ne dispose de cet article.
           </p>
         )}
@@ -59,7 +71,7 @@ export function DialogueDepannage({
               onClick={() => onChoisir(d.warehouseId, d.warehouseName)}
             >
               <span>{d.warehouseName}</span>
-              <span className="text-sm text-gray-500">
+              <span className="text-sm text-muted-foreground">
                 {d.quantity} disponible{d.quantity > 1 ? "s" : ""}
               </span>
             </Button>

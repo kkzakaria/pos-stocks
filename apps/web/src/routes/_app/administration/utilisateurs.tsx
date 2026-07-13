@@ -7,6 +7,14 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
+import { toast } from "@/components/ui/toast"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import {
   Dialog,
   DialogContent,
@@ -15,6 +23,17 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"
+import {
   Table,
   TableBody,
   TableCell,
@@ -22,6 +41,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { TableSkeleton } from "@/components/ui/table-skeleton"
 import { ProvisionalPasswordDialog } from "@/components/provisional-password-dialog"
 
 export const Route = createFileRoute("/_app/administration/utilisateurs")({
@@ -67,6 +87,16 @@ function UtilisateursPage() {
   const peutEcrire =
     me.membership?.role === "owner" || me.membership?.role === "admin"
   const queryClient = useQueryClient()
+
+  // Rôles attribuables à la création (admin réservé au propriétaire).
+  const optionsRole: Array<{ value: CompanyRole; label: string }> = [
+    { value: "staff", label: "Employé (caissier)" },
+    { value: "stock_manager", label: "Gestionnaire de stock" },
+    { value: "auditor", label: "Auditeur" },
+    ...(me.membership?.role === "owner"
+      ? [{ value: "admin" as CompanyRole, label: "Administrateur" }]
+      : []),
+  ]
 
   const [dialogCreation, setDialogCreation] = useState(false)
   const [nom, setNom] = useState("")
@@ -127,8 +157,12 @@ function UtilisateursPage() {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ role: v.role }),
       }),
-    onSuccess: invalider,
-    onError: (err) => alert(err instanceof Error ? err.message : "Erreur"),
+    onSuccess: async () => {
+      await invalider()
+      toast.success("Rôle mis à jour")
+    },
+    onError: (err) =>
+      toast.error(err instanceof Error ? err.message : "Erreur"),
   })
 
   const changerStatut = useMutation({
@@ -138,8 +172,12 @@ function UtilisateursPage() {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ isActive: !u.isActive }),
       }),
-    onSuccess: invalider,
-    onError: (err) => alert(err instanceof Error ? err.message : "Erreur"),
+    onSuccess: async (_res, u) => {
+      await invalider()
+      toast.success(u.isActive ? "Compte désactivé" : "Compte réactivé")
+    },
+    onError: (err) =>
+      toast.error(err instanceof Error ? err.message : "Erreur"),
   })
 
   const affecter = useMutation({
@@ -152,8 +190,10 @@ function UtilisateursPage() {
     onSuccess: async () => {
       await invalider()
       setAffectation({ userId: "", warehouseId: "", role: "cashier" })
+      toast.success("Affectation ajoutée")
     },
-    onError: (err) => alert(err instanceof Error ? err.message : "Erreur"),
+    onError: (err) =>
+      toast.error(err instanceof Error ? err.message : "Erreur"),
   })
 
   const retirerAffectation = useMutation({
@@ -161,8 +201,12 @@ function UtilisateursPage() {
       apiFetch(`/api/v1/warehouse-members/${assignmentId}`, {
         method: "DELETE",
       }),
-    onSuccess: invalider,
-    onError: (err) => alert(err instanceof Error ? err.message : "Erreur"),
+    onSuccess: async () => {
+      await invalider()
+      toast.success("Affectation retirée")
+    },
+    onError: (err) =>
+      toast.error(err instanceof Error ? err.message : "Erreur"),
   })
 
   return (
@@ -206,22 +250,28 @@ function UtilisateursPage() {
                 </div>
                 <div className="flex flex-col gap-1.5">
                   <Label htmlFor="u-role">Rôle</Label>
-                  <select
-                    id="u-role"
+                  <Select
                     value={role}
-                    onChange={(e) => setRole(e.target.value as CompanyRole)}
-                    className="h-10 rounded-md border px-2 text-sm"
+                    onValueChange={(valeur) => setRole(valeur as CompanyRole)}
                   >
-                    <option value="staff">Employé (caissier)</option>
-                    <option value="stock_manager">Gestionnaire de stock</option>
-                    <option value="auditor">Auditeur</option>
-                    {me.membership?.role === "owner" && (
-                      <option value="admin">Administrateur</option>
-                    )}
-                  </select>
+                    <SelectTrigger id="u-role" className="w-full">
+                      <SelectValue>
+                        {(valeur: CompanyRole) =>
+                          optionsRole.find((o) => o.value === valeur)?.label
+                        }
+                      </SelectValue>
+                    </SelectTrigger>
+                    <SelectContent>
+                      {optionsRole.map((o) => (
+                        <SelectItem key={o.value} value={o.value}>
+                          {o.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
                 {erreur && (
-                  <p role="alert" className="text-sm text-red-700">
+                  <p role="alert" className="text-sm text-destructive">
                     {erreur}
                   </p>
                 )}
@@ -242,43 +292,51 @@ function UtilisateursPage() {
         />
       )}
 
-      {utilisateurs.isPending ? (
-        <p className="text-sm text-gray-500">Chargement…</p>
-      ) : (
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Nom</TableHead>
-              <TableHead>Email</TableHead>
-              <TableHead>Rôle</TableHead>
-              <TableHead>Affectations</TableHead>
-              <TableHead>Statut</TableHead>
-              {peutEcrire && <TableHead />}
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {(utilisateurs.data?.users ?? []).map((u) => (
+      <Table>
+        <TableHeader sticky>
+          <TableRow>
+            <TableHead>Nom</TableHead>
+            <TableHead>Email</TableHead>
+            <TableHead>Rôle</TableHead>
+            <TableHead>Affectations</TableHead>
+            <TableHead>Statut</TableHead>
+            {peutEcrire && <TableHead />}
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {utilisateurs.isPending ? (
+            <TableSkeleton colonnes={peutEcrire ? 6 : 5} />
+          ) : (
+            (utilisateurs.data?.users ?? []).map((u) => (
               <TableRow key={u.id}>
                 <TableCell className="font-medium">{u.name}</TableCell>
                 <TableCell>{u.email}</TableCell>
                 <TableCell>
                   {peutEcrire && u.id !== me.user.id ? (
-                    <select
+                    <Select
                       value={u.role}
-                      onChange={(e) =>
+                      onValueChange={(valeur) =>
                         changerRole.mutate({
                           userId: u.id,
-                          role: e.target.value as CompanyRole,
+                          role: valeur as CompanyRole,
                         })
                       }
-                      className="rounded border px-1 py-0.5 text-sm"
                     >
-                      {Object.entries(ROLES_FR).map(([valeur, libelle]) => (
-                        <option key={valeur} value={valeur}>
-                          {libelle}
-                        </option>
-                      ))}
-                    </select>
+                      <SelectTrigger size="sm" className="w-48">
+                        <SelectValue>
+                          {(valeur: CompanyRole) => ROLES_FR[valeur]}
+                        </SelectValue>
+                      </SelectTrigger>
+                      <SelectContent>
+                        {(
+                          Object.entries(ROLES_FR) as [CompanyRole, string][]
+                        ).map(([valeur, libelle]) => (
+                          <SelectItem key={valeur} value={valeur}>
+                            {libelle}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   ) : (
                     ROLES_FR[u.role]
                   )}
@@ -292,23 +350,39 @@ function UtilisateursPage() {
                         <Badge key={a.id} variant="secondary">
                           {a.warehouseName} ({ROLES_ENTREPOT_FR[a.role]})
                           {peutEcrire && (
-                            <button
-                              type="button"
-                              aria-label={`Retirer l'affectation ${a.warehouseName}`}
-                              className="ml-1 font-semibold hover:text-red-700"
-                              disabled={retirerAffectation.isPending}
-                              onClick={() => {
-                                if (
-                                  window.confirm(
-                                    `Retirer l'affectation « ${a.warehouseName} » de ${u.name} ?`
-                                  )
-                                ) {
-                                  retirerAffectation.mutate(a.id)
+                            <AlertDialog>
+                              <AlertDialogTrigger
+                                render={
+                                  <button
+                                    type="button"
+                                    aria-label={`Retirer l'affectation ${a.warehouseName}`}
+                                    className="ml-1 font-semibold outline-none hover:text-destructive focus-visible:ring-2 focus-visible:ring-ring/30"
+                                  />
                                 }
-                              }}
-                            >
-                              ×
-                            </button>
+                              >
+                                ×
+                              </AlertDialogTrigger>
+                              <AlertDialogContent>
+                                <AlertDialogHeader>
+                                  <AlertDialogTitle>
+                                    Retirer l'affectation ?
+                                  </AlertDialogTitle>
+                                  <AlertDialogDescription>
+                                    Retirer « {a.warehouseName} » de {u.name} ?
+                                  </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                  <AlertDialogCancel>Annuler</AlertDialogCancel>
+                                  <AlertDialogAction
+                                    onClick={() =>
+                                      retirerAffectation.mutate(a.id)
+                                    }
+                                  >
+                                    Retirer
+                                  </AlertDialogAction>
+                                </AlertDialogFooter>
+                              </AlertDialogContent>
+                            </AlertDialog>
                           )}
                         </Badge>
                       ))}
@@ -316,7 +390,7 @@ function UtilisateursPage() {
                   )}
                 </TableCell>
                 <TableCell>
-                  <Badge variant={u.isActive ? "default" : "secondary"}>
+                  <Badge variant={u.isActive ? "success" : "secondary"}>
                     {u.isActive ? "Actif" : "Désactivé"}
                   </Badge>
                 </TableCell>
@@ -334,10 +408,10 @@ function UtilisateursPage() {
                   </TableCell>
                 )}
               </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      )}
+            ))
+          )}
+        </TableBody>
+      </Table>
 
       {peutEcrire && (
         <div className="mt-8 max-w-2xl rounded-md border p-4">
@@ -353,66 +427,92 @@ function UtilisateursPage() {
           >
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="a-user">Utilisateur</Label>
-              <select
-                id="a-user"
-                required
+              <Select
                 value={affectation.userId}
-                onChange={(e) =>
-                  setAffectation({ ...affectation, userId: e.target.value })
+                onValueChange={(valeur) =>
+                  setAffectation({ ...affectation, userId: valeur as string })
                 }
-                className="h-10 rounded-md border px-2 text-sm"
               >
-                <option value="">— choisir —</option>
-                {(utilisateurs.data?.users ?? [])
-                  .filter((u) => u.isActive)
-                  .map((u) => (
-                    <option key={u.id} value={u.id}>
-                      {u.name}
-                    </option>
-                  ))}
-              </select>
+                <SelectTrigger id="a-user" className="w-56">
+                  <SelectValue placeholder="— choisir —">
+                    {(valeur: string) =>
+                      (utilisateurs.data?.users ?? []).find(
+                        (u) => u.id === valeur
+                      )?.name
+                    }
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  {(utilisateurs.data?.users ?? [])
+                    .filter((u) => u.isActive)
+                    .map((u) => (
+                      <SelectItem key={u.id} value={u.id}>
+                        {u.name}
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
             </div>
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="a-wh">Entrepôt</Label>
-              <select
-                id="a-wh"
-                required
+              <Select
                 value={affectation.warehouseId}
-                onChange={(e) =>
+                onValueChange={(valeur) =>
                   setAffectation({
                     ...affectation,
-                    warehouseId: e.target.value,
+                    warehouseId: valeur as string,
                   })
                 }
-                className="h-10 rounded-md border px-2 text-sm"
               >
-                <option value="">— choisir —</option>
-                {(entrepots.data?.warehouses ?? []).map((w) => (
-                  <option key={w.id} value={w.id}>
-                    {w.name}
-                  </option>
-                ))}
-              </select>
+                <SelectTrigger id="a-wh" className="w-56">
+                  <SelectValue placeholder="— choisir —">
+                    {(valeur: string) =>
+                      (entrepots.data?.warehouses ?? []).find(
+                        (w) => w.id === valeur
+                      )?.name
+                    }
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  {(entrepots.data?.warehouses ?? []).map((w) => (
+                    <SelectItem key={w.id} value={w.id}>
+                      {w.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="a-role">Rôle</Label>
-              <select
-                id="a-role"
+              <Select
                 value={affectation.role}
-                onChange={(e) =>
+                onValueChange={(valeur) =>
                   setAffectation({
                     ...affectation,
-                    role: e.target.value as WarehouseRole,
+                    role: valeur as WarehouseRole,
                   })
                 }
-                className="h-10 rounded-md border px-2 text-sm"
               >
-                <option value="cashier">Caissier</option>
-                <option value="manager">Responsable</option>
-                <option value="auditor">Auditeur</option>
-              </select>
+                <SelectTrigger id="a-role" className="w-40">
+                  <SelectValue>
+                    {(valeur: WarehouseRole) => ROLES_ENTREPOT_FR[valeur]}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="cashier">Caissier</SelectItem>
+                  <SelectItem value="manager">Responsable</SelectItem>
+                  <SelectItem value="auditor">Auditeur</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
-            <Button type="submit" disabled={affecter.isPending}>
+            <Button
+              type="submit"
+              disabled={
+                affecter.isPending ||
+                !affectation.userId ||
+                !affectation.warehouseId
+              }
+            >
               Affecter
             </Button>
           </form>

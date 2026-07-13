@@ -1,10 +1,23 @@
 import { useState } from "react"
 import { useQuery } from "@tanstack/react-query"
+import { Boxes } from "lucide-react"
 import { formaterMontant } from "@/lib/format"
 import { jourLocal } from "@/lib/pos"
 import { fetchRapportValorisation, telechargerCsv } from "@/lib/rapports"
+import { BarreProportion } from "@/components/ui/barre-proportion"
 import { ErreurEtRetry } from "@/rapports/rapport-ventes"
+import { EtatVide } from "@/components/etat-vide"
 import { Button } from "@/components/ui/button"
+import { Skeleton } from "@/components/ui/skeleton"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
+import { TableSkeleton } from "@/components/ui/table-skeleton"
 
 export function RapportValorisation() {
   const [erreurExport, setErreurExport] = useState<string | null>(null)
@@ -28,7 +41,7 @@ export function RapportValorisation() {
   return (
     <div>
       <div className="flex items-center justify-between">
-        <p className="text-sm text-gray-500">
+        <p className="text-sm text-muted-foreground">
           Photographie du stock courant (quantité × coût moyen pondéré).
         </p>
         <Button variant="outline" onClick={() => void exporter()}>
@@ -36,12 +49,19 @@ export function RapportValorisation() {
         </Button>
       </div>
       {erreurExport && (
-        <p role="alert" className="mt-2 text-sm text-red-600">
+        <p role="alert" className="mt-2 text-sm text-destructive">
           {erreurExport}
         </p>
       )}
       {rapport.isPending && (
-        <p className="mt-6 text-sm text-gray-500">Chargement…</p>
+        <>
+          <Skeleton className="mt-4 h-16 w-full max-w-xs" />
+          <Table className="mt-6">
+            <TableBody>
+              <TableSkeleton colonnes={6} />
+            </TableBody>
+          </Table>
+        </>
       )}
       {rapport.isError && (
         <ErreurEtRetry
@@ -55,53 +75,72 @@ export function RapportValorisation() {
       )}
       {rapport.isSuccess && (
         <>
-          <div className="mt-4 rounded border bg-white p-3">
-            <p className="text-xs text-gray-500">Valeur totale du stock</p>
+          <div className="mt-4 rounded-md bg-card p-3 ring-1 ring-foreground/10">
+            <p className="text-xs text-muted-foreground">
+              Valeur totale du stock
+            </p>
             <p className="mt-1 text-2xl font-semibold tabular-nums">
               {formaterMontant(rapport.data.total)}
             </p>
           </div>
-          {rapport.data.entrepots.length === 0 && (
-            <p className="mt-6 text-sm text-gray-500">Aucun stock valorisé.</p>
+          {rapport.data.entrepots.length === 0 ? (
+            <EtatVide
+              className="mt-6"
+              icon={Boxes}
+              titre="Aucun stock valorisé"
+              message="Réceptionnez ou transférez du stock pour alimenter la valorisation."
+            />
+          ) : (
+            rapport.data.entrepots.map((entrepot) => (
+              <section key={entrepot.warehouseId} className="mt-6">
+                <div className="flex items-baseline justify-between">
+                  <h2 className="font-semibold">{entrepot.warehouseName}</h2>
+                  <span className="flex flex-col items-end gap-1">
+                    <span className="text-sm font-normal text-muted-foreground tabular-nums">
+                      {formaterMontant(entrepot.valeur)}
+                    </span>
+                    <BarreProportion
+                      className="max-w-32"
+                      valeur={entrepot.valeur}
+                      total={rapport.data.total}
+                    />
+                  </span>
+                </div>
+                <Table className="mt-2">
+                  <TableHeader sticky>
+                    <TableRow>
+                      <TableHead>Produit</TableHead>
+                      <TableHead>Variante</TableHead>
+                      <TableHead>SKU</TableHead>
+                      <TableHead numeric>Quantité</TableHead>
+                      <TableHead numeric>CMP</TableHead>
+                      <TableHead numeric>Valeur</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {entrepot.lignes.map((ligne) => (
+                      <TableRow key={ligne.variantId}>
+                        <TableCell className="font-medium">
+                          {ligne.productName}
+                        </TableCell>
+                        <TableCell>{ligne.variantName}</TableCell>
+                        <TableCell className="font-mono text-xs text-muted-foreground">
+                          {ligne.sku}
+                        </TableCell>
+                        <TableCell numeric>{ligne.quantity}</TableCell>
+                        <TableCell numeric>
+                          {formaterMontant(ligne.avgCost)}
+                        </TableCell>
+                        <TableCell numeric>
+                          {formaterMontant(ligne.valeur)}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </section>
+            ))
           )}
-          {rapport.data.entrepots.map((entrepot) => (
-            <section key={entrepot.warehouseId} className="mt-6">
-              <h3 className="flex items-baseline justify-between font-semibold">
-                {entrepot.warehouseName}
-                <span className="text-sm font-normal text-gray-500 tabular-nums">
-                  {formaterMontant(entrepot.valeur)}
-                </span>
-              </h3>
-              <table className="mt-2 w-full text-sm">
-                <thead>
-                  <tr className="border-b text-left text-gray-500">
-                    <th className="py-2">Produit</th>
-                    <th>Variante</th>
-                    <th>SKU</th>
-                    <th className="text-right">Quantité</th>
-                    <th className="text-right">CMP</th>
-                    <th className="text-right">Valeur</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {entrepot.lignes.map((ligne) => (
-                    <tr key={ligne.variantId} className="border-b">
-                      <td className="py-2">{ligne.productName}</td>
-                      <td>{ligne.variantName}</td>
-                      <td className="text-gray-500">{ligne.sku}</td>
-                      <td className="text-right">{ligne.quantity}</td>
-                      <td className="text-right tabular-nums">
-                        {formaterMontant(ligne.avgCost)}
-                      </td>
-                      <td className="text-right tabular-nums">
-                        {formaterMontant(ligne.valeur)}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </section>
-          ))}
         </>
       )}
     </div>

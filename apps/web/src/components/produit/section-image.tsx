@@ -1,7 +1,10 @@
 import { useState } from "react"
 import { useMutation } from "@tanstack/react-query"
+import { Upload } from "lucide-react"
 import { apiFetch, apiUrl } from "@/lib/api"
+import { cn } from "@/lib/utils"
 import { Label } from "@/components/ui/label"
+import { buttonVariants } from "@/components/ui/button"
 import type { Produit } from "./types"
 
 type Props = {
@@ -51,17 +54,29 @@ export function SectionImage({
           className="h-32 w-32 rounded-md border object-cover"
         />
       ) : (
-        <div className="flex h-32 w-32 items-center justify-center rounded-md border bg-gray-50 text-xs text-gray-400">
+        <div className="flex h-32 w-32 items-center justify-center rounded-md border bg-muted text-xs text-muted-foreground">
           Aucune image
         </div>
       )}
       {peutEcrire && (
         <div className="flex flex-col gap-2">
           <Label htmlFor="p-image">Image (JPEG, PNG, WebP — 2 Mo max)</Label>
+          <label
+            htmlFor="p-image"
+            className={cn(
+              buttonVariants({ variant: "outline", size: "sm" }),
+              "w-fit cursor-pointer",
+              envoyerImage.isPending && "pointer-events-none opacity-50"
+            )}
+          >
+            <Upload />
+            {envoyerImage.isPending ? "Envoi…" : "Choisir une image…"}
+          </label>
           <input
             id="p-image"
             type="file"
             accept="image/jpeg,image/png,image/webp"
+            disabled={envoyerImage.isPending}
             onChange={(e) => {
               // e.target.files est nullable (FileList | null) : l'optional
               // chain est légitime ici pour no-unnecessary-condition
@@ -77,10 +92,10 @@ export function SectionImage({
                 },
               })
             }}
-            className="text-sm"
+            className="sr-only"
           />
           {erreurImage && (
-            <p role="alert" className="text-sm text-red-700">
+            <p role="alert" className="text-sm text-destructive">
               {erreurImage}
             </p>
           )}

@@ -3,6 +3,7 @@ import { useQuery, useMutation } from "@tanstack/react-query"
 import { formaterMontant } from "@/lib/format"
 import { jourLocal } from "@/lib/pos"
 import { fetchVente, fetchVentesDuJour } from "@/lib/pos-api"
+import { usePiegeFocus } from "@/lib/use-piege-focus"
 import type { VenteDetail } from "@/lib/pos-api"
 import { Button } from "@/components/ui/button"
 
@@ -28,26 +29,37 @@ export function TicketsDuJour({ storeId, onReimprimer, onFermer }: Props) {
     mutationFn: (saleId: string) => fetchVente(saleId),
     onSuccess: ({ sale }) => onReimprimer(sale),
   })
+  const { conteneurRef, gererClavier } = usePiegeFocus<HTMLDivElement>(onFermer)
   return (
     <div className="fixed inset-0 z-30 grid place-items-center bg-black/50 p-4">
-      <div className="flex max-h-[80vh] w-full max-w-lg flex-col rounded-lg bg-white">
+      <div
+        ref={conteneurRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="tickets-jour-titre"
+        tabIndex={-1}
+        onKeyDown={gererClavier}
+        className="flex max-h-[80vh] w-full max-w-lg flex-col rounded-lg bg-card outline-none"
+      >
         <div className="flex items-center justify-between border-b px-5 py-3">
-          <h2 className="text-lg font-semibold">Tickets du jour</h2>
+          <h2 id="tickets-jour-titre" className="text-lg font-semibold">
+            Tickets du jour
+          </h2>
           <button
             onClick={onFermer}
             aria-label="Fermer"
-            className="p-2 text-xl"
+            className="inline-flex items-center justify-center rounded p-2 text-xl leading-none outline-none focus-visible:ring-2 focus-visible:ring-ring/30 pointer-coarse:size-11"
           >
             ×
           </button>
         </div>
         <div className="flex-1 overflow-y-auto p-3">
           {ventes.isPending && (
-            <p className="p-3 text-sm text-gray-500">Chargement…</p>
+            <p className="p-3 text-sm text-muted-foreground">Chargement…</p>
           )}
           {ventes.isError && (
             <div className="p-3">
-              <p role="alert" className="mb-2 text-sm text-red-600">
+              <p role="alert" className="mb-2 text-sm text-destructive">
                 Impossible de charger les tickets du jour.
               </p>
               <Button variant="outline" onClick={() => void ventes.refetch()}>
@@ -56,12 +68,12 @@ export function TicketsDuJour({ storeId, onReimprimer, onFermer }: Props) {
             </div>
           )}
           {!ventes.isPending && !ventes.isError && liste.length === 0 && (
-            <p className="p-3 text-sm text-gray-500">
+            <p className="p-3 text-sm text-muted-foreground">
               Aucune vente aujourd'hui.
             </p>
           )}
           {reimpression.isError && (
-            <p role="alert" className="mb-2 px-1 text-sm text-red-600">
+            <p role="alert" className="mb-2 px-1 text-sm text-destructive">
               {reimpression.error instanceof Error
                 ? reimpression.error.message
                 : "Impossible de charger ce ticket"}
@@ -79,7 +91,7 @@ export function TicketsDuJour({ storeId, onReimprimer, onFermer }: Props) {
                   <p className="text-sm font-medium">
                     N° {vente.ticketNumber} — {formaterMontant(vente.total)}
                   </p>
-                  <p className="text-xs text-gray-500">
+                  <p className="text-xs text-muted-foreground">
                     {new Date(vente.createdAt).toLocaleTimeString("fr-FR")} ·{" "}
                     {vente.cashierName} · {vente.itemCount} article
                     {vente.itemCount > 1 ? "s" : ""}
@@ -105,7 +117,7 @@ export function TicketsDuJour({ storeId, onReimprimer, onFermer }: Props) {
             >
               Précédent
             </Button>
-            <span className="text-gray-500">
+            <span className="text-muted-foreground">
               Page {page} / {pages} — {total} tickets
             </span>
             <Button

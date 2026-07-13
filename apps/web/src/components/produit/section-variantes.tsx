@@ -48,6 +48,7 @@ export function SectionVariantes({
   const [plancherVariante, setPlancherVariante] = useState("")
   const [codeBarresVariante, setCodeBarresVariante] = useState("")
   const [erreurVariante, setErreurVariante] = useState<string | null>(null)
+  const [erreurBascule, setErreurBascule] = useState<string | null>(null)
 
   const ajouterVariante = useMutation({
     mutationFn: () => {
@@ -92,8 +93,12 @@ export function SectionVariantes({
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ isActive: !v.isActive }),
       }),
-    onSuccess: onModifie,
-    onError: (err) => alert(err instanceof Error ? err.message : "Erreur"),
+    onSuccess: async () => {
+      setErreurBascule(null)
+      await onModifie()
+    },
+    onError: (err) =>
+      setErreurBascule(err instanceof Error ? err.message : "Erreur"),
   })
 
   return (
@@ -204,7 +209,7 @@ export function SectionVariantes({
                   />
                 </div>
                 {erreurVariante && (
-                  <p role="alert" className="text-sm text-red-700">
+                  <p role="alert" className="text-sm text-destructive">
                     {erreurVariante}
                   </p>
                 )}
@@ -222,7 +227,7 @@ export function SectionVariantes({
             <TableHead>Nom</TableHead>
             <TableHead>SKU</TableHead>
             <TableHead>Attributs</TableHead>
-            <TableHead>Prix</TableHead>
+            <TableHead numeric>Prix</TableHead>
             <TableHead>Statut</TableHead>
             {peutEcrire && <TableHead />}
           </TableRow>
@@ -237,11 +242,11 @@ export function SectionVariantes({
                   .map(([cle, valeur]) => `${cle} : ${valeur}`)
                   .join(", ") || "—"}
               </TableCell>
-              <TableCell>
+              <TableCell numeric>
                 {formaterMontant(v.priceOverride ?? produit.price, devise)}
               </TableCell>
               <TableCell>
-                <Badge variant={v.isActive ? "default" : "secondary"}>
+                <Badge variant={v.isActive ? "success" : "secondary"}>
                   {v.isActive ? "Active" : "Inactive"}
                 </Badge>
               </TableCell>
@@ -260,6 +265,11 @@ export function SectionVariantes({
           ))}
         </TableBody>
       </Table>
+      {erreurBascule && (
+        <p role="alert" className="mt-2 text-sm text-destructive">
+          {erreurBascule}
+        </p>
+      )}
     </section>
   )
 }

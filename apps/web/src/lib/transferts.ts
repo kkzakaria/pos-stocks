@@ -7,16 +7,19 @@ export const STATUTS_TRANSFERT_FR: Record<StatutTransfert, string> = {
   cancelled: "Annulé",
 }
 
+// Statuts en badges sémantiques NON-indigo (l'indigo reste réservé à l'action
+// et à la sélection) : en attente = warning, expédié/en transit = secondary,
+// réceptionné = success, annulé = destructive.
 export function varianteBadgeStatut(
   statut: StatutTransfert
-): "default" | "secondary" | "destructive" | "outline" {
+): "warning" | "secondary" | "success" | "destructive" {
   switch (statut) {
     case "pending":
-      return "secondary"
+      return "warning"
     case "sent":
-      return "outline"
+      return "secondary"
     case "received":
-      return "default"
+      return "success"
     case "cancelled":
       return "destructive"
   }

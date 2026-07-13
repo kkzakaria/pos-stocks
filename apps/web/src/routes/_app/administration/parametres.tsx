@@ -5,6 +5,9 @@ import { apiFetch } from "@/lib/api"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
+import { Skeleton } from "@/components/ui/skeleton"
+import { toast } from "@/components/ui/toast"
 
 export const Route = createFileRoute("/_app/administration/parametres")({
   beforeLoad: ({ context }) => {
@@ -29,7 +32,6 @@ function ParametresPage() {
     me.membership?.role === "owner" || me.membership?.role === "admin"
   const queryClient = useQueryClient()
   const [form, setForm] = useState<Reglages | null>(null)
-  const [message, setMessage] = useState<string | null>(null)
 
   const { data, isError, error } = useQuery({
     queryKey: ["organization"],
@@ -49,21 +51,36 @@ function ParametresPage() {
       }),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["organization"] })
-      setMessage("Paramètres enregistrés")
+      toast.success("Paramètres enregistrés")
     },
-    onError: (err) => setMessage(err instanceof Error ? err.message : "Erreur"),
+    onError: (err) =>
+      toast.error(err instanceof Error ? err.message : "Erreur"),
   })
 
   if (isError) {
     return (
-      <p role="alert" className="text-sm text-red-600">
+      <p role="alert" className="text-sm text-destructive">
         Impossible de charger les paramètres :{" "}
         {error instanceof Error ? error.message : "Erreur inconnue"}
       </p>
     )
   }
 
-  if (!form) return <p className="text-sm text-gray-500">Chargement…</p>
+  if (!form) {
+    return (
+      <div className="max-w-xl">
+        <h1 className="mb-6 text-xl font-semibold">Paramètres</h1>
+        <div className="flex flex-col gap-4">
+          {Array.from({ length: 4 }).map((_champ, i) => (
+            <div key={i} className="flex flex-col gap-1.5">
+              <Skeleton className="h-3.5 w-40" />
+              <Skeleton className="h-9 w-full" />
+            </div>
+          ))}
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="max-w-xl">
@@ -72,7 +89,6 @@ function ParametresPage() {
         className="flex flex-col gap-4"
         onSubmit={(e) => {
           e.preventDefault()
-          setMessage(null)
           enregistrer.mutate(form)
         }}
       >
@@ -102,7 +118,7 @@ function ParametresPage() {
         </div>
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="p-entete">En-tête de ticket</Label>
-          <textarea
+          <Textarea
             id="p-entete"
             rows={2}
             disabled={!peutEcrire}
@@ -110,12 +126,11 @@ function ParametresPage() {
             onChange={(e) =>
               setForm({ ...form, receiptHeader: e.target.value })
             }
-            className="rounded-md border px-3 py-2 text-sm"
           />
         </div>
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="p-pied">Pied de ticket</Label>
-          <textarea
+          <Textarea
             id="p-pied"
             rows={2}
             disabled={!peutEcrire}
@@ -123,14 +138,8 @@ function ParametresPage() {
             onChange={(e) =>
               setForm({ ...form, receiptFooter: e.target.value })
             }
-            className="rounded-md border px-3 py-2 text-sm"
           />
         </div>
-        {message && (
-          <p role="status" className="text-sm font-medium text-gray-700">
-            {message}
-          </p>
-        )}
         {peutEcrire && (
           <Button type="submit" disabled={enregistrer.isPending}>
             {enregistrer.isPending ? "Enregistrement…" : "Enregistrer"}

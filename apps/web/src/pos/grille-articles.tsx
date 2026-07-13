@@ -19,7 +19,7 @@ export function GrilleArticles({ articles, onChoisir }: Props) {
         <button
           key={article.variantId}
           onClick={() => onChoisir(article)}
-          className="relative flex min-h-[88px] flex-col items-stretch justify-between rounded-lg bg-card p-2 text-left ring-1 ring-foreground/10 active:scale-95"
+          className="relative flex min-h-[88px] flex-col items-stretch justify-between rounded-lg bg-card p-2 text-left ring-1 ring-foreground/10 transition-shadow outline-none focus-visible:ring-2 focus-visible:ring-ring/50 active:scale-95"
         >
           {article.imageKey ? (
             <img

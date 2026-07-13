@@ -10,17 +10,38 @@ import {
   varianteBadgeStatut,
 } from "@/lib/transferts"
 import type { LigneTransfert, TransfertDetail } from "@/lib/transferts"
+import { PackageSearch } from "lucide-react"
 import { ErreurChargement } from "@/components/erreur-chargement"
+import { EtatVide } from "@/components/etat-vide"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
+import { Skeleton } from "@/components/ui/skeleton"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"
 import {
   Table,
   TableBody,
@@ -193,13 +214,20 @@ function TransfertDetailPage() {
       setErreurLigne(err instanceof Error ? err.message : "Erreur"),
   })
 
+  const [erreurSuppression, setErreurSuppression] = useState<string | null>(
+    null
+  )
   const supprimerLigne = useMutation({
     mutationFn: (itemId: string) =>
       apiFetch(`/api/v1/transfers/${transferId}/items/${itemId}`, {
         method: "DELETE",
       }),
-    onSuccess: invalider,
-    onError: (err) => alert(err instanceof Error ? err.message : "Erreur"),
+    onSuccess: async () => {
+      setErreurSuppression(null)
+      await invalider()
+    },
+    onError: (err) =>
+      setErreurSuppression(err instanceof Error ? err.message : "Erreur"),
   })
 
   const [erreurAction, setErreurAction] = useState<string | null>(null)
@@ -248,7 +276,13 @@ function TransfertDetailPage() {
     )
   }
   if (!data) {
-    return <p className="text-sm text-gray-500">Chargement…</p>
+    return (
+      <div className="flex flex-col gap-4">
+        <Skeleton className="h-7 w-80" />
+        <Skeleton className="h-4 w-96" />
+        <Skeleton className="h-40 w-full" />
+      </div>
+    )
   }
   const transfert = data.transfer
   const brouillon = transfert.status === "pending"
@@ -271,7 +305,7 @@ function TransfertDetailPage() {
           {STATUTS_TRANSFERT_FR[transfert.status]}
         </Badge>
       </div>
-      <p className="mb-6 text-sm text-gray-500">
+      <p className="mb-6 text-sm text-muted-foreground">
         {transfert.reference ? `Réf. ${transfert.reference} — ` : ""}
         créé le {new Date(transfert.createdAt).toLocaleString("fr-FR")}
         {transfert.sentAt
@@ -295,13 +329,13 @@ function TransfertDetailPage() {
       </div>
 
       <Table>
-        <TableHeader>
+        <TableHeader sticky>
           <TableRow>
             <TableHead>Article</TableHead>
-            <TableHead>Quantité</TableHead>
+            <TableHead numeric>Quantité</TableHead>
             <TableHead>Lot</TableHead>
-            <TableHead>CMP figé</TableHead>
-            <TableHead>Reçu</TableHead>
+            <TableHead numeric>CMP figé</TableHead>
+            <TableHead numeric>Reçu</TableHead>
             {brouillon && peutEcrireOrigine && <TableHead />}
           </TableRow>
         </TableHeader>
@@ -310,34 +344,36 @@ function TransfertDetailPage() {
             <TableRow key={item.id}>
               <TableCell>
                 <span className="font-medium">{item.productName}</span>{" "}
-                <span className="text-sm text-gray-500">
+                <span className="text-muted-foreground">
                   {item.variantName} ({item.sku})
                 </span>
               </TableCell>
-              <TableCell>{item.quantity}</TableCell>
+              <TableCell numeric>{item.quantity}</TableCell>
               <TableCell className="font-mono text-xs">
                 {item.lotNumber ?? "—"}
               </TableCell>
-              <TableCell>
+              <TableCell numeric>
                 {item.unitCost === null ? "—" : formaterMontant(item.unitCost)}
               </TableCell>
-              <TableCell>
+              <TableCell numeric>
                 {item.receivedQuantity === null ? (
                   "—"
                 ) : (
-                  <span className="flex items-center gap-2">
-                    {item.receivedQuantity}
+                  <span className="flex items-center justify-end gap-2">
                     {item.receivedQuantity < item.quantity && (
                       <Badge variant="destructive">
                         Écart −{item.quantity - item.receivedQuantity}
                       </Badge>
                     )}
+                    <span className="tabular-nums">
+                      {item.receivedQuantity}
+                    </span>
                   </span>
                 )}
               </TableCell>
               {brouillon && peutEcrireOrigine && (
                 <TableCell>
-                  <span className="flex gap-2">
+                  <span className="flex justify-end gap-2">
                     <Button
                       variant="outline"
                       size="sm"
@@ -359,48 +395,90 @@ function TransfertDetailPage() {
           ))}
           {transfert.items.length === 0 && (
             <TableRow>
-              <TableCell
-                colSpan={brouillon && peutEcrireOrigine ? 6 : 5}
-                className="text-center text-sm text-gray-500"
-              >
-                Aucune ligne.
+              <TableCell colSpan={brouillon && peutEcrireOrigine ? 6 : 5}>
+                <EtatVide
+                  icon={PackageSearch}
+                  titre="Aucune ligne"
+                  message={
+                    brouillon && peutEcrireOrigine
+                      ? "Ajoutez des articles à transférer avant d'expédier."
+                      : "Ce transfert ne comporte aucune ligne."
+                  }
+                />
               </TableCell>
             </TableRow>
           )}
         </TableBody>
       </Table>
 
+      {erreurSuppression && (
+        <p role="alert" className="mt-3 text-sm text-destructive">
+          {erreurSuppression}
+        </p>
+      )}
+
       {brouillon && peutEcrireOrigine && (
         <div className="mt-6 flex items-center gap-3">
-          <Button
-            disabled={expedier.isPending || transfert.items.length === 0}
-            onClick={() => {
-              setErreurAction(null)
-              if (
-                window.confirm(
-                  "Expédier le transfert ? Le stock sortira de l'entrepôt d'origine et les lignes seront figées."
-                )
-              ) {
-                expedier.mutate()
+          <AlertDialog>
+            <AlertDialogTrigger
+              render={
+                <Button
+                  disabled={expedier.isPending || transfert.items.length === 0}
+                />
               }
-            }}
-          >
-            {expedier.isPending ? "Expédition…" : "Expédier"}
-          </Button>
-          <Button
-            variant="outline"
-            disabled={annuler.isPending}
-            onClick={() => {
-              setErreurAction(null)
-              if (window.confirm("Annuler ce transfert ?")) {
-                annuler.mutate()
-              }
-            }}
-          >
-            Annuler le transfert
-          </Button>
+            >
+              {expedier.isPending ? "Expédition…" : "Expédier"}
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Expédier le transfert ?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Le stock sortira de l'entrepôt d'origine et les lignes seront
+                  figées. Cette action est irréversible.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Retour</AlertDialogCancel>
+                <AlertDialogAction
+                  variant="default"
+                  onClick={() => {
+                    setErreurAction(null)
+                    expedier.mutate()
+                  }}
+                >
+                  Expédier
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+          <AlertDialog>
+            <AlertDialogTrigger
+              render={<Button variant="outline" disabled={annuler.isPending} />}
+            >
+              Annuler le transfert
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Annuler ce transfert ?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Le brouillon sera annulé. Cette action est irréversible.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Retour</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={() => {
+                    setErreurAction(null)
+                    annuler.mutate()
+                  }}
+                >
+                  Annuler le transfert
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
           {erreurAction && (
-            <p role="alert" className="text-sm text-red-700">
+            <p role="alert" className="text-sm text-destructive">
               {erreurAction}
             </p>
           )}
@@ -460,23 +538,29 @@ function TransfertDetailPage() {
                   </div>
                   <div className="flex flex-col gap-1.5">
                     <Label htmlFor="tl-variante">Article</Label>
-                    <select
-                      id="tl-variante"
-                      required
+                    <Select
                       value={variantId}
-                      onChange={(e) => {
-                        setVariantId(e.target.value)
+                      onValueChange={(valeur) => {
+                        setVariantId(valeur as string)
                         setLotId("")
                       }}
-                      className="h-10 rounded-md border px-2 text-sm"
                     >
-                      <option value="">— choisir —</option>
-                      {variantes.map((v) => (
-                        <option key={v.variantId} value={v.variantId}>
-                          {v.libelle}
-                        </option>
-                      ))}
-                    </select>
+                      <SelectTrigger id="tl-variante" className="w-full">
+                        <SelectValue placeholder="— choisir —">
+                          {(valeur: string) =>
+                            variantes.find((v) => v.variantId === valeur)
+                              ?.libelle
+                          }
+                        </SelectValue>
+                      </SelectTrigger>
+                      <SelectContent>
+                        {variantes.map((v) => (
+                          <SelectItem key={v.variantId} value={v.variantId}>
+                            {v.libelle}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
                 </>
               )}
@@ -495,27 +579,39 @@ function TransfertDetailPage() {
               {suitLots && (
                 <div className="flex flex-col gap-1.5">
                   <Label htmlFor="tl-lot">Lot (requis avant expédition)</Label>
-                  <select
-                    id="tl-lot"
+                  <Select
                     value={lotId}
-                    onChange={(e) => setLotId(e.target.value)}
-                    className="h-10 rounded-md border px-2 text-sm"
+                    onValueChange={(valeur) => setLotId(valeur as string)}
                   >
-                    <option value="">— à choisir avant expédition —</option>
-                    {lotsDisponibles.map((lot) => (
-                      <option key={lot.id} value={lot.id}>
-                        {lot.lotNumber}
-                      </option>
-                    ))}
-                  </select>
+                    <SelectTrigger id="tl-lot" className="w-full">
+                      <SelectValue placeholder="— à choisir avant expédition —">
+                        {(valeur: string) =>
+                          lotsDisponibles.find((l) => l.id === valeur)
+                            ?.lotNumber
+                        }
+                      </SelectValue>
+                    </SelectTrigger>
+                    <SelectContent>
+                      {lotsDisponibles.map((lot) => (
+                        <SelectItem key={lot.id} value={lot.id}>
+                          {lot.lotNumber}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
               )}
               {erreurLigne && (
-                <p role="alert" className="text-sm text-red-700">
+                <p role="alert" className="text-sm text-destructive">
                   {erreurLigne}
                 </p>
               )}
-              <Button type="submit" disabled={enregistrerLigne.isPending}>
+              <Button
+                type="submit"
+                disabled={
+                  enregistrerLigne.isPending || (!ligneEditee && !variantId)
+                }
+              >
                 {enregistrerLigne.isPending
                   ? "Enregistrement…"
                   : ligneEditee
@@ -554,7 +650,7 @@ function TransfertDetailPage() {
                 receptionner.mutate({ items: prepare.items })
               }}
             >
-              <p className="text-sm text-gray-500">
+              <p className="text-sm text-muted-foreground">
                 Laissez vide (ou égal à l'expédié) pour une réception totale.
                 Une quantité moindre trace l'écart en ajustement.
               </p>
@@ -583,7 +679,7 @@ function TransfertDetailPage() {
                 </div>
               ))}
               {erreurReception && (
-                <p role="alert" className="text-sm text-red-700">
+                <p role="alert" className="text-sm text-destructive">
                   {erreurReception}
                 </p>
               )}

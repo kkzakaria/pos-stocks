@@ -12,7 +12,7 @@ export function ErreurChargement({
   return (
     <div
       role="alert"
-      className="flex items-center gap-3 rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-700"
+      className="flex items-center gap-3 rounded-md border border-destructive/20 bg-destructive/10 p-4 text-sm text-destructive"
     >
       <span>{message}</span>
       <Button variant="outline" size="sm" onClick={onRetry}>
