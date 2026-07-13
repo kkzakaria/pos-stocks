@@ -129,7 +129,9 @@ describe("Panier", () => {
 
   it("édite le prix inline : ne remonte que la valeur modifiée au blur", () => {
     const onPrix = vi.fn()
-    render(<Panier {...props({ lignes: [ligne()], onPrix })} />)
+    render(
+      <Panier {...props({ lignes: [ligne({ prixPlancher: 400 })], onPrix })} />
+    )
     fireEvent.click(
       screen.getByRole("button", { name: "Modifier le prix de Coca 50cl" })
     )
@@ -140,6 +142,15 @@ describe("Panier", () => {
       expect.objectContaining({ variantId: "v1" }),
       450
     )
+  })
+
+  it("prix non révisable (sans plancher) : affiché en texte, non éditable", () => {
+    render(<Panier {...props({ lignes: [ligne({ prixPlancher: null })] })} />)
+    expect(
+      screen.queryByRole("button", { name: "Modifier le prix de Coca 50cl" })
+    ).toBeNull()
+    // le montant reste affiché
+    expect(screen.getAllByText(/500/).length).toBeGreaterThan(0)
   })
 
   it("le dépannage inline remonte la ligne", () => {

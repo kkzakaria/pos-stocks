@@ -31,9 +31,11 @@ type Props = {
 /**
  * POS cart with **inline editing on each line** — quantity stepper,
  * tap-to-edit unit price (native numeric field), remove and depannage — so
- * common adjustments no longer open a side panel. Shows the struck-through
- * catalog price when negotiated, the floor while editing, and a stock-shortage
- * flag; ends with the total and the ENCAISSER (F2) button.
+ * common adjustments no longer open a side panel. The price is editable only
+ * when a floor is set; a non-negotiable price (locked to catalog) renders as
+ * plain text. Shows the struck-through catalog price when negotiated, the floor
+ * while editing, and a stock-shortage flag; ends with the total and the
+ * ENCAISSER (F2) button.
  */
 export function Panier({
   lignes,
@@ -92,6 +94,10 @@ export function Panier({
           const enEditionQuantite =
             edition?.cle === cle && edition.champ === "quantite"
           const enEditionPrix = edition?.cle === cle && edition.champ === "prix"
+          // Prix révisable seulement si un plancher est défini ; sans plancher
+          // le prix est verrouillé au catalogue (règle NON_NEGOCIABLE, lib/pos)
+          // et toute saisie serait refusée — on n'offre donc pas l'édition.
+          const prixRevisable = ligne.prixPlancher !== null
           const prixNegocie = ligne.prixUnitaire !== ligne.prixCatalogue
           return (
             <li
@@ -198,7 +204,14 @@ export function Panier({
                   </Button>
                 </div>
                 <div className="ml-auto flex flex-col items-end">
-                  {enEditionPrix ? (
+                  {!prixRevisable ? (
+                    <span
+                      className="text-sm font-semibold tabular-nums"
+                      title="Prix non révisable"
+                    >
+                      {formaterMontant(ligne.prixUnitaire)}
+                    </span>
+                  ) : enEditionPrix ? (
                     <Input
                       autoFocus
                       inputMode="numeric"
