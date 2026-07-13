@@ -24,8 +24,7 @@ import {
 } from "@/lib/pos-api"
 import type { SessionCaisse, VenteDetail } from "@/lib/pos-api"
 import { GrilleArticles } from "@/pos/grille-articles"
-import { Panier } from "@/pos/panier"
-import { PanneauLigne } from "@/pos/panneau-ligne"
+import { Panier, cleLigne } from "@/pos/panier"
 import { ModalePaiement } from "@/pos/modale-paiement"
 import { ModaleConfirmation } from "@/pos/modale-confirmation"
 import { DialogueDepannage } from "@/pos/dialogue-depannage"
@@ -67,8 +66,10 @@ export function EcranVente({ me, boutique, session, onSessionFermee }: Props) {
   const [lignes, setLignes] = useState<LignePanier[]>([])
   const [recherche, setRecherche] = useState("")
   const [categorieId, setCategorieId] = useState<string | null>(null)
-  const [cleChoisie, setCleChoisie] = useState<CleLigne | null>(null)
-  const [erreurPrix, setErreurPrix] = useState<string | null>(null)
+  const [erreurPrix, setErreurPrix] = useState<{
+    cle: string
+    message: string
+  } | null>(null)
   const [depannagePour, setDepannagePour] = useState<CleLigne | null>(null)
   const [paiementOuvert, setPaiementOuvert] = useState(false)
   const [erreurVente, setErreurVente] = useState<string | null>(null)
@@ -101,7 +102,6 @@ export function EcranVente({ me, boutique, session, onSessionFermee }: Props) {
             l.variantId === cle.variantId && l.sourceWarehouseId === cle.source
         ) ?? null)
       : null
-  const ligneChoisie = ligneDe(cleChoisie)
   const ligneDepannage = ligneDe(depannagePour)
 
   const minuscule = recherche.trim().toLowerCase()
@@ -178,7 +178,6 @@ export function EcranVente({ me, boutique, session, onSessionFermee }: Props) {
       // systématiquement ici est le comportement voulu, pas un oubli.
       setPaiementOuvert(false)
       setLignes([])
-      setCleChoisie(null)
       setErreurVente(null)
       setPanierVerrouille(false)
       setConfirmation(sale)
@@ -319,69 +318,58 @@ export function EcranVente({ me, boutique, session, onSessionFermee }: Props) {
           )}
         </section>
         <div className="flex w-96 shrink-0">
-          {ligneChoisie && cleChoisie ? (
-            <PanneauLigne
-              ligne={ligneChoisie}
-              erreurPrix={erreurPrix}
-              onQuantite={(quantite) => {
-                if (panierVerrouille) return
-                setLignes((l) =>
-                  changerQuantite(
-                    l,
-                    cleChoisie.variantId,
-                    cleChoisie.source,
-                    quantite
-                  )
+          <Panier
+            lignes={lignes}
+            verrouille={panierVerrouille}
+            erreurPrix={erreurPrix}
+            onQuantite={(ligne, quantite) => {
+              if (panierVerrouille) return
+              setLignes((l) =>
+                changerQuantite(
+                  l,
+                  ligne.variantId,
+                  ligne.sourceWarehouseId,
+                  quantite
                 )
-              }}
-              onPrix={(prix) => {
-                if (panierVerrouille) return
-                const resultat = changerPrix(
-                  lignes,
-                  cleChoisie.variantId,
-                  cleChoisie.source,
-                  prix
-                )
-                if (!resultat.ok) {
-                  setErreurPrix(
+              )
+            }}
+            onPrix={(ligne, prix) => {
+              if (panierVerrouille) return
+              const resultat = changerPrix(
+                lignes,
+                ligne.variantId,
+                ligne.sourceWarehouseId,
+                prix
+              )
+              if (!resultat.ok) {
+                setErreurPrix({
+                  cle: cleLigne(ligne),
+                  message:
                     resultat.raison === "SOUS_PLANCHER"
                       ? `Refusé : minimum ${formaterMontant(resultat.minimum)}`
-                      : "Prix non négociable pour cet article"
-                  )
-                  return
-                }
-                setErreurPrix(null)
-                setLignes(resultat.lignes)
-              }}
-              onSupprimer={() => {
-                if (panierVerrouille) return
-                setLignes((l) =>
-                  supprimerLigne(l, cleChoisie.variantId, cleChoisie.source)
-                )
-                setCleChoisie(null)
-                setErreurPrix(null)
-              }}
-              onDepanner={() => {
-                if (panierVerrouille) return
-                setDepannagePour(cleChoisie)
-              }}
-              onFermer={() => {
-                setCleChoisie(null)
-                setErreurPrix(null)
-              }}
-            />
-          ) : (
-            <Panier
-              lignes={lignes}
-              onChoisirLigne={(ligne) =>
-                setCleChoisie({
-                  variantId: ligne.variantId,
-                  source: ligne.sourceWarehouseId,
+                      : "Prix non négociable pour cet article",
                 })
+                return
               }
-              onEncaisser={() => setPaiementOuvert(true)}
-            />
-          )}
+              setErreurPrix(null)
+              setLignes(resultat.lignes)
+            }}
+            onSupprimer={(ligne) => {
+              if (panierVerrouille) return
+              setLignes((l) =>
+                supprimerLigne(l, ligne.variantId, ligne.sourceWarehouseId)
+              )
+              setErreurPrix(null)
+            }}
+            onDepanner={(ligne) => {
+              if (panierVerrouille) return
+              setDepannagePour({
+                variantId: ligne.variantId,
+                source: ligne.sourceWarehouseId,
+              })
+            }}
+            onEncaisser={() => setPaiementOuvert(true)}
+          />
         </div>
       </div>
 
@@ -400,11 +388,6 @@ export function EcranVente({ me, boutique, session, onSessionFermee }: Props) {
               )
             )
             setDepannagePour(null)
-            setCleChoisie(
-              warehouseId === null
-                ? { variantId: depannagePour.variantId, source: null }
-                : { variantId: depannagePour.variantId, source: warehouseId }
-            )
           }}
           onFermer={() => setDepannagePour(null)}
         />

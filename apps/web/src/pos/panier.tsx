@@ -1,68 +1,218 @@
+import { useState } from "react"
+import { Minus, Plus, Trash2, Warehouse } from "lucide-react"
 import { formaterMontant } from "@/lib/format"
 import { totalPanier } from "@/lib/pos"
 import type { LignePanier } from "@/lib/pos"
+import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+
+/** Stable key for a cart line (variant + optional depannage source warehouse). */
+export function cleLigne(
+  ligne: Pick<LignePanier, "variantId" | "sourceWarehouseId">
+): string {
+  return `${ligne.variantId}|${ligne.sourceWarehouseId ?? ""}`
+}
 
 type Props = {
   lignes: LignePanier[]
-  onChoisirLigne: (ligne: LignePanier) => void
+  /** Cart locked after an ambiguous submission: editing is frozen. */
+  verrouille?: boolean
+  /** Price-change error, attached to the line it concerns. */
+  erreurPrix?: { cle: string; message: string } | null
+  onQuantite: (ligne: LignePanier, quantite: number) => void
+  onPrix: (ligne: LignePanier, prix: number) => void
+  onSupprimer: (ligne: LignePanier) => void
+  onDepanner: (ligne: LignePanier) => void
   onEncaisser: () => void
 }
 
-/** POS cart: line items (quantity, struck-through negotiated price, source badge, stock alert), total, and checkout button (F2). */
-export function Panier({ lignes, onChoisirLigne, onEncaisser }: Props) {
+/**
+ * POS cart with **inline editing on each line** — quantity stepper,
+ * tap-to-edit unit price (native numeric field), remove and depannage — so
+ * common adjustments no longer open a side panel. Shows the struck-through
+ * catalog price when negotiated, the floor while editing, and a stock-shortage
+ * flag; ends with the total and the ENCAISSER (F2) button.
+ */
+export function Panier({
+  lignes,
+  verrouille = false,
+  erreurPrix,
+  onQuantite,
+  onPrix,
+  onSupprimer,
+  onDepanner,
+  onEncaisser,
+}: Props) {
   const total = totalPanier(lignes)
+  // Ligne dont le prix est en cours d'édition inline (null = aucune).
+  const [editionPrix, setEditionPrix] = useState<string | null>(null)
+  const [saisiePrix, setSaisiePrix] = useState("")
+
+  function ouvrirPrix(ligne: LignePanier) {
+    setEditionPrix(cleLigne(ligne))
+    setSaisiePrix(String(ligne.prixUnitaire))
+  }
+  function validerPrix(ligne: LignePanier) {
+    const n = Number(saisiePrix)
+    // N'applique que si la valeur a changé et reste finie : un blur sans
+    // modification ne redéclenche pas une validation serveur inutile.
+    if (
+      saisiePrix.trim() !== "" &&
+      Number.isFinite(n) &&
+      n !== ligne.prixUnitaire
+    ) {
+      onPrix(ligne, n)
+    }
+    setEditionPrix(null)
+    setSaisiePrix("")
+  }
+
   return (
     <aside className="flex h-full w-full flex-col border-l bg-card">
       <h2 className="border-b px-4 py-3 text-sm font-semibold text-muted-foreground">
         Panier
       </h2>
-      <ul className="flex-1 overflow-y-auto">
+      <ul className="min-h-0 flex-1 overflow-y-auto">
         {lignes.length === 0 && (
           <li className="p-4 text-sm text-muted-foreground">
             Scannez ou touchez un article.
           </li>
         )}
-        {lignes.map((ligne) => (
-          <li key={`${ligne.variantId}|${ligne.sourceWarehouseId ?? ""}`}>
-            <button
-              onClick={() => onChoisirLigne(ligne)}
-              className={`flex w-full items-start justify-between gap-2 px-4 py-3 text-left outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring/30 focus-visible:ring-inset ${
-                ligne.enAlerte ? "bg-destructive/10" : ""
-              }`}
+        {lignes.map((ligne) => {
+          const cle = cleLigne(ligne)
+          const enEdition = editionPrix === cle
+          const prixNegocie = ligne.prixUnitaire !== ligne.prixCatalogue
+          return (
+            <li
+              key={cle}
+              className={cn(
+                "border-b px-3 py-2.5",
+                ligne.enAlerte && "bg-destructive/10"
+              )}
             >
-              <span>
-                <span className="block text-sm font-medium">{ligne.nom}</span>
-                <span className="block text-xs text-muted-foreground">
-                  {ligne.quantite} × {formaterMontant(ligne.prixUnitaire)}
-                  {ligne.prixUnitaire !== ligne.prixCatalogue && (
-                    <s className="ml-1">
-                      {formaterMontant(ligne.prixCatalogue)}
-                    </s>
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium">{ligne.nom}</p>
+                  {ligne.sourceNom && (
+                    <span className="mt-0.5 inline-block rounded bg-warning/15 px-1.5 py-0.5 text-[10px] font-semibold text-warning">
+                      réserve {ligne.sourceNom}
+                    </span>
                   )}
+                </div>
+                <div className="flex shrink-0 items-center gap-0.5">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    disabled={verrouille}
+                    onClick={() => onDepanner(ligne)}
+                    title="Puiser dans un autre entrepôt"
+                    aria-label={`Puiser ${ligne.nom} dans un autre entrepôt`}
+                  >
+                    <Warehouse />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    disabled={verrouille}
+                    onClick={() => onSupprimer(ligne)}
+                    title="Retirer l'article"
+                    aria-label={`Retirer ${ligne.nom}`}
+                    className="text-destructive"
+                  >
+                    <Trash2 />
+                  </Button>
+                </div>
+              </div>
+
+              <div className="mt-1.5 flex items-center gap-2">
+                <div className="flex items-center gap-1">
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    disabled={verrouille || ligne.quantite <= 1}
+                    onClick={() => onQuantite(ligne, ligne.quantite - 1)}
+                    aria-label="Diminuer la quantité"
+                  >
+                    <Minus />
+                  </Button>
+                  <span className="min-w-6 text-center text-sm font-semibold tabular-nums">
+                    {ligne.quantite}
+                  </span>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    disabled={verrouille}
+                    onClick={() => onQuantite(ligne, ligne.quantite + 1)}
+                    aria-label="Augmenter la quantité"
+                  >
+                    <Plus />
+                  </Button>
+                </div>
+                <span className="text-muted-foreground">×</span>
+                {enEdition ? (
+                  <Input
+                    autoFocus
+                    inputMode="numeric"
+                    aria-label={`Nouveau prix de ${ligne.nom}`}
+                    className="h-8 w-24 tabular-nums"
+                    value={saisiePrix}
+                    onFocus={(e) => e.currentTarget.select()}
+                    onChange={(e) => setSaisiePrix(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") e.currentTarget.blur()
+                    }}
+                    onBlur={() => validerPrix(ligne)}
+                  />
+                ) : (
+                  <button
+                    type="button"
+                    disabled={verrouille}
+                    onClick={() => ouvrirPrix(ligne)}
+                    aria-label={`Modifier le prix de ${ligne.nom}`}
+                    className="rounded text-sm tabular-nums underline decoration-muted-foreground decoration-dotted underline-offset-2 outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/30 disabled:no-underline"
+                  >
+                    {formaterMontant(ligne.prixUnitaire)}
+                  </button>
+                )}
+                <span className="ml-auto text-sm font-semibold tabular-nums">
+                  {formaterMontant(ligne.quantite * ligne.prixUnitaire)}
                 </span>
-                {ligne.sourceNom && (
-                  <span className="mt-0.5 inline-block rounded bg-warning/15 px-1.5 py-0.5 text-[10px] font-semibold text-warning">
-                    {ligne.sourceNom}
-                  </span>
-                )}
-                {ligne.enAlerte && (
-                  <span className="mt-0.5 block text-xs font-semibold text-destructive">
-                    Stock insuffisant
-                  </span>
-                )}
-              </span>
-              <span className="text-sm font-semibold whitespace-nowrap">
-                {formaterMontant(ligne.quantite * ligne.prixUnitaire)}
-              </span>
-            </button>
-          </li>
-        ))}
+              </div>
+
+              {enEdition && ligne.prixPlancher !== null && (
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  Min {formaterMontant(ligne.prixPlancher)}
+                </p>
+              )}
+              {!enEdition && prixNegocie && (
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  Catalogue{" "}
+                  <s className="tabular-nums">
+                    {formaterMontant(ligne.prixCatalogue)}
+                  </s>
+                </p>
+              )}
+              {erreurPrix?.cle === cle && (
+                <p role="alert" className="mt-1 text-xs text-destructive">
+                  {erreurPrix.message}
+                </p>
+              )}
+              {ligne.enAlerte && (
+                <p className="mt-1 text-xs font-semibold text-destructive">
+                  Stock insuffisant
+                </p>
+              )}
+            </li>
+          )
+        })}
       </ul>
       <div className="border-t p-4">
         <p className="mb-3 flex items-baseline justify-between">
           <span className="text-sm text-muted-foreground">Total</span>
-          <span className="text-2xl font-bold">{formaterMontant(total)}</span>
+          <span className="text-2xl font-bold tabular-nums">
+            {formaterMontant(total)}
+          </span>
         </p>
         <Button
           className="min-h-14 w-full text-lg"

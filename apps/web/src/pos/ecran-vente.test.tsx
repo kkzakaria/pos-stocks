@@ -121,10 +121,15 @@ describe("EcranVente — verrouillage panier après échec ambigu", () => {
     // Abandon explicite : fermer la modale de paiement déverrouille.
     fireEvent.click(screen.getByLabelText("Fermer"))
     fireEvent.click(tuile)
-    await waitFor(() => {
-      const panier = screen.getByText("Panier").closest("aside")
-      expect(panier?.textContent ?? "").toContain("2 ×")
-    })
+    // 2ᵉ unité ajoutée : le stepper « Diminuer la quantité » (désactivé à 1)
+    // devient actif.
+    await waitFor(() =>
+      expect(
+        screen.getByRole<HTMLButtonElement>("button", {
+          name: "Diminuer la quantité",
+        }).disabled
+      ).toBe(false)
+    )
   })
 
   it("n'active PAS le verrou sur une erreur API structurée (le serveur a répondu)", async () => {
@@ -151,10 +156,15 @@ describe("EcranVente — verrouillage panier après échec ambigu", () => {
 
     // Pas de verrou : re-cliquer la tuile ajoute bien une 2e unité.
     fireEvent.click(tuile)
-    await waitFor(() => {
-      const panier = screen.getByText("Panier").closest("aside")
-      expect(panier?.textContent ?? "").toContain("2 ×")
-    })
+    // 2ᵉ unité ajoutée : le stepper « Diminuer la quantité » (désactivé à 1)
+    // devient actif.
+    await waitFor(() =>
+      expect(
+        screen.getByRole<HTMLButtonElement>("button", {
+          name: "Diminuer la quantité",
+        }).disabled
+      ).toBe(false)
+    )
   })
 })
 
