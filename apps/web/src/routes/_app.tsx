@@ -5,6 +5,23 @@ import { apiFetch } from "@/lib/api"
 import { fetchMe } from "@/lib/me"
 import type { Me } from "@/lib/me"
 import { useAccesStock } from "@/lib/permissions"
+import {
+  LayoutDashboard,
+  ScanBarcode,
+  ReceiptText,
+  BarChart3,
+  Package,
+  FolderTree,
+  Truck,
+  Boxes,
+  History,
+  PackagePlus,
+  ArrowLeftRight,
+  ClipboardList,
+  Warehouse,
+  Users,
+  Settings,
+} from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { UserMenu } from "@/components/user-menu"
 
@@ -26,13 +43,15 @@ export const Route = createFileRoute("/_app")({
   component: AppLayout,
 })
 
+// Entrée de nav : icône + libellé, dense (py-1). L'icône hérite de la couleur
+// du texte (currentColor) : mutée au repos, blanche sur l'indigo actif.
 const lienClasses =
-  "rounded px-2 py-1.5 text-sm outline-none hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 focus-visible:ring-ring/30 aria-[current=page]:bg-sidebar-primary aria-[current=page]:text-sidebar-primary-foreground aria-[current=page]:font-medium"
+  "flex items-center gap-2 rounded px-2 py-1 text-sm outline-none [&>svg]:size-4 [&>svg]:shrink-0 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 focus-visible:ring-ring/30 aria-[current=page]:bg-sidebar-primary aria-[current=page]:text-sidebar-primary-foreground aria-[current=page]:font-medium"
 
 // Libellé de section : casse normale, sur le ramp (text-xs), token muted.
 // Les capitales tramées décoratives sont interdites par DESIGN.md.
 const sectionClasses =
-  "mt-4 mb-1 px-2 text-xs font-medium text-muted-foreground"
+  "mt-3 mb-0.5 px-2 text-xs font-medium text-muted-foreground"
 
 /**
  * Authenticated application shell: navigation sidebar
@@ -76,19 +95,21 @@ function AppLayout() {
       {/* h-screen + flex justify-between : bloc déconnexion ancré en bas. Premier div scrolle en interne. */}
       <aside className="sticky top-0 flex h-screen w-60 flex-col justify-between border-r bg-sidebar p-4 text-sidebar-foreground">
         <div className="min-h-0 overflow-y-auto">
-          <h2 className="mb-1 text-lg font-semibold">pos-stocks</h2>
-          <p className="mb-6 truncate text-xs text-muted-foreground">
+          <h2 className="text-base font-semibold">pos-stocks</h2>
+          <p className="mb-4 truncate text-xs text-muted-foreground">
             {me.membership?.organizationName}
           </p>
           <nav
             aria-label="Navigation principale"
-            className="flex flex-col gap-1"
+            className="flex flex-col gap-0.5"
           >
             <Link to="/" className={lienClasses}>
+              <LayoutDashboard />
               Tableau de bord
             </Link>
             {accesPos && (
               <Link to="/pos" className={lienClasses}>
+                <ScanBarcode />
                 Point de vente
               </Link>
             )}
@@ -101,11 +122,13 @@ function AppLayout() {
                     activeOptions={{ exact: true }}
                     className={lienClasses}
                   >
+                    <ReceiptText />
                     Historique
                   </Link>
                 )}
                 {accesRapports && (
                   <Link to="/ventes/rapports" className={lienClasses}>
+                    <BarChart3 />
                     Rapports
                   </Link>
                 )}
@@ -113,12 +136,15 @@ function AppLayout() {
             )}
             <p className={sectionClasses}>Catalogue</p>
             <Link to="/catalogue/produits" className={lienClasses}>
+              <Package />
               Produits
             </Link>
             <Link to="/catalogue/categories" className={lienClasses}>
+              <FolderTree />
               Catégories
             </Link>
             <Link to="/catalogue/fournisseurs" className={lienClasses}>
+              <Truck />
               Fournisseurs
             </Link>
             {accesStock.lecture && (
@@ -129,21 +155,24 @@ function AppLayout() {
                   activeOptions={{ exact: true }}
                   className={lienClasses}
                 >
-                  <span className="flex items-center gap-2">
-                    Niveaux
-                    <BadgeAlertesStock />
-                  </span>
+                  <Boxes />
+                  <span className="flex-1">Niveaux</span>
+                  <BadgeAlertesStock />
                 </Link>
                 <Link to="/stock/mouvements" className={lienClasses}>
+                  <History />
                   Mouvements
                 </Link>
                 <Link to="/stock/receptions" className={lienClasses}>
+                  <PackagePlus />
                   Réceptions
                 </Link>
                 <Link to="/stock/transferts" className={lienClasses}>
+                  <ArrowLeftRight />
                   Transferts
                 </Link>
                 <Link to="/stock/inventaires" className={lienClasses}>
+                  <ClipboardList />
                   Inventaires
                 </Link>
               </>
@@ -152,12 +181,15 @@ function AppLayout() {
               <>
                 <p className={sectionClasses}>Administration</p>
                 <Link to="/administration/entrepots" className={lienClasses}>
+                  <Warehouse />
                   Entrepôts
                 </Link>
                 <Link to="/administration/utilisateurs" className={lienClasses}>
+                  <Users />
                   Utilisateurs
                 </Link>
                 <Link to="/administration/parametres" className={lienClasses}>
+                  <Settings />
                   Paramètres
                 </Link>
               </>
