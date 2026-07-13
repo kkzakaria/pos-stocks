@@ -14,7 +14,7 @@
 | 4 | Moteur de stock : journal + niveaux, service atomique, réceptions, ajustements, alertes | `2026-07-10-phase-4-moteur-de-stock.md` | ✅ terminée (2026-07-11, PR #5 mergée) |
 | 5 | Transferts inter-entrepôts et inventaires physiques | `2026-07-11-phase-5-transferts-inventaires.md` | ✅ terminée (2026-07-12, PR #6 mergée) |
 | 6 | POS : sessions de caisse, vente atomique, paiements, ticket 80 mm, FEFO, dépannage — **mini-brainstorming UI avant le plan** | `2026-07-12-phase-6-pos.md` | ✅ terminée (2026-07-12, PR #8 mergée) |
-| 7 | Rapports, tableau de bord, finitions (valorisation, marges, alertes visibles) | `2026-07-12-phase-7-rapports.md` | en cours (PR à venir) |
+| 7 | Rapports, tableau de bord, finitions (valorisation, marges, alertes visibles) | `2026-07-12-phase-7-rapports.md` | ✅ terminée (2026-07-13, PR #9) |
 
 ## Détail des phases
 
