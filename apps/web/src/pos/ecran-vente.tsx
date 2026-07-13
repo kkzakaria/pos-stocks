@@ -27,6 +27,7 @@ import { GrilleArticles } from "@/pos/grille-articles"
 import { Panier } from "@/pos/panier"
 import { PanneauLigne } from "@/pos/panneau-ligne"
 import { ModalePaiement } from "@/pos/modale-paiement"
+import { ModaleConfirmation } from "@/pos/modale-confirmation"
 import { DialogueDepannage } from "@/pos/dialogue-depannage"
 import { MenuPos } from "@/pos/menu-pos"
 import { ImpressionTicket } from "@/pos/ticket-recu"
@@ -228,9 +229,14 @@ export function EcranVente({ me, boutique, session, onSessionFermee }: Props) {
           />
         </div>
       </header>
-      <div className="flex gap-1 overflow-x-auto border-b bg-card px-2 py-1">
+      <div
+        role="group"
+        aria-label="Filtrer par catégorie"
+        className="flex gap-1 overflow-x-auto border-b bg-card px-2 py-1"
+      >
         <Button
           variant={categorieId === null ? "default" : "outline"}
+          aria-pressed={categorieId === null}
           onClick={() => setCategorieId(null)}
         >
           Tout
@@ -239,6 +245,7 @@ export function EcranVente({ me, boutique, session, onSessionFermee }: Props) {
           <Button
             key={cat.id}
             variant={categorieId === cat.id ? "default" : "outline"}
+            aria-pressed={categorieId === cat.id}
             onClick={() => setCategorieId(cat.id)}
           >
             {cat.name}
@@ -386,45 +393,11 @@ export function EcranVente({ me, boutique, session, onSessionFermee }: Props) {
 
       {confirmation && (
         <>
-          <div className="fixed inset-0 z-40 grid place-items-center bg-black/60 p-4 print:hidden">
-            <div className="w-full max-w-md rounded-lg bg-card p-6 text-center">
-              <p className="text-lg font-semibold">
-                Vente n° {confirmation.ticketNumber} enregistrée
-              </p>
-              {confirmation.payments.some((p) => (p.changeGiven ?? 0) > 0) && (
-                <p className="my-4 text-5xl font-bold text-success tabular-nums">
-                  Monnaie :{" "}
-                  {formaterMontant(
-                    confirmation.payments.reduce(
-                      (somme, p) => somme + (p.changeGiven ?? 0),
-                      0
-                    )
-                  )}
-                </p>
-              )}
-              <div className="mt-4 flex gap-2">
-                <Button
-                  variant="outline"
-                  className="min-h-14 flex-1"
-                  // `<ImpressionTicket>` reste monté (via portail vers
-                  // document.body, `onImprime` no-op) tant que la
-                  // confirmation est affichée : le ticket est déjà dans le
-                  // DOM hors de `<main>`, donc `window.print()` direct
-                  // suffit à le réimprimer.
-                  onClick={() => window.print()}
-                >
-                  Réimprimer
-                </Button>
-                <Button
-                  autoFocus
-                  className="min-h-14 flex-1 text-lg"
-                  onClick={() => setConfirmation(null)}
-                >
-                  Nouvelle vente
-                </Button>
-              </div>
-            </div>
-          </div>
+          <ModaleConfirmation
+            vente={confirmation}
+            onNouvelleVente={() => setConfirmation(null)}
+            onReimprimer={() => window.print()}
+          />
           {!reglages.isPending && (
             <ImpressionTicket
               sale={confirmation}
