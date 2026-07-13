@@ -39,11 +39,11 @@ export function PanneauLigne({
   }
 
   return (
-    <div className="flex h-full w-full flex-col border-l bg-white">
+    <div className="flex h-full w-full flex-col border-l bg-card">
       <div className="flex items-center justify-between border-b px-4 py-3">
         <div>
           <p className="text-sm font-semibold">{ligne.nom}</p>
-          <p className="text-xs text-gray-500">
+          <p className="text-xs text-muted-foreground">
             {ligne.quantite} × {formaterMontant(ligne.prixUnitaire)}
             {ligne.sourceNom ? ` — ${ligne.sourceNom}` : ""}
           </p>
@@ -82,7 +82,10 @@ export function PanneauLigne({
           : saisie}
       </p>
       {erreurPrix && (
-        <p role="alert" className="px-4 pb-2 text-center text-sm text-red-600">
+        <p
+          role="alert"
+          className="px-4 pb-2 text-center text-sm text-destructive"
+        >
           {erreurPrix}
         </p>
       )}

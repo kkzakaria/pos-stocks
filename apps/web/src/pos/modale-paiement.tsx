@@ -126,11 +126,14 @@ export function ModalePaiement({
         aria-labelledby="modale-paiement-titre"
         tabIndex={-1}
         onKeyDown={gererClavier}
-        className="w-full max-w-lg rounded-lg bg-white p-5 outline-none"
+        className="w-full max-w-lg rounded-lg bg-card p-5 outline-none"
       >
         <div className="mb-4 flex items-start justify-between">
           <div>
-            <p id="modale-paiement-titre" className="text-sm text-gray-500">
+            <p
+              id="modale-paiement-titre"
+              className="text-sm text-muted-foreground"
+            >
               Total à encaisser
             </p>
             <p className="text-5xl font-bold tabular-nums">
@@ -173,7 +176,7 @@ export function ModalePaiement({
             Effacer
           </Button>
         </div>
-        <p className="mb-3 text-sm text-gray-600">
+        <p className="mb-3 text-sm text-muted-foreground">
           Reçu : <strong>{formaterMontant(recu)}</strong>
           {reste > 0 && (
             <span className="ml-2">
@@ -226,13 +229,13 @@ export function ModalePaiement({
         {monnaie > 0 && (
           <p
             data-testid="monnaie"
-            className="my-3 rounded bg-green-50 py-3 text-center text-4xl font-bold text-green-700 tabular-nums"
+            className="my-3 rounded bg-success/10 py-3 text-center text-4xl font-bold text-success tabular-nums"
           >
             Monnaie : {formaterMontant(monnaie)}
           </p>
         )}
         {erreur && (
-          <p role="alert" className="mb-2 text-sm text-red-600">
+          <p role="alert" className="mb-2 text-sm text-destructive">
             {erreur}
           </p>
         )}
