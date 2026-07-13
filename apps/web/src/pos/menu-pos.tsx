@@ -37,7 +37,7 @@ export function MenuPos({
   }
 
   const itemClasses =
-    "block w-full rounded px-3 py-2 text-left text-sm hover:bg-gray-100"
+    "block w-full rounded px-3 py-2 text-left text-sm hover:bg-accent hover:text-accent-foreground"
 
   return (
     <div ref={conteneur} className="relative">
@@ -51,7 +51,7 @@ export function MenuPos({
         <span aria-hidden="true">☰</span>
       </button>
       {ouvert && (
-        <div className="absolute right-0 z-20 mt-1 w-56 rounded border bg-white p-1 shadow-lg">
+        <div className="absolute right-0 z-20 mt-1 w-56 rounded-lg bg-popover p-1 text-popover-foreground shadow-md ring-1 ring-foreground/10">
           <button
             className={itemClasses}
             onClick={() => {
@@ -76,7 +76,7 @@ export function MenuPos({
             </Link>
           )}
           <button
-            className={`${itemClasses} text-red-600`}
+            className={`${itemClasses} text-destructive`}
             onClick={handleSignOut}
           >
             Se déconnecter
