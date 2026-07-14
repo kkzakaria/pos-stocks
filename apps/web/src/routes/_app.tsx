@@ -43,13 +43,13 @@ export const Route = createFileRoute("/_app")({
   component: AppLayout,
 })
 
-// Entrée de nav : icône + libellé, dense (py-1). L'icône hérite de la couleur
-// du texte (currentColor) : mutée au repos, blanche sur l'indigo actif.
+// Nav entry: icon + label, dense (py-1). Icon inherits the text color
+// (currentColor): muted at rest, white on the active indigo state.
 const lienClasses =
   "flex items-center gap-2 rounded px-2 py-1 text-sm outline-none [&>svg]:size-4 [&>svg]:shrink-0 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 focus-visible:ring-ring/30 aria-[current=page]:bg-sidebar-primary aria-[current=page]:text-sidebar-primary-foreground aria-[current=page]:font-medium"
 
-// Libellé de section : casse normale, sur le ramp (text-xs), token muted.
-// Les capitales tramées décoratives sont interdites par DESIGN.md.
+// Section label: normal case, on the ramp (text-xs), muted token.
+// Decorative uppercase tracking is forbidden per DESIGN.md.
 const sectionClasses =
   "mt-3 mb-0.5 px-2 text-xs font-medium text-muted-foreground"
 
