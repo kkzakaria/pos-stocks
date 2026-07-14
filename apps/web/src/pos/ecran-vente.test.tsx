@@ -299,6 +299,78 @@ describe("EcranVente — raccourci Suppr : vider le panier", () => {
   })
 })
 
+describe("EcranVente — erreurPrix réinitialisée après une vente réussie", () => {
+  const articleAvecPlancher: ArticlePos = { ...article, minPrice: 400 }
+  const vente: VenteDetail = {
+    id: "sale1",
+    ticketNumber: 1,
+    total: 500,
+    currency: "XOF",
+    status: "completed",
+    createdAt: new Date().toISOString(),
+    storeId: "store1",
+    storeName: "Boutique",
+    cashierName: "Caissier",
+    items: [],
+    payments: [
+      {
+        method: "cash",
+        amount: 500,
+        reference: null,
+        receivedAmount: 500,
+        changeGiven: 0,
+      },
+    ],
+  }
+
+  beforeEach(() => {
+    vi.spyOn(window, "print").mockImplementation(() => undefined)
+    vi.spyOn(posApi, "fetchCataloguePos").mockResolvedValue({
+      categories: [],
+      articles: [articleAvecPlancher],
+    })
+    vi.spyOn(posApi, "fetchReglagesTicket").mockResolvedValue({
+      name: "Org",
+      currency: "XOF",
+      receiptHeader: "",
+      receiptFooter: "",
+    })
+    vi.spyOn(posApi, "envoyerVente").mockResolvedValue({
+      sale: vente,
+      dejaEnregistree: false,
+    })
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it("l'alerte de prix ne rejoue pas sur le panier suivant", async () => {
+    renderEcran()
+    fireEvent.click(await screen.findByRole("button", { name: /Coca 50cl/ }))
+
+    // Prix sous le plancher → alerte rattachée à la ligne (prix inchangé).
+    fireEvent.click(
+      screen.getByRole("button", { name: "Modifier le prix de Coca 50cl" })
+    )
+    const champ = screen.getByLabelText("Nouveau prix de Coca 50cl")
+    fireEvent.change(champ, { target: { value: "100" } })
+    fireEvent.blur(champ)
+    expect(await screen.findByRole("alert")).toBeTruthy()
+
+    // Vente réussie (au prix catalogue, valide), puis nouvelle vente.
+    fireEvent.click(screen.getByRole("button", { name: /ENCAISSER/ }))
+    fireEvent.click(screen.getByRole("button", { name: "Montant exact" }))
+    fireEvent.click(screen.getByRole("button", { name: "Valider la vente" }))
+    await screen.findByText("Vente n° 1 enregistrée")
+    fireEvent.click(screen.getByRole("button", { name: "Nouvelle vente" }))
+
+    // Même article re-scanné : aucune alerte résiduelle.
+    fireEvent.click(await screen.findByRole("button", { name: /Coca 50cl/ }))
+    expect(screen.queryByRole("alert")).toBeNull()
+  })
+})
+
 describe("EcranVente — erreur de catalogue (différé P6)", () => {
   afterEach(() => {
     vi.restoreAllMocks()

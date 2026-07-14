@@ -145,37 +145,39 @@ export function EcranVente({ me, boutique, session, onSessionFermee }: Props) {
     if (modaleOuverte) return
     const surScan = creerBufferScan(scanner)
     const handler = (e: KeyboardEvent) => {
+      // Focus dans un champ éditable : recherche OU édition inline
+      // quantité/prix du panier. Sert de garde commune ci-dessous.
+      const actif = document.activeElement
+      const dansSaisie =
+        actif instanceof HTMLElement &&
+        (actif.tagName === "INPUT" ||
+          actif.tagName === "TEXTAREA" ||
+          actif.isContentEditable)
       if (e.key === "F2") {
         e.preventDefault()
         if (panierNonVide) setPaiementOuvert(true)
         return
       }
       // Suppr : ouvre la confirmation de vidage — inerte pendant une saisie
-      // (édition quantité/prix, recherche) où « Suppr » efface un caractère,
-      // et quand le panier est vide ou verrouillé.
+      // (où « Suppr » efface un caractère) et quand le panier est vide ou
+      // verrouillé.
       if (e.key === "Delete") {
-        const actif = document.activeElement
-        const dansSaisie =
-          actif instanceof HTMLElement &&
-          (actif.tagName === "INPUT" ||
-            actif.tagName === "TEXTAREA" ||
-            actif.isContentEditable)
         if (!dansSaisie && panierNonVide && !panierVerrouille) {
           e.preventDefault()
           setViderOuvert(true)
         }
         return
       }
-      if (e.key === "/" && document.activeElement !== rechercheRef.current) {
+      if (e.key === "/" && !dansSaisie) {
         e.preventDefault()
         rechercheRef.current?.focus()
         return
       }
-      // Le champ de recherche gère ses propres frappes (saisie manuelle ET
-      // douchette dans le champ) via son onKeyDown : ne pas doubler avec le
-      // buffer de scan global, sinon un scan focus-recherche ajoute 2 articles
-      // (le 1er résultat filtré + le code scanné). Revue finale de branche.
-      if (document.activeElement === rechercheRef.current) return
+      // Tout champ éditable gère ses propres frappes (recherche : saisie
+      // manuelle ET douchette via son onKeyDown ; édition inline quantité/prix)
+      // : ne pas doubler avec le buffer de scan global, sinon un scan
+      // focus-champ ajoute un article fantôme en plus de la saisie.
+      if (dansSaisie) return
       surScan(e)
     }
     window.addEventListener("keydown", handler)
@@ -197,6 +199,9 @@ export function EcranVente({ me, boutique, session, onSessionFermee }: Props) {
       setPaiementOuvert(false)
       setLignes([])
       setErreurVente(null)
+      // Sans ça, un futur panier réutilisant la même clé de ligne rejouerait
+      // l'alerte de prix de la vente précédente.
+      setErreurPrix(null)
       setPanierVerrouille(false)
       setConfirmation(sale)
       requestId.current = crypto.randomUUID()
