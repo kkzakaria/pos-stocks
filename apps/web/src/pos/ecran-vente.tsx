@@ -24,8 +24,7 @@ import {
 } from "@/lib/pos-api"
 import type { SessionCaisse, VenteDetail } from "@/lib/pos-api"
 import { GrilleArticles } from "@/pos/grille-articles"
-import { Panier } from "@/pos/panier"
-import { PanneauLigne } from "@/pos/panneau-ligne"
+import { Panier, cleLigne } from "@/pos/panier"
 import { ModalePaiement } from "@/pos/modale-paiement"
 import { ModaleConfirmation } from "@/pos/modale-confirmation"
 import { DialogueDepannage } from "@/pos/dialogue-depannage"
@@ -67,10 +66,13 @@ export function EcranVente({ me, boutique, session, onSessionFermee }: Props) {
   const [lignes, setLignes] = useState<LignePanier[]>([])
   const [recherche, setRecherche] = useState("")
   const [categorieId, setCategorieId] = useState<string | null>(null)
-  const [cleChoisie, setCleChoisie] = useState<CleLigne | null>(null)
-  const [erreurPrix, setErreurPrix] = useState<string | null>(null)
+  const [erreurPrix, setErreurPrix] = useState<{
+    cle: string
+    message: string
+  } | null>(null)
   const [depannagePour, setDepannagePour] = useState<CleLigne | null>(null)
   const [paiementOuvert, setPaiementOuvert] = useState(false)
+  const [viderOuvert, setViderOuvert] = useState(false)
   const [erreurVente, setErreurVente] = useState<string | null>(null)
   // Verrouillage panier après une soumission AMBIGUË (réponse réseau
   // perdue, cf. onError ci-dessous) : la vente a peut-être été commitée
@@ -101,7 +103,6 @@ export function EcranVente({ me, boutique, session, onSessionFermee }: Props) {
             l.variantId === cle.variantId && l.sourceWarehouseId === cle.source
         ) ?? null)
       : null
-  const ligneChoisie = ligneDe(cleChoisie)
   const ligneDepannage = ligneDe(depannagePour)
 
   const minuscule = recherche.trim().toLowerCase()
@@ -130,12 +131,13 @@ export function EcranVente({ me, boutique, session, onSessionFermee }: Props) {
     [articles, ajouterAuPanier]
   )
 
-  // Scan douchette GLOBAL + raccourcis `/` (recherche) et `F2` (encaisser) —
-  // inertes quand une modale est ouverte (sinon `/` focaliserait la recherche
-  // derrière l'overlay, et un scan ajouterait un article invisible).
+  // GLOBAL barcode scan + `/` (search) and `F2` (checkout) shortcuts — inert
+  // while a modal is open (otherwise `/` would focus the search behind the
+  // overlay, and a scan would add an invisible item).
   const panierNonVide = lignes.length > 0
   const modaleOuverte =
     paiementOuvert ||
+    viderOuvert ||
     confirmation !== null ||
     depannagePour !== null ||
     vue !== "vente"
@@ -143,26 +145,44 @@ export function EcranVente({ me, boutique, session, onSessionFermee }: Props) {
     if (modaleOuverte) return
     const surScan = creerBufferScan(scanner)
     const handler = (e: KeyboardEvent) => {
+      // Focus in an editable field: search OR inline quantity/price editing in
+      // the cart. Used as a shared guard below.
+      const actif = document.activeElement
+      const dansSaisie =
+        actif instanceof HTMLElement &&
+        (actif.tagName === "INPUT" ||
+          actif.tagName === "TEXTAREA" ||
+          actif.isContentEditable)
       if (e.key === "F2") {
         e.preventDefault()
         if (panierNonVide) setPaiementOuvert(true)
         return
       }
-      if (e.key === "/" && document.activeElement !== rechercheRef.current) {
+      // Suppr/Delete: opens the clear-cart confirmation — inert while typing
+      // (where "Suppr" deletes a character) and when the cart is empty or
+      // locked.
+      if (e.key === "Delete") {
+        if (!dansSaisie && panierNonVide && !panierVerrouille) {
+          e.preventDefault()
+          setViderOuvert(true)
+        }
+        return
+      }
+      if (e.key === "/" && !dansSaisie) {
         e.preventDefault()
         rechercheRef.current?.focus()
         return
       }
-      // Le champ de recherche gère ses propres frappes (saisie manuelle ET
-      // douchette dans le champ) via son onKeyDown : ne pas doubler avec le
-      // buffer de scan global, sinon un scan focus-recherche ajoute 2 articles
-      // (le 1er résultat filtré + le code scanné). Revue finale de branche.
-      if (document.activeElement === rechercheRef.current) return
+      // Any editable field handles its own keystrokes (search: manual typing
+      // AND scanner via its onKeyDown; inline quantity/price editing): do not
+      // double up with the global scan buffer, otherwise a scan while a field
+      // is focused adds a phantom item on top of the typed value.
+      if (dansSaisie) return
       surScan(e)
     }
     window.addEventListener("keydown", handler)
     return () => window.removeEventListener("keydown", handler)
-  }, [scanner, panierNonVide, modaleOuverte])
+  }, [scanner, panierNonVide, modaleOuverte, panierVerrouille])
 
   const vente = useMutation({
     mutationFn: (paiements: SalePaymentInput[]) =>
@@ -178,8 +198,10 @@ export function EcranVente({ me, boutique, session, onSessionFermee }: Props) {
       // systématiquement ici est le comportement voulu, pas un oubli.
       setPaiementOuvert(false)
       setLignes([])
-      setCleChoisie(null)
       setErreurVente(null)
+      // Without this, a later cart reusing the same line key would replay the
+      // price alert from the previous sale.
+      setErreurPrix(null)
       setPanierVerrouille(false)
       setConfirmation(sale)
       requestId.current = crypto.randomUUID()
@@ -319,69 +341,68 @@ export function EcranVente({ me, boutique, session, onSessionFermee }: Props) {
           )}
         </section>
         <div className="flex w-96 shrink-0">
-          {ligneChoisie && cleChoisie ? (
-            <PanneauLigne
-              ligne={ligneChoisie}
-              erreurPrix={erreurPrix}
-              onQuantite={(quantite) => {
-                if (panierVerrouille) return
-                setLignes((l) =>
-                  changerQuantite(
-                    l,
-                    cleChoisie.variantId,
-                    cleChoisie.source,
-                    quantite
-                  )
+          <Panier
+            lignes={lignes}
+            verrouille={panierVerrouille}
+            erreurPrix={erreurPrix}
+            onQuantite={(ligne, quantite) => {
+              if (panierVerrouille) return
+              setLignes((l) =>
+                changerQuantite(
+                  l,
+                  ligne.variantId,
+                  ligne.sourceWarehouseId,
+                  quantite
                 )
-              }}
-              onPrix={(prix) => {
-                if (panierVerrouille) return
-                const resultat = changerPrix(
-                  lignes,
-                  cleChoisie.variantId,
-                  cleChoisie.source,
-                  prix
-                )
-                if (!resultat.ok) {
-                  setErreurPrix(
+              )
+            }}
+            onPrix={(ligne, prix) => {
+              if (panierVerrouille) return
+              const resultat = changerPrix(
+                lignes,
+                ligne.variantId,
+                ligne.sourceWarehouseId,
+                prix
+              )
+              if (!resultat.ok) {
+                setErreurPrix({
+                  cle: cleLigne(ligne),
+                  message:
                     resultat.raison === "SOUS_PLANCHER"
                       ? `Refusé : minimum ${formaterMontant(resultat.minimum)}`
-                      : "Prix non négociable pour cet article"
-                  )
-                  return
-                }
-                setErreurPrix(null)
-                setLignes(resultat.lignes)
-              }}
-              onSupprimer={() => {
-                if (panierVerrouille) return
-                setLignes((l) =>
-                  supprimerLigne(l, cleChoisie.variantId, cleChoisie.source)
-                )
-                setCleChoisie(null)
-                setErreurPrix(null)
-              }}
-              onDepanner={() => {
-                if (panierVerrouille) return
-                setDepannagePour(cleChoisie)
-              }}
-              onFermer={() => {
-                setCleChoisie(null)
-                setErreurPrix(null)
-              }}
-            />
-          ) : (
-            <Panier
-              lignes={lignes}
-              onChoisirLigne={(ligne) =>
-                setCleChoisie({
-                  variantId: ligne.variantId,
-                  source: ligne.sourceWarehouseId,
+                      : "Prix non négociable pour cet article",
                 })
+                return
               }
-              onEncaisser={() => setPaiementOuvert(true)}
-            />
-          )}
+              setErreurPrix(null)
+              setLignes(resultat.lignes)
+            }}
+            onSupprimer={(ligne) => {
+              if (panierVerrouille) return
+              setLignes((l) =>
+                supprimerLigne(l, ligne.variantId, ligne.sourceWarehouseId)
+              )
+              // Only clear the error attached to THIS line: removing another
+              // line must not hide a still-valid price rejection.
+              setErreurPrix((e) => (e?.cle === cleLigne(ligne) ? null : e))
+            }}
+            onDepanner={(ligne) => {
+              if (panierVerrouille) return
+              setDepannagePour({
+                variantId: ligne.variantId,
+                source: ligne.sourceWarehouseId,
+              })
+            }}
+            onVider={() => {
+              if (panierVerrouille) return
+              setLignes([])
+              setErreurPrix(null)
+              setErreurVente(null)
+            }}
+            viderOuvert={viderOuvert}
+            onViderOuvertChange={setViderOuvert}
+            onEncaisser={() => setPaiementOuvert(true)}
+          />
         </div>
       </div>
 
@@ -400,11 +421,6 @@ export function EcranVente({ me, boutique, session, onSessionFermee }: Props) {
               )
             )
             setDepannagePour(null)
-            setCleChoisie(
-              warehouseId === null
-                ? { variantId: depannagePour.variantId, source: null }
-                : { variantId: depannagePour.variantId, source: warehouseId }
-            )
           }}
           onFermer={() => setDepannagePour(null)}
         />

@@ -121,10 +121,15 @@ describe("EcranVente — verrouillage panier après échec ambigu", () => {
     // Abandon explicite : fermer la modale de paiement déverrouille.
     fireEvent.click(screen.getByLabelText("Fermer"))
     fireEvent.click(tuile)
-    await waitFor(() => {
-      const panier = screen.getByText("Panier").closest("aside")
-      expect(panier?.textContent ?? "").toContain("2 ×")
-    })
+    // 2nd unit added: the "Diminuer la quantité" stepper (disabled at 1)
+    // becomes enabled.
+    await waitFor(() =>
+      expect(
+        screen.getByRole<HTMLButtonElement>("button", {
+          name: "Diminuer la quantité de Coca 50cl",
+        }).disabled
+      ).toBe(false)
+    )
   })
 
   it("n'active PAS le verrou sur une erreur API structurée (le serveur a répondu)", async () => {
@@ -151,10 +156,15 @@ describe("EcranVente — verrouillage panier après échec ambigu", () => {
 
     // Pas de verrou : re-cliquer la tuile ajoute bien une 2e unité.
     fireEvent.click(tuile)
-    await waitFor(() => {
-      const panier = screen.getByText("Panier").closest("aside")
-      expect(panier?.textContent ?? "").toContain("2 ×")
-    })
+    // 2nd unit added: the "Diminuer la quantité" stepper (disabled at 1)
+    // becomes enabled.
+    await waitFor(() =>
+      expect(
+        screen.getByRole<HTMLButtonElement>("button", {
+          name: "Diminuer la quantité de Coca 50cl",
+        }).disabled
+      ).toBe(false)
+    )
   })
 })
 
@@ -229,6 +239,135 @@ describe("EcranVente — impression différée jusqu'à reglages résolu", () =>
       receiptFooter: "",
     })
     await waitFor(() => expect(printSpy).toHaveBeenCalledTimes(1))
+  })
+})
+
+describe("EcranVente — raccourci Suppr : vider le panier", () => {
+  beforeEach(() => {
+    vi.spyOn(posApi, "fetchCataloguePos").mockResolvedValue({
+      categories: [],
+      articles: [article],
+    })
+    vi.spyOn(posApi, "fetchReglagesTicket").mockResolvedValue({
+      name: "Org",
+      currency: "XOF",
+      receiptHeader: "",
+      receiptFooter: "",
+    })
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it("ouvre la confirmation puis vide le panier après validation", async () => {
+    renderEcran()
+    const tuile = await screen.findByRole("button", { name: /Coca 50cl/ })
+    fireEvent.click(tuile)
+    // Non-empty cart: ENCAISSER enabled.
+    expect(
+      screen.getByRole<HTMLButtonElement>("button", { name: /ENCAISSER/ })
+        .disabled
+    ).toBe(false)
+
+    fireEvent.keyDown(window, { key: "Delete" })
+    const valider = await screen.findByRole("button", { name: "Vider" })
+    fireEvent.click(valider)
+
+    // Cart cleared: the empty-state prompt reappears, ENCAISSER goes inactive.
+    await screen.findByText("Scannez ou touchez un article.")
+    expect(
+      screen.getByRole<HTMLButtonElement>("button", { name: /ENCAISSER/ })
+        .disabled
+    ).toBe(true)
+  })
+
+  it("n'ouvre rien quand le panier est vide", () => {
+    renderEcran()
+    fireEvent.keyDown(window, { key: "Delete" })
+    expect(screen.queryByText("Vider le panier ?")).toBeNull()
+  })
+
+  it("ignore Suppr quand le focus est dans un champ de saisie", async () => {
+    renderEcran()
+    const tuile = await screen.findByRole("button", { name: /Coca 50cl/ })
+    fireEvent.click(tuile)
+    // Focus in the search field: Suppr deletes a character, not the cart.
+    screen.getByPlaceholderText(/Rechercher/).focus()
+    fireEvent.keyDown(window, { key: "Delete" })
+    expect(screen.queryByText("Vider le panier ?")).toBeNull()
+  })
+})
+
+describe("EcranVente — erreurPrix réinitialisée après une vente réussie", () => {
+  const articleAvecPlancher: ArticlePos = { ...article, minPrice: 400 }
+  const vente: VenteDetail = {
+    id: "sale1",
+    ticketNumber: 1,
+    total: 500,
+    currency: "XOF",
+    status: "completed",
+    createdAt: new Date().toISOString(),
+    storeId: "store1",
+    storeName: "Boutique",
+    cashierName: "Caissier",
+    items: [],
+    payments: [
+      {
+        method: "cash",
+        amount: 500,
+        reference: null,
+        receivedAmount: 500,
+        changeGiven: 0,
+      },
+    ],
+  }
+
+  beforeEach(() => {
+    vi.spyOn(window, "print").mockImplementation(() => undefined)
+    vi.spyOn(posApi, "fetchCataloguePos").mockResolvedValue({
+      categories: [],
+      articles: [articleAvecPlancher],
+    })
+    vi.spyOn(posApi, "fetchReglagesTicket").mockResolvedValue({
+      name: "Org",
+      currency: "XOF",
+      receiptHeader: "",
+      receiptFooter: "",
+    })
+    vi.spyOn(posApi, "envoyerVente").mockResolvedValue({
+      sale: vente,
+      dejaEnregistree: false,
+    })
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it("l'alerte de prix ne rejoue pas sur le panier suivant", async () => {
+    renderEcran()
+    fireEvent.click(await screen.findByRole("button", { name: /Coca 50cl/ }))
+
+    // Price below the floor → alert attached to the line (price unchanged).
+    fireEvent.click(
+      screen.getByRole("button", { name: "Modifier le prix de Coca 50cl" })
+    )
+    const champ = screen.getByLabelText("Nouveau prix de Coca 50cl")
+    fireEvent.change(champ, { target: { value: "100" } })
+    fireEvent.blur(champ)
+    expect(await screen.findByRole("alert")).toBeTruthy()
+
+    // Successful sale (at the valid catalog price), then a new sale.
+    fireEvent.click(screen.getByRole("button", { name: /ENCAISSER/ }))
+    fireEvent.click(screen.getByRole("button", { name: "Montant exact" }))
+    fireEvent.click(screen.getByRole("button", { name: "Valider la vente" }))
+    await screen.findByText("Vente n° 1 enregistrée")
+    fireEvent.click(screen.getByRole("button", { name: "Nouvelle vente" }))
+
+    // Same item scanned again: no residual alert.
+    fireEvent.click(await screen.findByRole("button", { name: /Coca 50cl/ }))
+    expect(screen.queryByRole("alert")).toBeNull()
   })
 })
 

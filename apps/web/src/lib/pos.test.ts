@@ -85,6 +85,14 @@ describe("panier", () => {
     const sansPlancher = ajouterArticle([], article())
     const fige = changerPrix(sansPlancher, "v1", null, 450)
     expect(fige).toEqual({ ok: false, raison: "NON_NEGOCIABLE", minimum: 500 })
+    // A negative price is not silently swallowed: it is refused below the
+    // floor (explicit result), not treated as a neutral no-op.
+    const negatif = changerPrix(avecPlancher, "v1", null, -5)
+    expect(negatif).toEqual({
+      ok: false,
+      raison: "SOUS_PLANCHER",
+      minimum: 400,
+    })
   })
 
   it("marquerLignesEnAlerte pose enAlerte sur les variantes fautives", () => {
