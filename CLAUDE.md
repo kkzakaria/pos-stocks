@@ -36,7 +36,7 @@ CD : `deploy.yml` migre la D1 de prod puis déploie les deux Workers via `bunx w
 
 ## Conventions
 
-- **Tout en français** : UI, messages d'erreur, commentaires, messages de commit (conventionnels).
+- **Langue** : UI, messages d'erreur et messages de commit (conventionnels) en **français** ; **commentaires de code et JSDoc/docstrings en anglais** ; prose de `docs/superpowers/` en français. Politique appliquée par `.coderabbit.yaml`. (Historique : des commentaires antérieurs sont encore en français — migration au fil de l'eau, pas de traduction de masse.)
 - Enveloppe d'erreur API : `{ code: "MAJUSCULES", message: "français", details? }`. Réutiliser les codes existants avant d'en créer.
 - Montants en **entiers XOF** (0 décimale) ; formatage web via `formaterMontant` (`apps/web/src/lib/format.ts`).
 - IDs texte (`crypto.randomUUID()`), horodatages UTC, toutes les tables métier portent `organizationId`.

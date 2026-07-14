@@ -121,8 +121,8 @@ describe("EcranVente — verrouillage panier après échec ambigu", () => {
     // Abandon explicite : fermer la modale de paiement déverrouille.
     fireEvent.click(screen.getByLabelText("Fermer"))
     fireEvent.click(tuile)
-    // 2ᵉ unité ajoutée : le stepper « Diminuer la quantité » (désactivé à 1)
-    // devient actif.
+    // 2nd unit added: the "Diminuer la quantité" stepper (disabled at 1)
+    // becomes enabled.
     await waitFor(() =>
       expect(
         screen.getByRole<HTMLButtonElement>("button", {
@@ -156,8 +156,8 @@ describe("EcranVente — verrouillage panier après échec ambigu", () => {
 
     // Pas de verrou : re-cliquer la tuile ajoute bien une 2e unité.
     fireEvent.click(tuile)
-    // 2ᵉ unité ajoutée : le stepper « Diminuer la quantité » (désactivé à 1)
-    // devient actif.
+    // 2nd unit added: the "Diminuer la quantité" stepper (disabled at 1)
+    // becomes enabled.
     await waitFor(() =>
       expect(
         screen.getByRole<HTMLButtonElement>("button", {
@@ -264,7 +264,7 @@ describe("EcranVente — raccourci Suppr : vider le panier", () => {
     renderEcran()
     const tuile = await screen.findByRole("button", { name: /Coca 50cl/ })
     fireEvent.click(tuile)
-    // Panier non vide : ENCAISSER actif.
+    // Non-empty cart: ENCAISSER enabled.
     expect(
       screen.getByRole<HTMLButtonElement>("button", { name: /ENCAISSER/ })
         .disabled
@@ -274,7 +274,7 @@ describe("EcranVente — raccourci Suppr : vider le panier", () => {
     const valider = await screen.findByRole("button", { name: "Vider" })
     fireEvent.click(valider)
 
-    // Panier vidé : l'invite de départ réapparaît, ENCAISSER redevient inactif.
+    // Cart cleared: the empty-state prompt reappears, ENCAISSER goes inactive.
     await screen.findByText("Scannez ou touchez un article.")
     expect(
       screen.getByRole<HTMLButtonElement>("button", { name: /ENCAISSER/ })
@@ -292,7 +292,7 @@ describe("EcranVente — raccourci Suppr : vider le panier", () => {
     renderEcran()
     const tuile = await screen.findByRole("button", { name: /Coca 50cl/ })
     fireEvent.click(tuile)
-    // Focus dans la recherche : Suppr efface un caractère, ne vide pas le panier.
+    // Focus in the search field: Suppr deletes a character, not the cart.
     screen.getByPlaceholderText(/Rechercher/).focus()
     fireEvent.keyDown(window, { key: "Delete" })
     expect(screen.queryByText("Vider le panier ?")).toBeNull()
@@ -349,7 +349,7 @@ describe("EcranVente — erreurPrix réinitialisée après une vente réussie", 
     renderEcran()
     fireEvent.click(await screen.findByRole("button", { name: /Coca 50cl/ }))
 
-    // Prix sous le plancher → alerte rattachée à la ligne (prix inchangé).
+    // Price below the floor → alert attached to the line (price unchanged).
     fireEvent.click(
       screen.getByRole("button", { name: "Modifier le prix de Coca 50cl" })
     )
@@ -358,14 +358,14 @@ describe("EcranVente — erreurPrix réinitialisée après une vente réussie", 
     fireEvent.blur(champ)
     expect(await screen.findByRole("alert")).toBeTruthy()
 
-    // Vente réussie (au prix catalogue, valide), puis nouvelle vente.
+    // Successful sale (at the valid catalog price), then a new sale.
     fireEvent.click(screen.getByRole("button", { name: /ENCAISSER/ }))
     fireEvent.click(screen.getByRole("button", { name: "Montant exact" }))
     fireEvent.click(screen.getByRole("button", { name: "Valider la vente" }))
     await screen.findByText("Vente n° 1 enregistrée")
     fireEvent.click(screen.getByRole("button", { name: "Nouvelle vente" }))
 
-    // Même article re-scanné : aucune alerte résiduelle.
+    // Same item scanned again: no residual alert.
     fireEvent.click(await screen.findByRole("button", { name: /Coca 50cl/ }))
     expect(screen.queryByRole("alert")).toBeNull()
   })

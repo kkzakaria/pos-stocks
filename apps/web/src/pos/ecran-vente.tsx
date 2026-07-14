@@ -131,9 +131,9 @@ export function EcranVente({ me, boutique, session, onSessionFermee }: Props) {
     [articles, ajouterAuPanier]
   )
 
-  // Scan douchette GLOBAL + raccourcis `/` (recherche) et `F2` (encaisser) —
-  // inertes quand une modale est ouverte (sinon `/` focaliserait la recherche
-  // derrière l'overlay, et un scan ajouterait un article invisible).
+  // GLOBAL barcode scan + `/` (search) and `F2` (checkout) shortcuts — inert
+  // while a modal is open (otherwise `/` would focus the search behind the
+  // overlay, and a scan would add an invisible item).
   const panierNonVide = lignes.length > 0
   const modaleOuverte =
     paiementOuvert ||
@@ -145,8 +145,8 @@ export function EcranVente({ me, boutique, session, onSessionFermee }: Props) {
     if (modaleOuverte) return
     const surScan = creerBufferScan(scanner)
     const handler = (e: KeyboardEvent) => {
-      // Focus dans un champ éditable : recherche OU édition inline
-      // quantité/prix du panier. Sert de garde commune ci-dessous.
+      // Focus in an editable field: search OR inline quantity/price editing in
+      // the cart. Used as a shared guard below.
       const actif = document.activeElement
       const dansSaisie =
         actif instanceof HTMLElement &&
@@ -158,9 +158,9 @@ export function EcranVente({ me, boutique, session, onSessionFermee }: Props) {
         if (panierNonVide) setPaiementOuvert(true)
         return
       }
-      // Suppr : ouvre la confirmation de vidage — inerte pendant une saisie
-      // (où « Suppr » efface un caractère) et quand le panier est vide ou
-      // verrouillé.
+      // Suppr/Delete: opens the clear-cart confirmation — inert while typing
+      // (where "Suppr" deletes a character) and when the cart is empty or
+      // locked.
       if (e.key === "Delete") {
         if (!dansSaisie && panierNonVide && !panierVerrouille) {
           e.preventDefault()
@@ -173,10 +173,10 @@ export function EcranVente({ me, boutique, session, onSessionFermee }: Props) {
         rechercheRef.current?.focus()
         return
       }
-      // Tout champ éditable gère ses propres frappes (recherche : saisie
-      // manuelle ET douchette via son onKeyDown ; édition inline quantité/prix)
-      // : ne pas doubler avec le buffer de scan global, sinon un scan
-      // focus-champ ajoute un article fantôme en plus de la saisie.
+      // Any editable field handles its own keystrokes (search: manual typing
+      // AND scanner via its onKeyDown; inline quantity/price editing): do not
+      // double up with the global scan buffer, otherwise a scan while a field
+      // is focused adds a phantom item on top of the typed value.
       if (dansSaisie) return
       surScan(e)
     }
@@ -199,8 +199,8 @@ export function EcranVente({ me, boutique, session, onSessionFermee }: Props) {
       setPaiementOuvert(false)
       setLignes([])
       setErreurVente(null)
-      // Sans ça, un futur panier réutilisant la même clé de ligne rejouerait
-      // l'alerte de prix de la vente précédente.
+      // Without this, a later cart reusing the same line key would replay the
+      // price alert from the previous sale.
       setErreurPrix(null)
       setPanierVerrouille(false)
       setConfirmation(sale)
@@ -382,8 +382,8 @@ export function EcranVente({ me, boutique, session, onSessionFermee }: Props) {
               setLignes((l) =>
                 supprimerLigne(l, ligne.variantId, ligne.sourceWarehouseId)
               )
-              // N'efface que l'erreur rattachée à CETTE ligne : retirer une
-              // autre ligne ne doit pas masquer un refus de prix encore valable.
+              // Only clear the error attached to THIS line: removing another
+              // line must not hide a still-valid price rejection.
               setErreurPrix((e) => (e?.cle === cleLigne(ligne) ? null : e))
             }}
             onDepanner={(ligne) => {

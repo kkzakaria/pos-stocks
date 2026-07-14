@@ -4,8 +4,8 @@ import { formaterMontant } from "@/lib/format"
 import { Panier } from "./panier"
 import type { LignePanier } from "@/lib/pos"
 
-// Regex ancrée sur le montant formaté fr-FR (espaces insécables étroites
-// U+202F normalisées) — piège du dépôt : ne pas matcher via un substring brut.
+// Regex anchored on the fr-FR formatted amount (narrow no-break spaces U+202F
+// normalized) — repo pitfall: do not match via a raw substring.
 function texteMontant(montant: number): RegExp {
   const echappe = formaterMontant(montant)
     .replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
@@ -57,7 +57,7 @@ describe("Panier", () => {
     )
     expect(screen.getByText("Coca 50cl")).toBeTruthy()
     expect(screen.getByText("Fanta")).toBeTruthy()
-    // total = 2×500 + 400 — formaterMontant insère des espaces insécables
+    // total = 2×500 + 400 — formaterMontant inserts no-break spaces
     expect(screen.getByText(/1 400|1 400/)).toBeTruthy()
   })
 
@@ -172,22 +172,6 @@ describe("Panier", () => {
     )
   })
 
-  it("prix ≤ 0 : n'applique rien et garde l'éditeur ouvert", () => {
-    const onPrix = vi.fn()
-    render(
-      <Panier {...props({ lignes: [ligne({ prixPlancher: 400 })], onPrix })} />
-    )
-    fireEvent.click(
-      screen.getByRole("button", { name: "Modifier le prix de Coca 50cl" })
-    )
-    const champ = screen.getByLabelText("Nouveau prix de Coca 50cl")
-    fireEvent.change(champ, { target: { value: "-5" } })
-    fireEvent.blur(champ)
-    expect(onPrix).not.toHaveBeenCalled()
-    // éditeur toujours ouvert : le champ de saisie reste présent
-    expect(screen.getByLabelText("Nouveau prix de Coca 50cl")).toBeTruthy()
-  })
-
   it("steppers désactivés pendant la saisie clavier de la quantité", () => {
     render(<Panier {...props({ lignes: [ligne()] })} />)
     fireEvent.click(
@@ -210,7 +194,7 @@ describe("Panier", () => {
     expect(
       screen.queryByRole("button", { name: "Modifier le prix de Coca 50cl" })
     ).toBeNull()
-    // le montant reste affiché
+    // the amount stays displayed
     expect(screen.getAllByText(texteMontant(500)).length).toBeGreaterThan(0)
   })
 
@@ -224,7 +208,7 @@ describe("Panier", () => {
 
     rerender(<Panier {...props({ lignes: [ligne()], onVider })} />)
     fireEvent.click(screen.getByRole("button", { name: "Vider le panier" }))
-    // La confirmation s'ouvre ; « Vider » n'est appelé qu'après validation.
+    // The confirmation opens; "Vider" only fires after validation.
     const valider = await screen.findByRole("button", { name: "Vider" })
     expect(onVider).not.toHaveBeenCalled()
     fireEvent.click(valider)

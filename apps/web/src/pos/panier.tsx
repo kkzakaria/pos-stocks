@@ -71,7 +71,7 @@ export function Panier({
   onEncaisser,
 }: Props) {
   const total = totalPanier(lignes)
-  // Champ en cours d'édition inline : quantité ou prix d'une ligne donnée.
+  // Field being edited inline: quantity or price of a given line.
   const [edition, setEdition] = useState<{
     cle: string
     champ: "quantite" | "prix"
@@ -86,24 +86,22 @@ export function Panier({
   }
   function valider(ligne: LignePanier) {
     const champ = edition?.champ
-    // Virgule décimale FR → point, puis arrondi : quantités ET montants sont
-    // des ENTIERS (XOF sans décimale). Sans ça, « 450,5 » (NaN) est abandonné
-    // en silence et « 450.5 » stocke une fraction rejetée plus loin sans
-    // retour visuel.
+    // FR decimal comma → dot, then round: quantities AND amounts are INTEGERS
+    // (XOF has no decimals). Without this, "450,5" (NaN) is silently dropped
+    // and "450.5" stores a fraction that is rejected downstream with no
+    // visible feedback.
     const n = Math.round(Number(saisie.replace(",", ".")))
-    // N'applique que si la valeur a changé et reste finie : un blur sans
-    // modification ne redéclenche pas une validation serveur inutile.
+    // Only apply when the value actually changed and stays finite: a blur
+    // without any edit must not re-trigger a needless server validation.
     if (saisie.trim() !== "" && Number.isFinite(n)) {
       if (champ === "quantite") {
         const q = Math.max(1, n)
         if (q !== ligne.quantite) onQuantite(ligne, q)
-      } else {
-        // Prix : entier strictement positif. Une saisie ≤ 0 (négatif, zéro)
-        // serait ignorée en silence par changerPrix — on garde plutôt
-        // l'éditeur ouvert (le champ reste affiché avec la valeur refusée)
-        // au lieu de le fermer sans effet ni retour.
-        if (n <= 0) return
-        if (n !== ligne.prixUnitaire) onPrix(ligne, n)
+      } else if (n !== ligne.prixUnitaire) {
+        // A price <= 0 is forwarded as-is: changerPrix rejects it as below
+        // the floor and the caller shows "Refusé : minimum …". No silent
+        // close.
+        onPrix(ligne, n)
       }
     }
     setEdition(null)
@@ -121,9 +119,8 @@ export function Panier({
                 disabled={verrouille || lignes.length === 0}
                 aria-label="Vider le panier"
                 title="Vider le panier (Suppr)"
-                // Rouge fixe (et non le token --destructive, trop clair en
-                // thème sombre) pour garder le texte blanc lisible (AA) sur
-                // les deux thèmes.
+                // Fixed red (not the --destructive token, too light in dark
+                // theme) to keep the white text legible (AA) on both themes.
                 className="bg-[oklch(0.55_0.22_27)] font-semibold text-white hover:bg-[oklch(0.5_0.22_27)]"
               />
             }
@@ -157,9 +154,9 @@ export function Panier({
           const enEditionQuantite =
             edition?.cle === cle && edition.champ === "quantite"
           const enEditionPrix = edition?.cle === cle && edition.champ === "prix"
-          // Prix révisable seulement si un plancher est défini ; sans plancher
-          // le prix est verrouillé au catalogue (règle NON_NEGOCIABLE, lib/pos)
-          // et toute saisie serait refusée — on n'offre donc pas l'édition.
+          // Price editable only when a floor is set; without a floor the price
+          // is locked to the catalog (NON_NEGOCIABLE rule, lib/pos) and any
+          // input would be refused — so editing is not offered.
           const prixRevisable = ligne.prixPlancher !== null
           const prixNegocie = ligne.prixUnitaire !== ligne.prixCatalogue
           return (
@@ -225,8 +222,9 @@ export function Panier({
                   <Button
                     variant="outline"
                     size="icon"
-                    // Désactivé en édition : le blur valide la saisie AVANT le
-                    // click, sinon +/− rejouerait l'ancienne quantité par-dessus.
+                    // Disabled while editing: the blur commits the typed value
+                    // BEFORE the click, otherwise +/− would replay the old
+                    // quantity over it.
                     disabled={
                       verrouille || enEditionQuantite || ligne.quantite <= 1
                     }

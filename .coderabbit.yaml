@@ -1,0 +1,22 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+# Politique de langue du dépôt (voir CLAUDE.md § Conventions) :
+#   - Commentaires de code et JSDoc/docstrings : ANGLAIS
+#   - Chaînes destinées à l'utilisateur (UI, messages d'erreur), messages de
+#     commit et prose de docs/superpowers/ : FRANÇAIS
+# La revue de CodeRabbit reste rédigée en français.
+language: fr-FR
+
+reviews:
+  path_instructions:
+    - path: "**/*.{ts,tsx,js,jsx}"
+      instructions: >
+        Code comments and JSDoc/docstrings MUST be written in English. Do NOT
+        flag English comments or docstrings, and do NOT request their
+        translation to French. User-facing strings, however, MUST stay in
+        French: UI text, error messages, toast/label/aria copy, and the API
+        error envelope `message` field. Flag those only if they are written in
+        a language other than French.
+    - path: "docs/superpowers/**"
+      instructions: >
+        This documentation is written in French by project convention. Do not
+        flag French prose here or request its translation.

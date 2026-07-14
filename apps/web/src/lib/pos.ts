@@ -28,7 +28,7 @@ export type LignePanier = {
   variantId: string
   nom: string
   sku: string
-  // Vignette du produit (clé R2) pour l'aperçu au panier ; posée à l'ajout.
+  // Product thumbnail (R2 key) for the cart preview; set when the line is added.
   imageKey?: string | null
   quantite: number
   prixUnitaire: number
@@ -132,7 +132,11 @@ export function changerPrix(
   prix: number
 ): ResultatPrix {
   const ligne = lignes.find((l) => memeLigne(l, variantId, sourceWarehouseId))
-  if (!ligne || !Number.isInteger(prix) || prix < 0) {
+  // A negative price is NOT swallowed here: it falls through to the floor (or
+  // non-negotiable) guard below and yields an explicit rejection rather than a
+  // silent no-op. Only a missing line and a non-integer (never produced by the
+  // UI, which rounds) stay as neutral no-ops.
+  if (!ligne || !Number.isInteger(prix)) {
     return { ok: true, lignes }
   }
   if (ligne.prixPlancher === null) {
