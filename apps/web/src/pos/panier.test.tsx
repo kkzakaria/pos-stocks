@@ -172,6 +172,22 @@ describe("Panier", () => {
     )
   })
 
+  it("prix ≤ 0 : n'applique rien et garde l'éditeur ouvert", () => {
+    const onPrix = vi.fn()
+    render(
+      <Panier {...props({ lignes: [ligne({ prixPlancher: 400 })], onPrix })} />
+    )
+    fireEvent.click(
+      screen.getByRole("button", { name: "Modifier le prix de Coca 50cl" })
+    )
+    const champ = screen.getByLabelText("Nouveau prix de Coca 50cl")
+    fireEvent.change(champ, { target: { value: "-5" } })
+    fireEvent.blur(champ)
+    expect(onPrix).not.toHaveBeenCalled()
+    // éditeur toujours ouvert : le champ de saisie reste présent
+    expect(screen.getByLabelText("Nouveau prix de Coca 50cl")).toBeTruthy()
+  })
+
   it("steppers désactivés pendant la saisie clavier de la quantité", () => {
     render(<Panier {...props({ lignes: [ligne()] })} />)
     fireEvent.click(

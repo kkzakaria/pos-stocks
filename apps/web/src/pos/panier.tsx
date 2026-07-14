@@ -97,8 +97,13 @@ export function Panier({
       if (champ === "quantite") {
         const q = Math.max(1, n)
         if (q !== ligne.quantite) onQuantite(ligne, q)
-      } else if (n !== ligne.prixUnitaire) {
-        onPrix(ligne, n)
+      } else {
+        // Prix : entier strictement positif. Une saisie ≤ 0 (négatif, zéro)
+        // serait ignorée en silence par changerPrix — on garde plutôt
+        // l'éditeur ouvert (le champ reste affiché avec la valeur refusée)
+        // au lieu de le fermer sans effet ni retour.
+        if (n <= 0) return
+        if (n !== ligne.prixUnitaire) onPrix(ligne, n)
       }
     }
     setEdition(null)
