@@ -231,6 +231,17 @@ salesRoute.get("/", async (c) => {
       400
     )
   }
+  // jour (jour unique) et du/au (période) sont mutuellement exclusifs — les
+  // combiner produirait une intersection silencieuse plutôt qu'une erreur.
+  if (jour && (du !== undefined || au !== undefined)) {
+    return c.json(
+      {
+        code: "VALIDATION",
+        message: "Paramètres jour et du/au mutuellement exclusifs",
+      },
+      400
+    )
+  }
   if (jour && !dateCalendaireValide(jour)) {
     return c.json(
       { code: "VALIDATION", message: "Date invalide (AAAA-MM-JJ)" },

@@ -115,6 +115,27 @@ describe("lecture des ventes", () => {
     expect(res.status).toBe(400)
   })
 
+  it("jour combiné à du/au → 400 (mutuellement exclusifs)", async () => {
+    const { caissier, storeId } = await seedAvecVente()
+    const res = await req(
+      caissier.cookie,
+      "GET",
+      `/api/v1/sales?storeId=${storeId}&jour=${JOUR}&du=${JOUR}&au=${JOUR}`
+    )
+    expect(res.status).toBe(400)
+    expect((await res.json<{ code: string }>()).code).toBe("VALIDATION")
+  })
+
+  it("jour combiné au seul du → 400 (pas d'intersection silencieuse)", async () => {
+    const { caissier, storeId } = await seedAvecVente()
+    const res = await req(
+      caissier.cookie,
+      "GET",
+      `/api/v1/sales?storeId=${storeId}&jour=${JOUR}&du=${JOUR}`
+    )
+    expect(res.status).toBe(400)
+  })
+
   it("détail complet pour réimpression (lignes enrichies + paiements)", async () => {
     const { caissier, saleId } = await seedAvecVente()
     const res = await req(caissier.cookie, "GET", `/api/v1/sales/${saleId}`)
