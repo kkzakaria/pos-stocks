@@ -9,6 +9,7 @@ import * as schema from "../db/schema"
 import { bornesPeriode, dateCalendaireValide } from "../lib/dates"
 import { validerCorps } from "../lib/validation"
 import { estErreurDeclencheur, estViolationUnicite } from "../lib/db-errors"
+import { coutVenteAgrege, lignesEstimeesAgrege } from "../lib/marge"
 import {
   boutiqueScope,
   REPONSE_NON_BOUTIQUE,
@@ -389,8 +390,8 @@ async function margeVente(
   const rows = await db
     .select({
       ca: sql<number>`COALESCE(SUM(${schema.saleItems.quantity} * ${schema.saleItems.unitPrice}), 0)`,
-      cout: sql<number>`COALESCE(SUM(${schema.saleItems.quantity} * COALESCE(${schema.saleItems.unitCost}, ${schema.stockLevels.avgCost}, 0)), 0)`,
-      lignesEstimees: sql<number>`COALESCE(SUM(CASE WHEN ${schema.saleItems.unitCost} IS NULL THEN 1 ELSE 0 END), 0)`,
+      cout: coutVenteAgrege,
+      lignesEstimees: lignesEstimeesAgrege,
     })
     .from(schema.saleItems)
     .leftJoin(
