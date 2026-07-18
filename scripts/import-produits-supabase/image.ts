@@ -16,7 +16,16 @@ export async function telechargerEtConvertir(
   url: string,
   sourceId: string
 ): Promise<ImageTelechargee | null> {
-  const reponse = await fetch(url)
+  let reponse: Response
+  let original: Buffer
+
+  try {
+    reponse = await fetch(url)
+  } catch (err) {
+    console.warn(`image ${sourceId} : téléchargement échoué (${String(err)})`)
+    return null
+  }
+
   if (!reponse.ok) {
     console.warn(
       `image ${sourceId} : téléchargement échoué (${reponse.status})`
@@ -24,7 +33,14 @@ export async function telechargerEtConvertir(
     return null
   }
 
-  const original = Buffer.from(await reponse.arrayBuffer())
+  try {
+    original = Buffer.from(await reponse.arrayBuffer())
+  } catch (err) {
+    console.warn(
+      `image ${sourceId} : lecture du buffer échouée (${String(err)})`
+    )
+    return null
+  }
 
   let webp: Buffer
   try {
