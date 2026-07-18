@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { createFileRoute, useNavigate } from "@tanstack/react-router"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { apiFetch } from "@/lib/api"
@@ -35,6 +35,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { TableSkeleton } from "@/components/ui/table-skeleton"
+import { Pagination } from "@/components/ui/pagination"
 
 export const Route = createFileRoute("/_app/stock/receptions/")({
   component: ReceptionsPage,
@@ -80,12 +81,20 @@ function ReceptionsPage() {
   const peutCreer = entrepotsEcriture.length > 0
 
   const [statut, setStatut] = useState("")
+  const [page, setPage] = useState(1)
+  useEffect(() => setPage(1), [statut])
   const receptions = useQuery({
-    queryKey: ["purchases", statut],
-    queryFn: () =>
-      apiFetch<{ purchases: ReceptionListe[] }>(
-        `/api/v1/purchases${statut ? `?statut=${statut}` : ""}`
-      ),
+    queryKey: ["purchases", statut, page],
+    queryFn: () => {
+      const params = new URLSearchParams({ page: String(page) })
+      if (statut) params.set("statut", statut)
+      return apiFetch<{
+        purchases: ReceptionListe[]
+        total: number
+        page: number
+        limite: number
+      }>(`/api/v1/purchases?${params.toString()}`)
+    },
   })
   const fournisseurs = useQuery({
     queryKey: ["suppliers"],
@@ -301,6 +310,16 @@ function ReceptionsPage() {
             )}
           </TableBody>
         </Table>
+      )}
+      {(receptions.data?.purchases.length ?? 0) > 0 && (
+        <Pagination
+          className="mt-3"
+          page={page}
+          total={receptions.data?.total ?? 0}
+          pageSize={receptions.data?.limite ?? 50}
+          onPageChange={setPage}
+          element={{ un: "réception", plusieurs: "réceptions" }}
+        />
       )}
     </div>
   )
