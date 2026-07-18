@@ -70,7 +70,7 @@ function NiveauxStockPage() {
   const [alertesSeules, setAlertesSeules] = useState(false)
 
   const [page, setPage] = useState(1)
-  // Repart en page 1 dès qu'un filtre change le jeu de résultats
+  // Reset to page 1 whenever a filter changes the result set
   useEffect(() => {
     setPage(1)
   }, [entrepotId, rechercheDebouncee, alertesSeules])

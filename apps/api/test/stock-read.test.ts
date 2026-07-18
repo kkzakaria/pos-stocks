@@ -244,8 +244,8 @@ describe("GET /api/v1/stock/levels", () => {
         },
       ],
     })
-    // depotId a maintenant 3 variantes en stock ; boutiqueId (via seed()) en a
-    // 1 seule — sert de témoin d'isolation.
+    // depotId now has 3 variants in stock; boutiqueId (via seed()) has only
+    // 1 — serves as the isolation witness.
 
     const page1 = await get(
       ownerCookie,
