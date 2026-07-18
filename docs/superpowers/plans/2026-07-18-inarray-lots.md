@@ -1,5 +1,13 @@
 # Découpage en lots des `inArray` non bornés — Implementation Plan
 
+> **Amendement (reprise du fix)** : deux corrections postérieures à ce plan, cf.
+> `docs/superpowers/specs/2026-07-18-inarray-lots-design.md` :
+> 1. `products.ts:88` (source réelle du crash) est **inclus**, pas exclu —
+>    l'hypothèse « PR #17 le couvre » était fausse (PR #17 était web-only).
+> 2. La taille de lot est **90, pas 100** : D1 plafonne à 100 paramètres liés et
+>    `inArray(100)` + `eq(organizationId)` = 101 crashait encore. Les valeurs
+>    « 100 » ci-dessous se lisent « 90 ».
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Corriger le crash `D1_ERROR: too many SQL variables` sur les listes non bornées de réceptions, transferts et inventaires en découpant leurs `inArray(...)` en lots sûrs, via un helper générique réutilisable.
