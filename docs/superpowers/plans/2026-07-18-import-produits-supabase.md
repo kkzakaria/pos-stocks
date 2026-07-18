@@ -747,7 +747,7 @@ git commit -m "feat(import): conversion AVIF/PNG -> WebP via sharp"
 - Test: `scripts/import-produits-supabase/http-client.test.ts`
 
 **Interfaces:**
-- Produces: `analyserCookieSession(enteteSetCookie: string): string`, `interface ClientApi { baseUrl: string; cookie: string }`, `connecter(baseUrl: string, email: string, password: string): Promise<ClientApi>`, `requeteJson<T>(client: ClientApi, method: "GET" | "POST", chemin: string, corps?: unknown): Promise<{ status: number; donnees: T }>`, `televerserImage(client: ClientApi, productId: string, buffer: Buffer, nomFichier: string, contentType: string): Promise<{ status: number; donnees: { imageKey?: string; code?: string; message?: string } }>` — utilisés par Task 7.
+- Produces: `analyserCookieSession(enteteSetCookie: string): string`, `interface ClientApi { baseUrl: string; cookie: string }`, `connecter(baseUrl: string, email: string, password: string, origin: string): Promise<ClientApi>`, `requeteJson<T>(client: ClientApi, method: "GET" | "POST", chemin: string, corps?: unknown): Promise<{ status: number; donnees: T }>`, `televerserImage(client: ClientApi, productId: string, buffer: Buffer, nomFichier: string, contentType: string): Promise<{ status: number; donnees: { imageKey?: string; code?: string; message?: string } }>` — utilisés par Task 7.
 
 - [ ] **Step 1: Écrire le test (échoue d'abord)**
 
@@ -806,14 +806,17 @@ export interface ClientApi {
 export async function connecter(
   baseUrl: string,
   email: string,
-  password: string
+  password: string,
+  origin: string
 ): Promise<ClientApi> {
   const reponse = await fetch(`${baseUrl}/api/auth/sign-in/email`, {
     method: "POST",
     headers: {
       "content-type": "application/json",
-      // Le seul WEB_ORIGIN de confiance en dev local (auth.ts trustedOrigins).
-      origin: "http://localhost:3000",
+      // Doit correspondre à WEB_ORIGIN côté serveur (auth.ts trustedOrigins) :
+      // localhost:3000 en dev, le domaine web de prod en prod — indépendant
+      // de baseUrl (l'API et le web vivent sur des sous-domaines distincts).
+      origin,
     },
     body: JSON.stringify({ email, password }),
   })
@@ -925,6 +928,7 @@ import { connecter, requeteJson, televerserImage, type ClientApi } from "./http-
 
 interface OptionsCli {
   apiUrl: string
+  webOrigin: string
   snapshot: string
   progression: string
   concurrence: number
@@ -936,6 +940,9 @@ function lireOptions(argv: string[]): OptionsCli {
     args: argv,
     options: {
       "api-url": { type: "string", default: "http://localhost:8787" },
+      // Doit correspondre au WEB_ORIGIN configuré côté serveur cible
+      // (auth.ts trustedOrigins) — indépendant de --api-url, cf. Task 6.
+      "web-origin": { type: "string", default: "http://localhost:3000" },
       snapshot: {
         type: "string",
         default: path.join(import.meta.dir, "data", "produits-supabase.json"),
@@ -950,6 +957,7 @@ function lireOptions(argv: string[]): OptionsCli {
   })
   return {
     apiUrl: values["api-url"] as string,
+    webOrigin: values["web-origin"] as string,
     snapshot: values.snapshot as string,
     progression: values.progression as string,
     concurrence: Number(values.concurrence),
@@ -968,7 +976,7 @@ async function obtenirClient(options: OptionsCli): Promise<ClientApi> {
       "Variables d'environnement IMPORT_EMAIL et IMPORT_PASSWORD requises (sauf en --dry-run)"
     )
   }
-  return connecter(options.apiUrl, email, password)
+  return connecter(options.apiUrl, email, password, options.webOrigin)
 }
 
 function creerJournal(cheminProgression: string, etatInitial: JournalProgression) {
@@ -1217,6 +1225,7 @@ IMPORT_EMAIL=owner@exemple.com IMPORT_PASSWORD='OwnerLocal!2026' bun run run.ts
 # 3. Contre la prod, une fois le résultat local validé
 IMPORT_EMAIL=<owner-prod> IMPORT_PASSWORD='<mot-de-passe-prod>' \
   bun run run.ts --api-url https://pos-stocks-api.koffiz2110.workers.dev \
+  --web-origin https://pos-stocks-web.koffiz2110.workers.dev \
   --progression data/progress-prod.json
 ```
 
@@ -1226,11 +1235,18 @@ produits déjà créés au lieu d'échouer sur SKU dupliqué. Utiliser un fichie
 de progression **différent** par environnement (local vs prod) — sinon la
 relance en prod sauterait tout, croyant l'import déjà fait.
 
+`--web-origin` doit correspondre au `WEB_ORIGIN` configuré côté serveur cible
+(vérification `trustedOrigins` de Better Auth sur la connexion) — c'est le
+domaine du frontend web, **indépendant** de `--api-url` (API et web vivent
+sur des sous-domaines distincts) : un mauvais `--web-origin` fait échouer la
+connexion avec un 403, même si `--api-url` est correct.
+
 ## Options
 
 | Option | Défaut | Description |
 |---|---|---|
 | `--api-url` | `http://localhost:8787` | Base URL de l'API cible |
+| `--web-origin` | `http://localhost:3000` | Origin du frontend web attendu par le serveur cible (trustedOrigins) |
 | `--snapshot` | `data/produits-supabase.json` | Chemin du snapshot source |
 | `--progression` | `data/progress.json` | Chemin du journal de reprise |
 | `--concurrence` | `5` | Nombre d'imports en parallèle |
