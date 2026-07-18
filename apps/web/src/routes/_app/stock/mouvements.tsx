@@ -237,7 +237,7 @@ function MouvementsPage() {
               )}
             </TableBody>
           </Table>
-          {!mouvements.isPending && (
+          {total > 0 && (
             <Pagination
               className="mt-4"
               page={page}
