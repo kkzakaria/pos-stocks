@@ -1,5 +1,4 @@
 import { createFileRoute, useRouteContext } from "@tanstack/react-router"
-import { useState } from "react"
 import { FileBarChart } from "lucide-react"
 import { RapportVentes } from "@/rapports/rapport-ventes"
 import { RapportMarges } from "@/rapports/rapport-marges"
@@ -45,12 +44,16 @@ function PageRapports() {
   ]
   const visibles = onglets.filter((o) => o.visible)
   const { onglet: ongletDemande } = Route.useSearch()
-  const [onglet, setOnglet] = useState<Onglet>(() => {
-    if (ongletDemande && visibles.some((o) => o.id === ongletDemande)) {
-      return ongletDemande
-    }
-    return visibles.length > 0 ? visibles[0].id : "ventes"
-  })
+  const navigate = Route.useNavigate()
+  // ?onglet is the source of truth: an in-page link that re-navigates updates
+  // the active tab. Fall back to the first visible tab when it's absent or
+  // points to a tab this account cannot see.
+  const onglet: Onglet =
+    ongletDemande && visibles.some((o) => o.id === ongletDemande)
+      ? ongletDemande
+      : visibles.length > 0
+        ? visibles[0].id
+        : "ventes"
 
   if (visibles.length === 0) {
     return (
@@ -74,7 +77,9 @@ function PageRapports() {
           <Button
             key={o.id}
             variant={onglet === o.id ? "default" : "outline"}
-            onClick={() => setOnglet(o.id)}
+            onClick={() =>
+              void navigate({ search: { onglet: o.id }, replace: true })
+            }
           >
             {o.libelle}
           </Button>

@@ -374,15 +374,29 @@ function TableauDeBord() {
   })
 
   if (blocs.aucun) {
+    // Un compte sans aucun bloc est soit un caissier (affecté à une boutique →
+    // le POS est son poste), soit un staff sans affectation (aucune boutique →
+    // /pos afficherait « aucune boutique »). On ne le renvoie vers le POS que
+    // dans le premier cas ; sinon on l'oriente vers un administrateur.
+    const estCaissier = me.assignments.some((a) => a.role === "cashier")
     return (
       <div>
         <h1 className="text-xl font-semibold">Tableau de bord</h1>
-        <p className="mt-2 text-sm text-muted-foreground">
-          Votre poste de travail est le point de vente.
-        </p>
-        <Button render={<Link to="/pos" />} className="mt-3" size="lg">
-          Aller au point de vente
-        </Button>
+        {estCaissier ? (
+          <>
+            <p className="mt-2 text-sm text-muted-foreground">
+              Votre poste de travail est le point de vente.
+            </p>
+            <Button render={<Link to="/pos" />} className="mt-3" size="lg">
+              Aller au point de vente
+            </Button>
+          </>
+        ) : (
+          <p className="mt-2 text-sm text-muted-foreground">
+            Aucune boutique ne vous est affectée. Demandez à un administrateur
+            de vous affecter à un point de vente ou un entrepôt.
+          </p>
+        )}
       </div>
     )
   }
