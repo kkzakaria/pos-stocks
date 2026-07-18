@@ -299,6 +299,16 @@ describe("GET /api/v1/stock/movements", () => {
       ).status
     ).toBe(403)
   })
+
+  it("limite invalide → 400 VALIDATION", async () => {
+    const { ownerCookie, depotId } = await seed()
+    const res = await get(
+      ownerCookie,
+      `/api/v1/stock/movements?warehouseId=${depotId}&limite=500`
+    )
+    expect(res.status).toBe(400)
+    expect((await res.json<{ code: string }>()).code).toBe("VALIDATION")
+  })
 })
 
 describe("GET /api/v1/stock/alerts", () => {

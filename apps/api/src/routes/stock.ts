@@ -6,6 +6,7 @@ import type { SQL } from "drizzle-orm"
 import { adjustmentCreateSchema, minStockSchema } from "shared"
 import * as schema from "../db/schema"
 import { dateCalendaireValide } from "../lib/dates"
+import { lirePagination } from "../lib/pagination"
 import { likeEchappe } from "../lib/recherche"
 import {
   estDansPortee,
@@ -157,11 +158,9 @@ stockRoute.get("/movements", async (c) => {
   const recherche = c.req.query("recherche")
   const du = c.req.query("du")
   const au = c.req.query("au")
-  const page = Math.max(1, Number(c.req.query("page") ?? "1") || 1)
-  const limite = Math.min(
-    200,
-    Math.max(1, Number(c.req.query("limite") ?? "50") || 50)
-  )
+  const pagination = lirePagination(c)
+  if (pagination instanceof Response) return pagination
+  const { page, limite } = pagination
 
   if (type && !(schema.MOVEMENT_TYPES as readonly string[]).includes(type)) {
     return c.json(
