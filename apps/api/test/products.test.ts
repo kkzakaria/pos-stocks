@@ -203,13 +203,13 @@ describe("API produits", () => {
 describe("GET /api/v1/products — inArray non borné batché", () => {
   it("liste tous les produits et leurs variantes au-delà de la taille de lot", async () => {
     const { organizationId, ownerCookie } = await bootstrapOwner()
-    // N > TAILLE_LOT_MAX (90) → l'inArray des variantes s'étend sur plusieurs
-    // lots (90 + 60). Le crash prod « too many SQL variables » venait de cette
-    // requête non batchée sur un grand catalogue.
+    // N > TAILLE_LOT_MAX (90) → the variants inArray spans several batches
+    // (90 + 60). The prod "too many SQL variables" crash came from this
+    // un-batched query on a large catalog.
     const N = 150
-    // Semé un produit à la fois (chaque creerProduitSimple = un batch de 2
-    // insertions d'une ligne) : un insert groupé dépasserait lui-même la limite
-    // de variables liées de D1, ce qui masquerait le comportement testé.
+    // Seeded one product at a time (each creerProduitSimple is a batch of two
+    // single-row inserts): a grouped insert would itself exceed D1's bound-
+    // variable cap, masking the behavior under test.
     for (let i = 0; i < N; i++) {
       await creerProduitSimple(organizationId, {
         nom: `Produit ${String(i).padStart(3, "0")}`,
@@ -226,8 +226,8 @@ describe("GET /api/v1/products — inArray non borné batché", () => {
       products: Array<{ id: string; variants: unknown[] }>
     }>()
     expect(products.length).toBe(N)
-    // Chaque produit récupère sa variante : les résultats sont complets à
-    // travers la frontière des lots (pas de perte à la concaténation).
+    // Each product gets its variant back: results are complete across the batch
+    // boundary (nothing lost when concatenating).
     expect(products.every((p) => p.variants.length === 1)).toBe(true)
   })
 })

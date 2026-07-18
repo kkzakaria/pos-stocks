@@ -383,9 +383,9 @@ describe("réceptions fournisseur — liste à grande échelle", () => {
       purchases: Array<{ id: string; itemCount: number; totalCost: number }>
     }>()
     expect(purchases).toHaveLength(NB_RECEPTIONS)
-    // Vérifie l'enrichissement sur une réception du PREMIER lot ET une du
-    // SECOND (index 140 > 90) : les agrégats restent corrects à travers la
-    // frontière des lots, pas seulement dans le premier.
+    // Verify enrichment on a reception from the FIRST batch AND one from the
+    // SECOND (index 140 > 90): aggregates remain correct across the batch
+    // boundary, not just within the first batch.
     for (const idx of [0, 140]) {
       const echantillon = purchases.find((p) => p.id === purchaseIds[idx])
       expect(echantillon?.itemCount).toBe(1)
