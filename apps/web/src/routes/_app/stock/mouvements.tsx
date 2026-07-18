@@ -7,7 +7,7 @@ import type { MouvementJournal } from "@/lib/stock"
 import { History } from "lucide-react"
 import { ErreurChargement } from "@/components/erreur-chargement"
 import { EtatVide } from "@/components/etat-vide"
-import { Button } from "@/components/ui/button"
+import { Pagination } from "@/components/ui/pagination"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import {
@@ -83,7 +83,7 @@ function MouvementsPage() {
   })
 
   const total = mouvements.data?.total ?? 0
-  const dernierePage = Math.max(1, Math.ceil(total / LIMITE))
+  const liste = mouvements.data?.movements ?? []
 
   return (
     <div>
@@ -238,29 +238,15 @@ function MouvementsPage() {
               )}
             </TableBody>
           </Table>
-          {!mouvements.isPending && (
-            <div className="mt-4 flex items-center gap-3">
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={page <= 1}
-                onClick={() => setPage((p) => p - 1)}
-              >
-                Précédent
-              </Button>
-              <span className="text-sm text-muted-foreground">
-                Page {page} / {dernierePage} — {total} mouvement
-                {total > 1 ? "s" : ""}
-              </span>
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={page >= dernierePage}
-                onClick={() => setPage((p) => p + 1)}
-              >
-                Suivant
-              </Button>
-            </div>
+          {liste.length > 0 && (
+            <Pagination
+              className="mt-4"
+              page={page}
+              total={total}
+              pageSize={LIMITE}
+              onPageChange={setPage}
+              element={{ un: "mouvement", plusieurs: "mouvements" }}
+            />
           )}
         </>
       )}
