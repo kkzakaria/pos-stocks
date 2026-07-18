@@ -219,6 +219,74 @@ describe("GET /api/v1/stock/levels", () => {
       expect(levelsBoutique[0]?.quantity).toBe(4)
     }
   )
+
+  it("pagination : borne les niveaux, total compte le même périmètre, isolation par entrepôt", async () => {
+    const { organizationId, ownerId, ownerCookie, depotId, db } = await seed()
+    const fanta = await creerProduitSimple(organizationId, { nom: "Fanta" })
+    const sprite = await creerProduitSimple(organizationId, { nom: "Sprite" })
+    await applyMovements(db, {
+      organizationId,
+      userId: ownerId,
+      mouvements: [
+        {
+          warehouseId: depotId,
+          variantId: fanta.variantId,
+          delta: 5,
+          type: "purchase",
+          unitCost: 100,
+        },
+        {
+          warehouseId: depotId,
+          variantId: sprite.variantId,
+          delta: 5,
+          type: "purchase",
+          unitCost: 100,
+        },
+      ],
+    })
+    // depotId a maintenant 3 variantes en stock ; boutiqueId (via seed()) en a
+    // 1 seule — sert de témoin d'isolation.
+
+    const page1 = await get(
+      ownerCookie,
+      `/api/v1/stock/levels?warehouseId=${depotId}&page=1&limite=2`
+    )
+    expect(page1.status).toBe(200)
+    const corps1 = await page1.json<{
+      levels: Niveau[]
+      total: number
+      page: number
+      limite: number
+    }>()
+    expect(corps1.total).toBe(3)
+    expect(corps1.levels).toHaveLength(2)
+    expect(corps1.page).toBe(1)
+    expect(corps1.limite).toBe(2)
+
+    const page2 = await get(
+      ownerCookie,
+      `/api/v1/stock/levels?warehouseId=${depotId}&page=2&limite=2`
+    )
+    const corps2 = await page2.json<{ levels: Niveau[]; total: number }>()
+    expect(corps2.levels).toHaveLength(1)
+    expect(corps2.total).toBe(3)
+
+    const page3 = await get(
+      ownerCookie,
+      `/api/v1/stock/levels?warehouseId=${depotId}&page=3&limite=2`
+    )
+    const corps3 = await page3.json<{ levels: Niveau[]; total: number }>()
+    expect(corps3.levels).toEqual([])
+    expect(corps3.total).toBe(3)
+
+    const invalide = await get(
+      ownerCookie,
+      `/api/v1/stock/levels?warehouseId=${depotId}&limite=0`
+    )
+    expect(invalide.status).toBe(400)
+    const corpsInvalide = await invalide.json<{ code: string }>()
+    expect(corpsInvalide.code).toBe("VALIDATION")
+  })
 })
 
 describe("GET /api/v1/stock/movements", () => {

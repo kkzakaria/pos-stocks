@@ -14,6 +14,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { Checkbox } from "@/components/ui/checkbox"
+import { Pagination } from "@/components/ui/pagination"
 import {
   Select,
   SelectContent,
@@ -68,15 +69,31 @@ function NiveauxStockPage() {
   }, [recherche])
   const [alertesSeules, setAlertesSeules] = useState(false)
 
+  const [page, setPage] = useState(1)
+  // Repart en page 1 dès qu'un filtre change le jeu de résultats
+  useEffect(() => {
+    setPage(1)
+  }, [entrepotId, rechercheDebouncee, alertesSeules])
+
   const niveaux = useQuery({
-    queryKey: ["stock-levels", entrepotId, rechercheDebouncee, alertesSeules],
+    queryKey: [
+      "stock-levels",
+      entrepotId,
+      rechercheDebouncee,
+      alertesSeules,
+      page,
+    ],
     queryFn: () => {
       const params = new URLSearchParams({ warehouseId: entrepotId })
       if (rechercheDebouncee) params.set("recherche", rechercheDebouncee)
       if (alertesSeules) params.set("alertes", "true")
-      return apiFetch<{ levels: NiveauStock[] }>(
-        `/api/v1/stock/levels?${params.toString()}`
-      )
+      params.set("page", String(page))
+      return apiFetch<{
+        levels: NiveauStock[]
+        total: number
+        page: number
+        limite: number
+      }>(`/api/v1/stock/levels?${params.toString()}`)
     },
     enabled: entrepotId !== "",
   })
@@ -337,6 +354,17 @@ function NiveauxStockPage() {
             )}
           </TableBody>
         </Table>
+      )}
+
+      {(niveaux.data?.levels.length ?? 0) > 0 && (
+        <Pagination
+          page={page}
+          total={niveaux.data?.total ?? 0}
+          pageSize={niveaux.data?.limite ?? 50}
+          onPageChange={setPage}
+          element={{ un: "ligne", plusieurs: "lignes" }}
+          className="mt-3"
+        />
       )}
 
       {ajustementPour !== null && (

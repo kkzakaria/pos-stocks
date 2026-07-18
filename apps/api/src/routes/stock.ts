@@ -112,6 +112,24 @@ stockRoute.get("/levels", async (c) => {
     )
   }
 
+  const pagination = lirePagination(c)
+  if (pagination instanceof Response) return pagination
+  const { page, limite } = pagination
+
+  const totalRows = await db
+    .select({ total: sql<number>`COUNT(*)` })
+    .from(schema.stockLevels)
+    .innerJoin(
+      schema.productVariants,
+      eq(schema.stockLevels.variantId, schema.productVariants.id)
+    )
+    .innerJoin(
+      schema.products,
+      eq(schema.productVariants.productId, schema.products.id)
+    )
+    .where(and(...conditions))
+  const total = totalRows[0]?.total ?? 0
+
   const rows = await db
     .select({
       variantId: schema.stockLevels.variantId,
@@ -135,11 +153,13 @@ stockRoute.get("/levels", async (c) => {
     )
     .where(and(...conditions))
     .orderBy(asc(schema.products.name), asc(schema.productVariants.name))
+    .limit(limite)
+    .offset((page - 1) * limite)
   const levels = rows.map((r) => ({
     ...r,
     enAlerte: r.seuilEffectif !== null && r.quantity <= r.seuilEffectif,
   }))
-  return c.json({ levels })
+  return c.json({ levels, total, page, limite })
 })
 
 stockRoute.get("/movements", async (c) => {
