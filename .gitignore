@@ -19,5 +19,8 @@ todos.json
 apps/api/.dev.vars
 apps/api/.wrangler/
 
+# script d'import ponctuel — données métier, pas du code
+scripts/import-produits-supabase/data/
+
 # web
 apps/web/.wrangler/
