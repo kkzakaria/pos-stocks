@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { createFileRoute, useNavigate } from "@tanstack/react-router"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { apiFetch } from "@/lib/api"
@@ -33,6 +33,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { TableSkeleton } from "@/components/ui/table-skeleton"
+import { Pagination } from "@/components/ui/pagination"
 
 export const Route = createFileRoute("/_app/stock/inventaires/")({
   component: InventairesPage,
@@ -72,12 +73,20 @@ function InventairesPage() {
   const peutOuvrir = entrepotsEcriture.length > 0
 
   const [statut, setStatut] = useState("")
+  const [page, setPage] = useState(1)
+  useEffect(() => setPage(1), [statut])
   const inventaires = useQuery({
-    queryKey: ["inventory-counts", statut],
-    queryFn: () =>
-      apiFetch<{ counts: InventaireListe[] }>(
-        `/api/v1/inventory-counts${statut ? `?statut=${statut}` : ""}`
-      ),
+    queryKey: ["inventory-counts", statut, page],
+    queryFn: () => {
+      const params = new URLSearchParams({ page: String(page) })
+      if (statut) params.set("statut", statut)
+      return apiFetch<{
+        counts: InventaireListe[]
+        total: number
+        page: number
+        limite: number
+      }>(`/api/v1/inventory-counts?${params.toString()}`)
+    },
   })
 
   const [dialogOuvert, setDialogOuvert] = useState(false)
@@ -261,6 +270,16 @@ function InventairesPage() {
             )}
           </TableBody>
         </Table>
+      )}
+      {(inventaires.data?.counts.length ?? 0) > 0 && (
+        <Pagination
+          className="mt-3"
+          page={page}
+          total={inventaires.data?.total ?? 0}
+          pageSize={inventaires.data?.limite ?? 50}
+          onPageChange={setPage}
+          element={{ un: "inventaire", plusieurs: "inventaires" }}
+        />
       )}
     </div>
   )

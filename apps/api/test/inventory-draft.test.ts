@@ -444,3 +444,119 @@ describe("inventaires — ouverture et saisie", () => {
     ).toBe(400)
   })
 })
+
+describe("GET /api/v1/inventory-counts — pagination", () => {
+  it("borne la page et renvoie total/page/limite", async () => {
+    const s = await seed()
+    // Same warehouse, opened and closed twice then left open a third time:
+    // only one "open" inventory per warehouse at a time (partial unique
+    // index 0007), so three documents require closing between opens.
+    for (let i = 0; i < 2; i++) {
+      const ouverture = await req(
+        s.ownerCookie,
+        "POST",
+        "/api/v1/inventory-counts",
+        { warehouseId: s.entrepotId }
+      )
+      expect(ouverture.status).toBe(201)
+      const { id } = await ouverture.json<{ id: string }>()
+      expect(
+        (
+          await req(
+            s.ownerCookie,
+            "POST",
+            `/api/v1/inventory-counts/${id}/close`
+          )
+        ).status
+      ).toBe(200)
+    }
+    expect(
+      (
+        await req(s.ownerCookie, "POST", "/api/v1/inventory-counts", {
+          warehouseId: s.entrepotId,
+        })
+      ).status
+    ).toBe(201)
+
+    const page1 = await req(
+      s.ownerCookie,
+      "GET",
+      "/api/v1/inventory-counts?page=1&limite=2"
+    )
+    expect(page1.status).toBe(200)
+    const c1 = await page1.json<{
+      counts: unknown[]
+      total: number
+      page: number
+      limite: number
+    }>()
+    expect(c1.total).toBe(3)
+    expect(c1.page).toBe(1)
+    expect(c1.limite).toBe(2)
+    expect(c1.counts).toHaveLength(2)
+
+    const page2 = await req(
+      s.ownerCookie,
+      "GET",
+      "/api/v1/inventory-counts?page=2&limite=2"
+    )
+    const c2 = await page2.json<{ counts: unknown[]; total: number }>()
+    expect(c2.total).toBe(3)
+    expect(c2.counts).toHaveLength(1)
+
+    const page3 = await req(
+      s.ownerCookie,
+      "GET",
+      "/api/v1/inventory-counts?page=3&limite=2"
+    )
+    const c3 = await page3.json<{ counts: unknown[]; total: number }>()
+    expect(c3.total).toBe(3)
+    expect(c3.counts).toEqual([])
+
+    const invalide = await req(
+      s.ownerCookie,
+      "GET",
+      "/api/v1/inventory-counts?limite=0"
+    )
+    expect(invalide.status).toBe(400)
+  })
+
+  it("isolation : le total ne compte pas un inventaire d'une autre organisation", async () => {
+    const s = await seed()
+    expect(
+      (
+        await req(s.ownerCookie, "POST", "/api/v1/inventory-counts", {
+          warehouseId: s.entrepotId,
+        })
+      ).status
+    ).toBe(201)
+
+    // Second organization with its own open inventory (direct insert, same
+    // pattern as the "isolation" test in purchases-draft.test.ts).
+    const db = drizzle(env.DB, { schema })
+    const autreOrgId = crypto.randomUUID()
+    await db.insert(schema.organization).values({
+      id: autreOrgId,
+      name: "Autre Société",
+      slug: `autre-org-${autreOrgId.slice(0, 8)}`,
+      createdAt: new Date(),
+    })
+    const autreEntrepot = await creerEntrepot(autreOrgId, "Entrepôt étranger")
+    const autreUtilisateur = await createUserWithRole(autreOrgId, "staff")
+    const maintenant = new Date()
+    await db.insert(schema.inventoryCounts).values({
+      id: crypto.randomUUID(),
+      organizationId: autreOrgId,
+      warehouseId: autreEntrepot,
+      openedBy: autreUtilisateur.userId,
+      openedAt: maintenant,
+      createdAt: maintenant,
+      updatedAt: maintenant,
+    })
+
+    const res = await req(s.ownerCookie, "GET", "/api/v1/inventory-counts")
+    const corps = await res.json<{ counts: unknown[]; total: number }>()
+    expect(corps.total).toBe(1)
+    expect(corps.counts).toHaveLength(1)
+  })
+})
