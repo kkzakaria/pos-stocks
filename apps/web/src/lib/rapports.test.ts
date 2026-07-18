@@ -50,6 +50,29 @@ describe("periodePreset", () => {
       au: "2026-08-03",
     })
   })
+
+  it("semaine à cheval sur deux années (passage d'année)", () => {
+    // 3 janvier 2026 − 6 jours → 28 décembre 2025.
+    expect(periodePreset("semaine", new Date(2026, 0, 3))).toEqual({
+      du: "2025-12-28",
+      au: "2026-01-03",
+    })
+  })
+
+  it("semaine traversant le 29 février d'une année bissextile", () => {
+    // 2 mars 2028 − 6 jours → 25 février 2028 (fenêtre incluant le 29 février).
+    expect(periodePreset("semaine", new Date(2028, 2, 2))).toEqual({
+      du: "2028-02-25",
+      au: "2028-03-02",
+    })
+  })
+
+  it("mois : le 29 février bissextile est une borne de fin valide", () => {
+    expect(periodePreset("mois", new Date(2028, 1, 29))).toEqual({
+      du: "2028-02-01",
+      au: "2028-02-29",
+    })
+  })
 })
 
 describe("blocsTableauDeBord", () => {
