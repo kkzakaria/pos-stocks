@@ -6,6 +6,7 @@ import { formaterMontant } from "@/lib/format"
 import { usePeutEcrire } from "@/lib/permissions"
 import { PackageSearch } from "lucide-react"
 import { EtatVide } from "@/components/etat-vide"
+import { Pagination } from "@/components/ui/pagination"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -66,6 +67,7 @@ function ProduitsPage() {
   const [recherche, setRecherche] = useState("")
   const [rechercheDebouncee, setRechercheDebouncee] = useState("")
   const [categorie, setCategorie] = useState("")
+  const [page, setPage] = useState(1)
 
   // Debounce 300 ms : la requête ne part qu'une fois la saisie stabilisée
   useEffect(() => {
@@ -73,16 +75,22 @@ function ProduitsPage() {
     return () => clearTimeout(timer)
   }, [recherche])
 
+  // Un changement de filtre invalide la page courante : retour à la page 1
+  useEffect(() => setPage(1), [rechercheDebouncee, categorie])
+
   const produits = useQuery({
-    queryKey: ["products", rechercheDebouncee, categorie],
+    queryKey: ["products", rechercheDebouncee, categorie, page],
     queryFn: () => {
       const params = new URLSearchParams()
       if (rechercheDebouncee) params.set("recherche", rechercheDebouncee)
       if (categorie) params.set("categorie", categorie)
-      const qs = params.toString()
-      return apiFetch<{ products: Produit[] }>(
-        `/api/v1/products${qs ? `?${qs}` : ""}`
-      )
+      params.set("page", String(page))
+      return apiFetch<{
+        products: Produit[]
+        total: number
+        page: number
+        limite: number
+      }>(`/api/v1/products?${params.toString()}`)
     },
   })
   const categories = useQuery({
@@ -400,6 +408,17 @@ function ProduitsPage() {
           )}
         </TableBody>
       </Table>
+
+      {(produits.data?.products.length ?? 0) > 0 && (
+        <Pagination
+          className="mt-3"
+          page={page}
+          total={produits.data?.total ?? 0}
+          pageSize={produits.data?.limite ?? 50}
+          onPageChange={setPage}
+          element={{ un: "produit", plusieurs: "produits" }}
+        />
+      )}
     </div>
   )
 }

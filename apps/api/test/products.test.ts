@@ -200,6 +200,82 @@ describe("API produits", () => {
   })
 })
 
+describe("GET /api/v1/products — pagination", () => {
+  it("borne la page et renvoie total/page/limite", async () => {
+    const { organizationId, ownerCookie } = await bootstrapOwner()
+    for (let i = 0; i < 3; i++) {
+      await creerProduitSimple(organizationId, {
+        nom: `Produit ${String(i).padStart(2, "0")}`,
+      })
+    }
+    const page1 = await app.request(
+      "/api/v1/products?page=1&limite=2",
+      { headers: { cookie: ownerCookie } },
+      env
+    )
+    expect(page1.status).toBe(200)
+    const c1 = await page1.json<{
+      products: unknown[]
+      total: number
+      page: number
+      limite: number
+    }>()
+    expect(c1.total).toBe(3)
+    expect(c1.page).toBe(1)
+    expect(c1.limite).toBe(2)
+    expect(c1.products).toHaveLength(2)
+
+    const page2 = await app.request(
+      "/api/v1/products?page=2&limite=2",
+      { headers: { cookie: ownerCookie } },
+      env
+    )
+    const c2 = await page2.json<{ products: unknown[]; total: number }>()
+    expect(c2.products).toHaveLength(1)
+    expect(c2.total).toBe(3)
+
+    const page3 = await app.request(
+      "/api/v1/products?page=3&limite=2",
+      { headers: { cookie: ownerCookie } },
+      env
+    )
+    const c3 = await page3.json<{ products: unknown[]; total: number }>()
+    expect(c3.products).toEqual([])
+    expect(c3.total).toBe(3)
+
+    const invalide = await app.request(
+      "/api/v1/products?limite=0",
+      { headers: { cookie: ownerCookie } },
+      env
+    )
+    expect(invalide.status).toBe(400)
+  })
+
+  it("isolation : le total ne compte pas les produits d'une autre organisation", async () => {
+    const { organizationId, ownerCookie } = await bootstrapOwner()
+    await creerProduitSimple(organizationId, { nom: "Mien" })
+    // Seconde organisation avec son propre produit (insert direct, motif de
+    // permissions.test.ts).
+    const db = drizzle(env.DB, { schema })
+    const autreOrgId = crypto.randomUUID()
+    await db.insert(schema.organization).values({
+      id: autreOrgId,
+      name: "Autre Société",
+      slug: "autre-org",
+      createdAt: new Date(),
+    })
+    await creerProduitSimple(autreOrgId, { nom: "Autre" })
+    const res = await app.request(
+      "/api/v1/products",
+      { headers: { cookie: ownerCookie } },
+      env
+    )
+    const corps = await res.json<{ products: unknown[]; total: number }>()
+    expect(corps.total).toBe(1)
+    expect(corps.products).toHaveLength(1)
+  })
+})
+
 describe("GET /api/v1/products — inArray non borné batché", () => {
   it("liste tous les produits et leurs variantes au-delà de la taille de lot", async () => {
     const { organizationId, ownerCookie } = await bootstrapOwner()
@@ -216,8 +292,10 @@ describe("GET /api/v1/products — inArray non borné batché", () => {
       })
     }
 
+    // limite=200 (max autorisé) : la pagination par défaut (50) tronquerait
+    // sinon la liste avant même d'atteindre le batching des variantes testé ici.
     const res = await app.request(
-      "/api/v1/products",
+      "/api/v1/products?limite=200",
       { headers: { cookie: ownerCookie } },
       env
     )
