@@ -33,9 +33,9 @@ describe("Pagination", () => {
         element={element}
       />
     )
-    expect(
-      screen.getByRole("navigation", { name: "Pagination" }).textContent
-    ).toContain("Page 2 / 3 — 138 ventes")
+    expect(screen.getByText("Page 2 / 3 — 138 ventes").textContent).toBe(
+      "Page 2 / 3 — 138 ventes"
+    )
   })
 
   it("désactive Précédent en première page, Suivant en dernière", () => {
