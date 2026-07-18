@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
+import { Pagination } from "@/components/ui/pagination"
 import { toast } from "@/components/ui/toast"
 import {
   Select,
@@ -99,6 +100,7 @@ function UtilisateursPage() {
       : []),
   ]
 
+  const [page, setPage] = useState(1)
   const [dialogCreation, setDialogCreation] = useState(false)
   const [nom, setNom] = useState("")
   const [email, setEmail] = useState("")
@@ -119,8 +121,14 @@ function UtilisateursPage() {
   })
 
   const utilisateurs = useQuery({
-    queryKey: ["users"],
-    queryFn: () => apiFetch<{ users: Utilisateur[] }>("/api/v1/users"),
+    queryKey: ["users", page],
+    queryFn: () =>
+      apiFetch<{
+        users: Utilisateur[]
+        total: number
+        page: number
+        limite: number
+      }>(`/api/v1/users?page=${page}`),
   })
   const entrepots = useQuery({
     queryKey: ["warehouses"],
@@ -413,6 +421,17 @@ function UtilisateursPage() {
           )}
         </TableBody>
       </Table>
+
+      {(utilisateurs.data?.users.length ?? 0) > 0 && (
+        <Pagination
+          page={page}
+          total={utilisateurs.data?.total ?? 0}
+          pageSize={utilisateurs.data?.limite ?? 50}
+          onPageChange={setPage}
+          element={{ un: "utilisateur", plusieurs: "utilisateurs" }}
+          className="mt-3"
+        />
+      )}
 
       {peutEcrire && (
         <div className="mt-8 max-w-2xl rounded-md border p-4">

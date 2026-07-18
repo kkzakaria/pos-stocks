@@ -1,6 +1,8 @@
 import { describe, it, expect } from "vitest"
 import { env } from "cloudflare:test"
+import { drizzle } from "drizzle-orm/d1"
 import app from "../src/index"
+import * as schema from "../src/db/schema"
 import { bootstrapOwner, createUserWithRole } from "./helpers"
 
 function createUser(cookie: string, body: unknown) {
@@ -131,6 +133,77 @@ describe("API utilisateurs", () => {
         )
       ).status
     ).toBe(403)
+  })
+
+  it("pagination : total sur l'organisation, page/limite bornent la page, limite invalide → 400, isolation inter-organisation", async () => {
+    const { organizationId, ownerCookie } = await bootstrapOwner()
+    await createUserWithRole(organizationId, "staff")
+    await createUserWithRole(organizationId, "staff")
+    await createUserWithRole(organizationId, "staff")
+    // 4 users total: 1 owner (from bootstrap) + 3 staff created above.
+
+    const page1 = await app.request(
+      "/api/v1/users?page=1&limite=2",
+      { headers: { cookie: ownerCookie } },
+      env
+    )
+    expect(page1.status).toBe(200)
+    const corps1 = await page1.json<{
+      users: Array<{ id: string }>
+      total: number
+      page: number
+      limite: number
+    }>()
+    expect(corps1.total).toBe(4)
+    expect(corps1.users).toHaveLength(2)
+    expect(corps1.page).toBe(1)
+    expect(corps1.limite).toBe(2)
+
+    const page2 = await app.request(
+      "/api/v1/users?page=2&limite=2",
+      { headers: { cookie: ownerCookie } },
+      env
+    )
+    const corps2 = await page2.json<{ users: unknown[]; total: number }>()
+    expect(corps2.users).toHaveLength(2)
+    expect(corps2.total).toBe(4)
+
+    const page3 = await app.request(
+      "/api/v1/users?page=3&limite=2",
+      { headers: { cookie: ownerCookie } },
+      env
+    )
+    expect(page3.status).toBe(200)
+    const corps3 = await page3.json<{ users: unknown[]; total: number }>()
+    expect(corps3.users).toEqual([])
+    expect(corps3.total).toBe(4)
+
+    const limiteInvalide = await app.request(
+      "/api/v1/users?limite=0",
+      { headers: { cookie: ownerCookie } },
+      env
+    )
+    expect(limiteInvalide.status).toBe(400)
+
+    // Isolation: a second organization with its own user must never leak into
+    // the first organization's total.
+    const db = drizzle(env.DB, { schema })
+    const autreOrgId = crypto.randomUUID()
+    await db.insert(schema.organization).values({
+      id: autreOrgId,
+      name: "Autre Société",
+      slug: `autre-org-${autreOrgId.slice(0, 8)}`,
+      createdAt: new Date(),
+    })
+    await createUserWithRole(autreOrgId, "staff")
+
+    const apresIsolation = await app.request(
+      "/api/v1/users?page=1&limite=50",
+      { headers: { cookie: ownerCookie } },
+      env
+    )
+    const corpsIsolation = await apresIsolation.json<{ total: number }>()
+    expect(corpsIsolation.total).toBe(4)
   })
 
   it("changement de rôle : owner OK ; dernier owner protégé ; admin limité", async () => {
