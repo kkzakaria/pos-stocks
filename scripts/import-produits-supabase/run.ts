@@ -1,26 +1,15 @@
 import { parseArgs } from "node:util"
 import path from "node:path"
 import type { CategoryCreateInput } from "shared"
-import { chargerSnapshot  } from "./snapshot"
-import type {ProduitSource} from "./snapshot";
+import { chargerSnapshot } from "./snapshot"
+import type { ProduitSource } from "./snapshot"
 import { construireProduitCible, extraireNomsCategories } from "./mapping"
-import {
-  chargerProgression,
-  enregistrerEntree,
-  dejaImporte
-  
-  
-} from "./progress"
-import type {EntreeProgression, JournalProgression} from "./progress";
+import { chargerProgression, enregistrerEntree } from "./progress"
+import type { EntreeProgression, JournalProgression } from "./progress"
 import { executerAvecConcurrence } from "./concurrency"
 import { telechargerEtConvertir } from "./image"
-import {
-  connecter,
-  requeteJson,
-  televerserImage
-  
-} from "./http-client"
-import type {ClientApi} from "./http-client";
+import { connecter, requeteJson, televerserImage } from "./http-client"
+import type { ClientApi } from "./http-client"
 
 interface OptionsCli {
   apiUrl: string
@@ -81,7 +70,8 @@ function creerJournal(
 ) {
   let etat = etatInitial
   return {
-    dejaImporte: (sourceId: string): boolean => dejaImporte(etat, sourceId),
+    obtenir: (sourceId: string): EntreeProgression | undefined =>
+      etat[sourceId],
     marquer: (sourceId: string, entree: EntreeProgression): void => {
       etat = enregistrerEntree(cheminProgression, etat, sourceId, entree)
     },
@@ -158,40 +148,57 @@ async function importerUnProduit(
   rapport: Rapport,
   dryRun: boolean
 ): Promise<void> {
-  if (journal.dejaImporte(source.id)) return
+  const entree = journal.obtenir(source.id)
 
-  const payload = construireProduitCible(source, categorieId)
+  if (entree?.statut === "image_ok") return
 
-  if (dryRun) {
-    console.log(
-      `[dry-run] créerait le produit ${payload.sku} — ${payload.name}`
-    )
+  let productId: string
+
+  if (entree?.statut === "produit_cree" && entree.productId !== undefined) {
+    // Produit déjà créé lors d'un run précédent (échec ou interruption avant
+    // l'étape image) : on ne recrée pas le produit, on retente uniquement
+    // le téléversement de l'image.
+    if (dryRun) {
+      console.log(
+        `[dry-run] retenterait l'image du produit déjà créé ${source.sku}`
+      )
+      return
+    }
+    productId = entree.productId
+  } else {
+    const payload = construireProduitCible(source, categorieId)
+
+    if (dryRun) {
+      console.log(
+        `[dry-run] créerait le produit ${payload.sku} — ${payload.name}`
+      )
+      rapport.crees += 1
+      return
+    }
+
+    const creation = await requeteJson<{
+      id: string
+      sku: string
+      code?: string
+      message?: string
+    }>(client, "POST", "/api/v1/products", payload)
+
+    if (creation.status !== 201) {
+      const erreur =
+        `${creation.status} ${creation.donnees.code ?? ""} ${creation.donnees.message ?? ""}`.trim()
+      journal.marquer(source.id, { statut: "echec", sku: source.sku, erreur })
+      rapport.echecs.push({ sku: source.sku, erreur })
+      return
+    }
+
+    productId = creation.donnees.id
+    journal.marquer(source.id, {
+      statut: "produit_cree",
+      productId,
+      sku: source.sku,
+    })
     rapport.crees += 1
-    return
   }
-
-  const creation = await requeteJson<{
-    id: string
-    sku: string
-    code?: string
-    message?: string
-  }>(client, "POST", "/api/v1/products", payload)
-
-  if (creation.status !== 201) {
-    const erreur =
-      `${creation.status} ${creation.donnees.code ?? ""} ${creation.donnees.message ?? ""}`.trim()
-    journal.marquer(source.id, { statut: "echec", sku: source.sku, erreur })
-    rapport.echecs.push({ sku: source.sku, erreur })
-    return
-  }
-
-  const productId = creation.donnees.id
-  journal.marquer(source.id, {
-    statut: "produit_cree",
-    productId,
-    sku: source.sku,
-  })
-  rapport.crees += 1
 
   if (source.image_url === null) return
 

@@ -32,7 +32,20 @@ Le script est **reprenable** : `data/progress.json` (ou le chemin passé à
 `--progression`) journalise chaque produit importé ; une relance saute les
 produits déjà créés au lieu d'échouer sur SKU dupliqué. Utiliser un fichier
 de progression **différent** par environnement (local vs prod) — sinon la
-relance en prod sauterait tout, croyant l'import déjà fait.
+relance en prod sauterait tout, croyant l'import déjà fait. Un produit créé
+mais dont l'image n'a jamais été téléversée avec succès (échec réseau,
+interruption…) n'est **pas** considéré comme terminé : une relance retente
+uniquement l'étape image pour ce produit, sans le recréer.
+
+**Cas limite observé en pratique** : il arrive qu'une création de produit
+réussisse côté serveur mais que le client échoue à lire la réponse (JSON
+tronqué, coupure réseau) — le script journalise alors un échec plutôt qu'un
+succès, et le produit reste orphelin (créé en base, mais absent du
+journal). Une relance ultérieure échoue alors sur ce SKU avec
+`409 NOM_EXISTANT` (nom déjà pris par le produit orphelin), ce qui peut se
+lire à tort comme un doublon dans les données source. Devant un
+`NOM_EXISTANT` inattendu, vérifier si le produit existe déjà côté cible
+avant de conclure à un vrai conflit de nom source.
 
 `--web-origin` doit correspondre au `WEB_ORIGIN` configuré côté serveur cible
 (vérification `trustedOrigins` de Better Auth sur la connexion) — c'est le
