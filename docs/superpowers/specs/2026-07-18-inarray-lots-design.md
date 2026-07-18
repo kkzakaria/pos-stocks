@@ -10,7 +10,7 @@ L'import du catalogue Supabase (script ponctuel, voir
 révélé en conditions réelles (720 produits importés) un crash de
 `GET /api/v1/products` :
 
-```
+```text
 D1_ERROR: too many SQL variables at offset 561: SQLITE_ERROR
 ```
 

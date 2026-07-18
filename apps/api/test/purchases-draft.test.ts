@@ -332,7 +332,7 @@ describe("réceptions fournisseur — brouillon", () => {
 })
 
 describe("réceptions fournisseur — liste à grande échelle", () => {
-  it("GET / ne plante pas au-delà d'un lot de 100 (régression inArray, 150 réceptions)", async () => {
+  it("GET / ne plante pas au-delà d'un lot de 90 (régression inArray, 150 réceptions)", async () => {
     const { organizationId, ownerId, ownerCookie } = await bootstrapOwner()
     const warehouseId = await creerEntrepot(organizationId)
     const supplierId = await creerFournisseur(ownerCookie)
@@ -383,8 +383,13 @@ describe("réceptions fournisseur — liste à grande échelle", () => {
       purchases: Array<{ id: string; itemCount: number; totalCost: number }>
     }>()
     expect(purchases).toHaveLength(NB_RECEPTIONS)
-    const echantillon = purchases.find((p) => p.id === purchaseIds[0])
-    expect(echantillon?.itemCount).toBe(1)
-    expect(echantillon?.totalCost).toBe(500)
+    // Vérifie l'enrichissement sur une réception du PREMIER lot ET une du
+    // SECOND (index 140 > 90) : les agrégats restent corrects à travers la
+    // frontière des lots, pas seulement dans le premier.
+    for (const idx of [0, 140]) {
+      const echantillon = purchases.find((p) => p.id === purchaseIds[idx])
+      expect(echantillon?.itemCount).toBe(1)
+      expect(echantillon?.totalCost).toBe(500)
+    }
   })
 })

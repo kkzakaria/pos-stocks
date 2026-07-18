@@ -204,7 +204,7 @@ describe("GET /api/v1/products — inArray non borné batché", () => {
   it("liste tous les produits et leurs variantes au-delà de la taille de lot", async () => {
     const { organizationId, ownerCookie } = await bootstrapOwner()
     // N > TAILLE_LOT_MAX (90) → l'inArray des variantes s'étend sur plusieurs
-    // lots (100 + 50). Le crash prod « too many SQL variables » venait de cette
+    // lots (90 + 60). Le crash prod « too many SQL variables » venait de cette
     // requête non batchée sur un grand catalogue.
     const N = 150
     // Semé un produit à la fois (chaque creerProduitSimple = un batch de 2

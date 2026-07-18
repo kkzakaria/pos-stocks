@@ -1,26 +1,20 @@
 # Découpage en lots des `inArray` non bornés — Implementation Plan
 
-> **Amendement (reprise du fix)** : deux corrections postérieures à ce plan, cf.
-> `docs/superpowers/specs/2026-07-18-inarray-lots-design.md` :
-> 1. `products.ts:88` (source réelle du crash) est **inclus**, pas exclu —
->    l'hypothèse « PR #17 le couvre » était fausse (PR #17 était web-only).
-> 2. La taille de lot est **90, pas 100** : D1 plafonne à 100 paramètres liés et
->    `inArray(100)` + `eq(organizationId)` = 101 crashait encore. Les valeurs
->    « 100 » ci-dessous se lisent « 90 ».
+**Amendement (reprise du fix)** — corrections postérieures à ce plan, synchronisées ci-dessous avec `apps/api/src/lib/db-batch.ts` et le spec `docs/superpowers/specs/2026-07-18-inarray-lots-design.md` : `products.ts:88` (source réelle du crash) est désormais **inclus** dans le périmètre (l'hypothèse « PR #17 le couvre » était fausse — PR #17 était web-only, sans pagination serveur), et la taille de lot est **90** et non 100 (D1 plafonne à 100 paramètres liés ; `inArray(100)` + `eq(organizationId)` = 101 crashait encore).
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Corriger le crash `D1_ERROR: too many SQL variables` sur les listes non bornées de réceptions, transferts et inventaires en découpant leurs `inArray(...)` en lots sûrs, via un helper générique réutilisable.
 
-**Architecture:** Un helper pur `requeterParLots` (`apps/api/src/lib/db-batch.ts`) découpe un tableau d'ids en lots ≤ 100, exécute la requête fournie par lot, concatène les résultats. Appliqué à 4 emplacements dans 3 routes (`purchases.ts`, `transfers.ts`, `inventory-counts.ts` ×2). `products.ts` est explicitement exclu (cf. Global Constraints).
+**Architecture:** Un helper pur `requeterParLots` (`apps/api/src/lib/db-batch.ts`) découpe un tableau d'ids en lots ≤ 90, exécute la requête fournie par lot, concatène les résultats. Appliqué à 5 emplacements dans 4 routes (`purchases.ts`, `transfers.ts`, `inventory-counts.ts` ×2, `products.ts:88`).
 
 **Tech Stack:** Hono, Drizzle ORM, D1 (SQLite), vitest + `@cloudflare/vitest-pool-workers` (tests d'intégration sur D1 réelle, convention existante du repo).
 
 ## Global Constraints
 
 - Référence design : `docs/superpowers/specs/2026-07-18-inarray-lots-design.md`.
-- **`apps/api/src/routes/products.ts` est explicitement hors périmètre** (lignes 51, 88, 118) — une branche en cours (`feat/pagination-composant-partage`, PR #17, issue #13) doit encore traiter la pagination serveur de `GET /api/v1/products` ; toucher ce fichier créerait un risque de conflit. Aucune tâche de ce plan ne doit modifier `products.ts`.
-- Taille de lot : 100 (marge de sécurité sous la limite de variables liées par requête SQLite/D1).
+- **`products.ts:88` est dans le périmètre** (source réelle du crash) ; les sites `products.ts` 51 (sous-requête `IN (SELECT …)`) et 118 (borné par les variantes d'un seul produit) sont sûrs et non touchés.
+- Taille de lot : **90**. D1 plafonne une requête à 100 paramètres liés ; le lot est capé sous 100 pour laisser de la place aux autres paramètres liés (`GET /products` lie un `organizationId` en plus de l'`inArray` → 100 + 1 = 101 crasherait). 90 laisse 10 de marge.
 - Batch D1 hétérogène et de taille dynamique : toujours construire via déstructuration `const [premiere, ...reste] = instructions; await db.batch([premiere, ...reste])` — jamais `push()` + cast, jamais passer directement le résultat d'un `.flatMap()`/`.map()` à `db.batch()` (ne satisfait pas le type tuple `[BatchItem, ...BatchItem[]]` exigé par Drizzle — vérifié empiriquement, `tsc` rejette `db.batch(array.flatMap(...))` avec « Source provides no match for required element at position 0 »).
 - `apps/api/vitest.config.ts` est intouchable (cf. CLAUDE.md) ; les tests de ce plan suivent les conventions existantes du dossier `apps/api/test/` (D1 réelle via `cloudflare:test`, helpers de `test/helpers.ts`), pas de nouvelle configuration.
 - Commentaires de code en français, cohérent avec le reste de `apps/api/src`.
@@ -65,25 +59,25 @@ describe("requeterParLots", () => {
     expect(resultat).toEqual([{ id: "a" }, { id: "b" }, { id: "c" }])
   })
 
-  it("découpe en lots de 100 au maximum et concatène les résultats dans l'ordre", async () => {
+  it("découpe en lots de 90 au maximum et concatène les résultats dans l'ordre", async () => {
     const ids = Array.from({ length: 250 }, (_, i) => `id-${i}`)
     const taillesLots: number[] = []
     const resultat = await requeterParLots(ids, async (lot) => {
       taillesLots.push(lot.length)
       return lot.map((id) => ({ id }))
     })
-    expect(taillesLots).toEqual([100, 100, 50])
+    expect(taillesLots).toEqual([90, 90, 70])
     expect(resultat).toEqual(ids.map((id) => ({ id })))
   })
 
   it("gère exactement un multiple de la taille de lot sans lot vide final", async () => {
-    const ids = Array.from({ length: 200 }, (_, i) => `id-${i}`)
+    const ids = Array.from({ length: 180 }, (_, i) => `id-${i}`)
     const taillesLots: number[] = []
     await requeterParLots(ids, async (lot) => {
       taillesLots.push(lot.length)
       return []
     })
-    expect(taillesLots).toEqual([100, 100])
+    expect(taillesLots).toEqual([90, 90])
   })
 })
 ```
@@ -98,14 +92,13 @@ Expected: FAIL — `Cannot find module '../src/lib/db-batch'`.
 - [ ] **Step 3: Implémenter `apps/api/src/lib/db-batch.ts`**
 
 ```ts
-// SQLite/D1 limite le nombre de variables liées par requête préparée
-// (observé : crash « too many SQL variables » sur GET /products à 720
-// lignes, cf. docs/superpowers/specs/2026-07-18-inarray-lots-design.md).
-// Un inArray() alimenté par une liste non bornée (résultat d'une liste
-// non paginée, par exemple) peut dépasser cette limite une fois le volume
-// de données réel atteint. Ce helper découpe l'appel en lots sûrs et
-// concatène les résultats.
-const TAILLE_LOT_MAX = 100
+// D1 caps a query at 100 bound parameters ("too many SQL variables", observed
+// crashing GET /products at 720 rows). An inArray() fed by an unbounded list can
+// exceed that cap. This helper splits the call into safe batches. The batch is
+// capped BELOW 100 so the surrounding query keeps room for its own bound
+// parameters (e.g. GET /products binds an extra organizationId, so 100 ids would
+// total 101 and still crash); 90 leaves 10 of headroom.
+const TAILLE_LOT_MAX = 90
 
 export async function requeterParLots<T>(
   ids: string[],
@@ -144,7 +137,7 @@ git commit -m "feat(api): helper requeterParLots pour les inArray non bornés"
 
 ---
 
-### Task 2: Application aux 4 emplacements + test de régression
+### Task 2: Application aux emplacements + test de régression
 
 **Files:**
 - Modify: `apps/api/src/routes/purchases.ts:154-166`
@@ -359,7 +352,7 @@ Append to `apps/api/test/purchases-draft.test.ts` (après le `describe` existant
 
 ```ts
 describe("réceptions fournisseur — liste à grande échelle", () => {
-  it("GET / ne plante pas au-delà d'un lot de 100 (régression inArray, 150 réceptions)", async () => {
+  it("GET / ne plante pas au-delà d'un lot de 90 (régression inArray, 150 réceptions)", async () => {
     const { organizationId, ownerId, ownerCookie } = await bootstrapOwner()
     const warehouseId = await creerEntrepot(organizationId)
     const supplierId = await creerFournisseur(ownerCookie)
@@ -447,5 +440,5 @@ git commit -m "fix(api): découpe en lots les inArray non bornés (réceptions, 
 
 ## Après ce plan
 
-- `apps/api/src/routes/products.ts` reste à corriger séparément — soit par la pagination serveur de l'issue #13 (sous-projet B, non démarré), soit par ce même helper en attendant, selon ce qui atterrit en premier.
-- `inventory-counts.ts:553` (le 4ᵉ emplacement) est maintenant protégé, mais reste borné par le SKU total d'UN entrepôt — si un entrepôt dépasse ~10 000 SKU (100 lots), le temps de réponse de cette lecture post-commit croît linéairement ; non bloquant pour ce plan, à surveiller si l'organisation grandit fortement.
+- `products.ts:88` est corrigé par ce même helper (cf. amendement en tête). La pagination serveur de `GET /products` reste l'objet de l'issue #13 (sous-projet B, non démarré) ; le découpage en lots reste utile en défense en profondeur même après pagination.
+- `inventory-counts.ts:553` est maintenant protégé, mais reste borné par le SKU total d'UN entrepôt — si un entrepôt dépasse ~10 000 SKU (≈110 lots de 90), le temps de réponse de cette lecture post-commit croît linéairement ; non bloquant pour ce plan, à surveiller si l'organisation grandit fortement.
