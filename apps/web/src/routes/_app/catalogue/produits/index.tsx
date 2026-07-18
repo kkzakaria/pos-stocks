@@ -75,7 +75,7 @@ function ProduitsPage() {
     return () => clearTimeout(timer)
   }, [recherche])
 
-  // Un changement de filtre invalide la page courante : retour à la page 1
+  // A filter change invalidates the current page: reset to page 1
   useEffect(() => setPage(1), [rechercheDebouncee, categorie])
 
   const produits = useQuery({

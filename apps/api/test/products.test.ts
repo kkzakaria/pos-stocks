@@ -292,8 +292,8 @@ describe("GET /api/v1/products — inArray non borné batché", () => {
       })
     }
 
-    // limite=200 (max autorisé) : la pagination par défaut (50) tronquerait
-    // sinon la liste avant même d'atteindre le batching des variantes testé ici.
+    // limite=200 (max allowed): the default page size (50) would otherwise
+    // truncate the list before the variant batching under test is exercised.
     const res = await app.request(
       "/api/v1/products?limite=200",
       { headers: { cookie: ownerCookie } },
