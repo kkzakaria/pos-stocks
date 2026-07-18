@@ -101,6 +101,20 @@ describe("GET /api/v1/sales — période et pagination", () => {
     expect(corps2.sales[0].ticketNumber).toBe(1)
   })
 
+  it("page au-delà de la dernière → sales vide mais total et 200 conservés", async () => {
+    const { storeId, caissier } = await seedTrois()
+    const res = await req(
+      caissier.cookie,
+      "GET",
+      `/api/v1/sales?storeId=${storeId}&jour=${JOUR}&page=3&parPage=2`
+    )
+    expect(res.status).toBe(200)
+    const corps = await res.json<Page>()
+    expect(corps.total).toBe(3)
+    expect(corps.page).toBe(3)
+    expect(corps.sales).toEqual([])
+  })
+
   it("filtre par période du/au (bornes UTC, fin incluse)", async () => {
     const { storeId, caissier } = await seedTrois()
     const dansPeriode = await req(

@@ -115,6 +115,58 @@ describe("lecture des ventes", () => {
     expect(res.status).toBe(400)
   })
 
+  it("jour combiné à du/au → 400 (mutuellement exclusifs)", async () => {
+    const { caissier, storeId } = await seedAvecVente()
+    const res = await req(
+      caissier.cookie,
+      "GET",
+      `/api/v1/sales?storeId=${storeId}&jour=${JOUR}&du=${JOUR}&au=${JOUR}`
+    )
+    expect(res.status).toBe(400)
+    expect((await res.json<{ code: string }>()).code).toBe("VALIDATION")
+  })
+
+  it("jour combiné au seul du → 400 (pas d'intersection silencieuse)", async () => {
+    const { caissier, storeId } = await seedAvecVente()
+    const res = await req(
+      caissier.cookie,
+      "GET",
+      `/api/v1/sales?storeId=${storeId}&jour=${JOUR}&du=${JOUR}`
+    )
+    expect(res.status).toBe(400)
+  })
+
+  it("store d'une AUTRE organisation + paramètres exclusifs → 403 (accès avant validation)", async () => {
+    const { ownerCookie } = await seedAvecVente()
+    // A REAL warehouse owned by a second organization, inserted directly, so the
+    // test exercises the actual cross-tenant branch of verifierAccesEntrepot
+    // (warehouse exists but belongs to another org) rather than a missing id.
+    const db = drizzle(env.DB, { schema })
+    const autreOrgId = crypto.randomUUID()
+    await db.insert(schema.organization).values({
+      id: autreOrgId,
+      name: "Autre Société",
+      slug: "autre-org",
+      createdAt: new Date(),
+    })
+    const autreStore = await creerEntrepot(
+      autreOrgId,
+      "Boutique autre org",
+      "store"
+    )
+    // The org-1 owner querying an org-2 store with jour+du/au: the cross-tenant
+    // guard (invariant #7) must win with 403 ACCES_REFUSE (without revealing the
+    // store's existence), never the 400 exclusivity validation that, without the
+    // access check at the top of the route, would leak first.
+    const res = await req(
+      ownerCookie,
+      "GET",
+      `/api/v1/sales?storeId=${autreStore}&jour=${JOUR}&du=${JOUR}&au=${JOUR}`
+    )
+    expect(res.status).toBe(403)
+    expect((await res.json<{ code: string }>()).code).toBe("ACCES_REFUSE")
+  })
+
   it("détail complet pour réimpression (lignes enrichies + paiements)", async () => {
     const { caissier, saleId } = await seedAvecVente()
     const res = await req(caissier.cookie, "GET", `/api/v1/sales/${saleId}`)

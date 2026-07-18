@@ -50,6 +50,29 @@ describe("periodePreset", () => {
       au: "2026-08-03",
     })
   })
+
+  it("semaine à cheval sur deux années (passage d'année)", () => {
+    // 3 January 2026 − 6 days → 28 December 2025.
+    expect(periodePreset("semaine", new Date(2026, 0, 3))).toEqual({
+      du: "2025-12-28",
+      au: "2026-01-03",
+    })
+  })
+
+  it("semaine traversant le 29 février d'une année bissextile", () => {
+    // 2 March 2028 − 6 days → 25 February 2028 (window including 29 February).
+    expect(periodePreset("semaine", new Date(2028, 2, 2))).toEqual({
+      du: "2028-02-25",
+      au: "2028-03-02",
+    })
+  })
+
+  it("mois : le 29 février bissextile est une borne de fin valide", () => {
+    expect(periodePreset("mois", new Date(2028, 1, 29))).toEqual({
+      du: "2028-02-01",
+      au: "2028-02-29",
+    })
+  })
 })
 
 describe("blocsTableauDeBord", () => {
@@ -75,20 +98,20 @@ describe("blocsTableauDeBord", () => {
     })
   })
 
-  it("manager local : ventes, alertes, transferts — pas la valorisation globale", () => {
-    expect(
-      blocsTableauDeBord(
-        me("staff", [
-          { warehouseId: "b1", warehouseName: "B1", role: "manager" },
-        ])
-      )
-    ).toEqual({
-      ventes: true,
-      alertes: true,
-      transferts: true,
-      valorisation: false,
-      aucun: false,
-    })
+  it("manager/auditor local : les 4 blocs — la valorisation suit l'onglet Rapports", () => {
+    for (const role of ["manager", "auditor"] as const) {
+      expect(
+        blocsTableauDeBord(
+          me("staff", [{ warehouseId: "b1", warehouseName: "B1", role }])
+        )
+      ).toEqual({
+        ventes: true,
+        alertes: true,
+        transferts: true,
+        valorisation: true,
+        aucun: false,
+      })
+    }
   })
 
   it("caissier pur : aucun bloc", () => {

@@ -120,4 +120,53 @@ describe("lireLotsDisponibles (dérivé du journal)", () => {
       { lotId: lotB, expiryDate: new Date("2027-06-01"), disponible: 8 },
     ])
   })
+
+  it("scope par entrepôt : un même lot dans deux entrepôts ne fusionne pas", async () => {
+    const { organizationId, ownerId } = await bootstrapOwner()
+    const entrepot1 = await creerEntrepot(organizationId, "FEFO E1")
+    const entrepot2 = await creerEntrepot(organizationId, "FEFO E2")
+    const { variantId } = await creerProduitSimple(organizationId, {
+      trackLots: true,
+    })
+    const db = drizzle(env.DB, { schema })
+    const lotA = crypto.randomUUID()
+    await db.insert(schema.lots).values({
+      id: lotA,
+      organizationId,
+      variantId,
+      lotNumber: "A",
+      expiryDate: new Date("2026-08-01"),
+      createdAt: new Date(),
+    })
+    // Same lot purchased in both warehouses: 5 in E1, 8 in E2.
+    await applyMovements(db, {
+      organizationId,
+      userId: ownerId,
+      mouvements: [
+        {
+          warehouseId: entrepot1,
+          variantId,
+          lotId: lotA,
+          delta: 5,
+          type: "purchase",
+          unitCost: 100,
+        },
+        {
+          warehouseId: entrepot2,
+          variantId,
+          lotId: lotA,
+          delta: 8,
+          type: "purchase",
+          unitCost: 100,
+        },
+      ],
+    })
+    // Each warehouse sees ONLY its own quantity (never the sum of 13).
+    expect(await lireLotsDisponibles(db, entrepot1, variantId)).toEqual([
+      { lotId: lotA, expiryDate: new Date("2026-08-01"), disponible: 5 },
+    ])
+    expect(await lireLotsDisponibles(db, entrepot2, variantId)).toEqual([
+      { lotId: lotA, expiryDate: new Date("2026-08-01"), disponible: 8 },
+    ])
+  })
 })

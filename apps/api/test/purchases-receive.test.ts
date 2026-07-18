@@ -123,6 +123,29 @@ describe("POST /api/v1/purchases/:id/receive", () => {
     expect(purchase.receivedAt).not.toBeNull()
   })
 
+  it("CMP : division non entière effectivement arrondie (ROUND, pas de troncature)", async () => {
+    const { organizationId, ownerCookie, warehouseId, supplierId } =
+      await seed()
+    const { variantId } = await creerProduitSimple(organizationId)
+
+    // 3 units at 100 → weighted-average cost 100.
+    const premier = await creerBrouillon(ownerCookie, warehouseId, supplierId, [
+      { variantId, quantity: 3, unitCost: 100 },
+    ])
+    await req(ownerCookie, "POST", `/api/v1/purchases/${premier}/receive`)
+
+    // 4 units at 150 → cost round((3×100 + 4×150)/7) = round(900/7)
+    //               = round(128.57…) = 129 (truncation would give 128).
+    const second = await creerBrouillon(ownerCookie, warehouseId, supplierId, [
+      { variantId, quantity: 4, unitCost: 150 },
+    ])
+    await req(ownerCookie, "POST", `/api/v1/purchases/${second}/receive`)
+
+    const niveau = await lireNiveau(warehouseId, variantId)
+    expect(niveau?.quantity).toBe(7)
+    expect(niveau?.avgCost).toBe(129)
+  })
+
   it("lots : créés à la validation pour trackLots, réutilisés si même numéro", async () => {
     const { organizationId, ownerCookie, warehouseId, supplierId } =
       await seed()

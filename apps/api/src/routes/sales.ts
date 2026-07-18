@@ -9,6 +9,7 @@ import * as schema from "../db/schema"
 import { bornesPeriode, dateCalendaireValide } from "../lib/dates"
 import { validerCorps } from "../lib/validation"
 import { estErreurDeclencheur, estViolationUnicite } from "../lib/db-errors"
+import { coutVenteAgrege, lignesEstimeesAgrege } from "../lib/marge"
 import {
   boutiqueScope,
   REPONSE_NON_BOUTIQUE,
@@ -230,6 +231,22 @@ salesRoute.get("/", async (c) => {
       400
     )
   }
+  // Cross-tenant / access guard BEFORE any parameter validation (invariant #7):
+  // a store outside the organization must answer 404 INTROUVABLE / 403
+  // ACCES_REFUSE, never a 400 leaked through the param-shape checks below.
+  const refus = await verifierLectureVentes(c, storeId)
+  if (refus) return refus
+  // jour (single day) and du/au (period) are mutually exclusive — combining them
+  // would silently intersect the filters instead of erroring.
+  if (jour && (du !== undefined || au !== undefined)) {
+    return c.json(
+      {
+        code: "VALIDATION",
+        message: "Paramètres jour et du/au mutuellement exclusifs",
+      },
+      400
+    )
+  }
   if (jour && !dateCalendaireValide(jour)) {
     return c.json(
       { code: "VALIDATION", message: "Date invalide (AAAA-MM-JJ)" },
@@ -267,8 +284,6 @@ salesRoute.get("/", async (c) => {
       400
     )
   }
-  const refus = await verifierLectureVentes(c, storeId)
-  if (refus) return refus
   const db = drizzle(c.env.DB, { schema })
   const conditions: SQL[] = [
     eq(schema.sales.organizationId, organizationId),
@@ -389,8 +404,8 @@ async function margeVente(
   const rows = await db
     .select({
       ca: sql<number>`COALESCE(SUM(${schema.saleItems.quantity} * ${schema.saleItems.unitPrice}), 0)`,
-      cout: sql<number>`COALESCE(SUM(${schema.saleItems.quantity} * COALESCE(${schema.saleItems.unitCost}, ${schema.stockLevels.avgCost}, 0)), 0)`,
-      lignesEstimees: sql<number>`COALESCE(SUM(CASE WHEN ${schema.saleItems.unitCost} IS NULL THEN 1 ELSE 0 END), 0)`,
+      cout: coutVenteAgrege,
+      lignesEstimees: lignesEstimeesAgrege,
     })
     .from(schema.saleItems)
     .leftJoin(

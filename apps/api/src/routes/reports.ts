@@ -9,6 +9,7 @@ import { porteeRapport } from "../lib/reports-acces"
 import { estDansPortee, filtrePortee } from "../lib/stock-acces"
 import type { PorteeLectureStock } from "../lib/stock-acces"
 import { genererCsv } from "../lib/csv"
+import { coutVenteAgrege, lignesEstimeesAgrege } from "../lib/marge"
 import { requireAuth } from "../middleware/require-auth"
 import { requireMembership } from "../middleware/permissions"
 import type { PermissionVariables } from "../middleware/permissions"
@@ -450,8 +451,8 @@ reportsRoute.get("/margins", async (c) => {
       sku: schema.productVariants.sku,
       quantite: sql<number>`COALESCE(SUM(${schema.saleItems.quantity}), 0)`,
       ca: sql<number>`COALESCE(SUM(${schema.saleItems.quantity} * ${schema.saleItems.unitPrice}), 0)`,
-      cout: sql<number>`COALESCE(SUM(${schema.saleItems.quantity} * COALESCE(${schema.saleItems.unitCost}, ${schema.stockLevels.avgCost}, 0)), 0)`,
-      lignesEstimees: sql<number>`COALESCE(SUM(CASE WHEN ${schema.saleItems.unitCost} IS NULL THEN 1 ELSE 0 END), 0)`,
+      cout: coutVenteAgrege,
+      lignesEstimees: lignesEstimeesAgrege,
     })
     .from(schema.saleItems)
     .innerJoin(schema.sales, eq(schema.saleItems.saleId, schema.sales.id))

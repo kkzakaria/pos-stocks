@@ -166,9 +166,11 @@ export function periodePreset(
   }
 }
 
-// Visibilité des blocs du tableau de bord (spec §7) — miroir front, l'API
-// fait autorité. Valorisation ouverte aux rôles org ET à stock_manager
-// (décision 10 du plan : la matrice §4 prime sur le « owner/admin » du §7).
+// Dashboard block visibility (spec §7) — front mirror, the API is authoritative.
+// Valuation is open to org roles, to stock_manager AND to local manager/auditor:
+// the block follows the Reports tab access exactly (porteeRapport "valorisation"),
+// otherwise a local user would see valuation in Reports but not on the dashboard
+// (matrix §4 takes precedence over the "owner/admin" of §7).
 export type BlocsTableauDeBord = {
   ventes: boolean
   alertes: boolean
@@ -187,7 +189,7 @@ export function blocsTableauDeBord(me: MeLike): BlocsTableauDeBord {
     ventes: org || locaux,
     alertes: org || role === "stock_manager" || locaux,
     transferts: org || role === "stock_manager" || locaux,
-    valorisation: org || role === "stock_manager",
+    valorisation: org || role === "stock_manager" || locaux,
   }
   return {
     ...blocs,
