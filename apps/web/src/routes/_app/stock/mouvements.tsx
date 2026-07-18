@@ -83,6 +83,7 @@ function MouvementsPage() {
   })
 
   const total = mouvements.data?.total ?? 0
+  const liste = mouvements.data?.movements ?? []
 
   return (
     <div>
@@ -237,7 +238,7 @@ function MouvementsPage() {
               )}
             </TableBody>
           </Table>
-          {total > 0 && (
+          {liste.length > 0 && (
             <Pagination
               className="mt-4"
               page={page}
