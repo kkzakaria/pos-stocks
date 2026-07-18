@@ -30,6 +30,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { TableSkeleton } from "@/components/ui/table-skeleton"
+import { Pagination } from "@/components/ui/pagination"
 
 export const Route = createFileRoute("/_app/ventes/")({
   component: HistoriqueVentes,
@@ -74,7 +75,6 @@ function HistoriqueVentes() {
   // Page size read from the API response (it echoes parPage) rather than a
   // literal, so the page count can't drift from the server's actual paging.
   const parPage = ventes.data?.parPage ?? 50
-  const pages = Math.max(1, Math.ceil(total / parPage))
   const aucuneBoutique = destinations.isSuccess && boutiques.length === 0
 
   return (
@@ -212,26 +212,15 @@ function HistoriqueVentes() {
                 )}
               </TableBody>
             </Table>
-            {liste.length > 0 && pages > 1 && (
-              <div className="mt-3 flex items-center justify-between text-sm">
-                <Button
-                  variant="outline"
-                  disabled={page <= 1}
-                  onClick={() => setPage((p) => p - 1)}
-                >
-                  Précédent
-                </Button>
-                <span className="text-muted-foreground">
-                  Page {page} / {pages} — {total} ventes
-                </span>
-                <Button
-                  variant="outline"
-                  disabled={page >= pages}
-                  onClick={() => setPage((p) => p + 1)}
-                >
-                  Suivant
-                </Button>
-              </div>
+            {liste.length > 0 && (
+              <Pagination
+                className="mt-3"
+                page={page}
+                total={total}
+                pageSize={parPage}
+                onPageChange={setPage}
+                element={{ un: "vente", plusieurs: "ventes" }}
+              />
             )}
           </>
         )}
