@@ -3,7 +3,11 @@ import { env } from "cloudflare:test"
 import { drizzle } from "drizzle-orm/d1"
 import app from "../src/index"
 import * as schema from "../src/db/schema"
-import { bootstrapOwner, createUserWithRole } from "./helpers"
+import {
+  bootstrapOwner,
+  createUserWithRole,
+  creerProduitSimple,
+} from "./helpers"
 
 function post(cookie: string, body: unknown) {
   return app.request(
@@ -193,5 +197,37 @@ describe("API produits", () => {
     expect(
       (await patch(ownerCookie, produitId, { name: "Piraté" })).status
     ).toBe(404)
+  })
+})
+
+describe("GET /api/v1/products — inArray non borné batché", () => {
+  it("liste tous les produits et leurs variantes au-delà de la taille de lot", async () => {
+    const { organizationId, ownerCookie } = await bootstrapOwner()
+    // N > TAILLE_LOT_MAX (90) → the variants inArray spans several batches
+    // (90 + 60). The prod "too many SQL variables" crash came from this
+    // un-batched query on a large catalog.
+    const N = 150
+    // Seeded one product at a time (each creerProduitSimple is a batch of two
+    // single-row inserts): a grouped insert would itself exceed D1's bound-
+    // variable cap, masking the behavior under test.
+    for (let i = 0; i < N; i++) {
+      await creerProduitSimple(organizationId, {
+        nom: `Produit ${String(i).padStart(3, "0")}`,
+      })
+    }
+
+    const res = await app.request(
+      "/api/v1/products",
+      { headers: { cookie: ownerCookie } },
+      env
+    )
+    expect(res.status).toBe(200)
+    const { products } = await res.json<{
+      products: Array<{ id: string; variants: unknown[] }>
+    }>()
+    expect(products.length).toBe(N)
+    // Each product gets its variant back: results are complete across the batch
+    // boundary (nothing lost when concatenating).
+    expect(products.every((p) => p.variants.length === 1)).toBe(true)
   })
 })

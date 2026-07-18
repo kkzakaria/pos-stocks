@@ -330,3 +330,66 @@ describe("réceptions fournisseur — brouillon", () => {
     expect(updatedAtAfter.getTime()).toBe(updatedAtBefore.getTime())
   })
 })
+
+describe("réceptions fournisseur — liste à grande échelle", () => {
+  it("GET / ne plante pas au-delà d'un lot de 90 (régression inArray, 150 réceptions)", async () => {
+    const { organizationId, ownerId, ownerCookie } = await bootstrapOwner()
+    const warehouseId = await creerEntrepot(organizationId)
+    const supplierId = await creerFournisseur(ownerCookie)
+    const produit = await creerProduitSimple(organizationId)
+
+    const db = drizzle(env.DB, { schema })
+    const maintenant = new Date()
+    const NB_RECEPTIONS = 150
+    const TAILLE_LOT_SEED = 50
+    const purchaseIds = Array.from({ length: NB_RECEPTIONS }, () =>
+      crypto.randomUUID()
+    )
+
+    for (let debut = 0; debut < purchaseIds.length; debut += TAILLE_LOT_SEED) {
+      const lot = purchaseIds.slice(debut, debut + TAILLE_LOT_SEED)
+      const instructions = lot.flatMap((purchaseId, indexLot) => {
+        const index = debut + indexLot
+        return [
+          db.insert(schema.purchases).values({
+            id: purchaseId,
+            organizationId,
+            warehouseId,
+            supplierId,
+            status: "draft" as const,
+            reference: `BL-VOL-${index}`,
+            createdBy: ownerId,
+            createdAt: maintenant,
+            updatedAt: maintenant,
+          }),
+          db.insert(schema.purchaseItems).values({
+            id: crypto.randomUUID(),
+            organizationId,
+            purchaseId,
+            variantId: produit.variantId,
+            quantity: 5,
+            unitCost: 100,
+            createdAt: maintenant,
+          }),
+        ]
+      })
+      const [premiere, ...reste] = instructions
+      await db.batch([premiere, ...reste])
+    }
+
+    const liste = await req(ownerCookie, "GET", "/api/v1/purchases")
+    expect(liste.status).toBe(200)
+    const { purchases } = await liste.json<{
+      purchases: Array<{ id: string; itemCount: number; totalCost: number }>
+    }>()
+    expect(purchases).toHaveLength(NB_RECEPTIONS)
+    // Verify enrichment on a reception from the FIRST batch AND one from the
+    // SECOND (index 140 > 90): aggregates remain correct across the batch
+    // boundary, not just within the first batch.
+    for (const idx of [0, 140]) {
+      const echantillon = purchases.find((p) => p.id === purchaseIds[idx])
+      expect(echantillon?.itemCount).toBe(1)
+      expect(echantillon?.totalCost).toBe(500)
+    }
+  })
+})
