@@ -132,7 +132,7 @@ export function fetchVentesPeriode(params: {
   page: number
 }) {
   return apiFetch<PageVentes>(
-    `/api/v1/sales?storeId=${params.storeId}&du=${params.du}&au=${params.au}&page=${params.page}&parPage=50`
+    `/api/v1/sales?storeId=${params.storeId}&du=${params.du}&au=${params.au}&page=${params.page}&limite=50`
   )
 }
 

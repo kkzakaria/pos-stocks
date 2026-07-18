@@ -28,7 +28,7 @@ type Page = {
   sales: Array<{ ticketNumber: number }>
   total: number
   page: number
-  parPage: number
+  limite: number
 }
 
 const JOUR = new Date().toISOString().slice(0, 10)
@@ -76,25 +76,25 @@ async function seedTrois() {
 }
 
 describe("GET /api/v1/sales — période et pagination", () => {
-  it("pagine avec total (parPage=2 : page 1 → 2 ventes, page 2 → 1)", async () => {
+  it("pagine avec total (limite=2 : page 1 → 2 ventes, page 2 → 1)", async () => {
     const { storeId, caissier } = await seedTrois()
     const page1 = await req(
       caissier.cookie,
       "GET",
-      `/api/v1/sales?storeId=${storeId}&jour=${JOUR}&page=1&parPage=2`
+      `/api/v1/sales?storeId=${storeId}&jour=${JOUR}&page=1&limite=2`
     )
     expect(page1.status).toBe(200)
     const corps1 = await page1.json<Page>()
     expect(corps1.total).toBe(3)
     expect(corps1.page).toBe(1)
-    expect(corps1.parPage).toBe(2)
+    expect(corps1.limite).toBe(2)
     expect(corps1.sales).toHaveLength(2)
     // Tri desc conservé : tickets 3 puis 2
     expect(corps1.sales[0].ticketNumber).toBe(3)
     const page2 = await req(
       caissier.cookie,
       "GET",
-      `/api/v1/sales?storeId=${storeId}&jour=${JOUR}&page=2&parPage=2`
+      `/api/v1/sales?storeId=${storeId}&jour=${JOUR}&page=2&limite=2`
     )
     const corps2 = await page2.json<Page>()
     expect(corps2.sales).toHaveLength(1)
@@ -106,7 +106,7 @@ describe("GET /api/v1/sales — période et pagination", () => {
     const res = await req(
       caissier.cookie,
       "GET",
-      `/api/v1/sales?storeId=${storeId}&jour=${JOUR}&page=3&parPage=2`
+      `/api/v1/sales?storeId=${storeId}&jour=${JOUR}&page=3&limite=2`
     )
     expect(res.status).toBe(200)
     const corps = await res.json<Page>()
@@ -153,15 +153,15 @@ describe("GET /api/v1/sales — période et pagination", () => {
       `/api/v1/sales?storeId=${storeId}&jour=${JOUR}&page=0`
     )
     expect(pageZero.status).toBe(400)
-    const parPageTrop = await req(
+    const limiteTrop = await req(
       caissier.cookie,
       "GET",
-      `/api/v1/sales?storeId=${storeId}&jour=${JOUR}&parPage=500`
+      `/api/v1/sales?storeId=${storeId}&jour=${JOUR}&limite=500`
     )
-    expect(parPageTrop.status).toBe(400)
+    expect(limiteTrop.status).toBe(400)
   })
 
-  it("rétrocompatible : sans pagination explicite, défauts page=1/parPage=50", async () => {
+  it("rétrocompatible : sans pagination explicite, défauts page=1/limite=50", async () => {
     const { storeId, caissier } = await seedTrois()
     const res = await req(
       caissier.cookie,
@@ -172,6 +172,6 @@ describe("GET /api/v1/sales — période et pagination", () => {
     expect(corps.sales).toHaveLength(3)
     expect(corps.total).toBe(3)
     expect(corps.page).toBe(1)
-    expect(corps.parPage).toBe(50)
+    expect(corps.limite).toBe(50)
   })
 })

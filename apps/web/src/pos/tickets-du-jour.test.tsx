@@ -45,7 +45,7 @@ describe("TicketsDuJour — erreurs de réimpression", () => {
       sales: [vente],
       total: 1,
       page: 1,
-      parPage: 50,
+      limite: 50,
     })
     const fetchVente = vi
       .spyOn(posApi, "fetchVente")
@@ -69,7 +69,7 @@ describe("TicketsDuJour — erreurs de réimpression", () => {
       sales: [vente],
       total: 1,
       page: 1,
-      parPage: 50,
+      limite: 50,
     })
     const sale = {
       id: "sale1",
@@ -119,7 +119,7 @@ describe("TicketsDuJour — erreur de chargement (différé P6)", () => {
       .mockRejectedValue(new Error("réseau"))
     rendre()
     await screen.findByText("Impossible de charger les tickets du jour.")
-    spy.mockResolvedValue({ sales: [vente], total: 1, page: 1, parPage: 50 })
+    spy.mockResolvedValue({ sales: [vente], total: 1, page: 1, limite: 50 })
     fireEvent.click(screen.getByRole("button", { name: /réessayer/i }))
     await screen.findByText(/N° 1/)
   })
@@ -135,7 +135,7 @@ describe("TicketsDuJour — pagination (différé P6)", () => {
       sales: [vente],
       total: 1,
       page: 1,
-      parPage: 50,
+      limite: 50,
     })
     rendre()
     await screen.findByText(/N° 1/)
@@ -147,7 +147,7 @@ describe("TicketsDuJour — pagination (différé P6)", () => {
       sales: [vente],
       total: 51,
       page: 1,
-      parPage: 50,
+      limite: 50,
     })
     rendre()
     await screen.findByText(/Page 1 \/ 2/)
