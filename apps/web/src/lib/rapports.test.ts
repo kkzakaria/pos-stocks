@@ -75,20 +75,20 @@ describe("blocsTableauDeBord", () => {
     })
   })
 
-  it("manager local : ventes, alertes, transferts — pas la valorisation globale", () => {
-    expect(
-      blocsTableauDeBord(
-        me("staff", [
-          { warehouseId: "b1", warehouseName: "B1", role: "manager" },
-        ])
-      )
-    ).toEqual({
-      ventes: true,
-      alertes: true,
-      transferts: true,
-      valorisation: false,
-      aucun: false,
-    })
+  it("manager/auditor local : les 4 blocs — la valorisation suit l'onglet Rapports", () => {
+    for (const role of ["manager", "auditor"] as const) {
+      expect(
+        blocsTableauDeBord(
+          me("staff", [{ warehouseId: "b1", warehouseName: "B1", role }])
+        )
+      ).toEqual({
+        ventes: true,
+        alertes: true,
+        transferts: true,
+        valorisation: true,
+        aucun: false,
+      })
+    }
   })
 
   it("caissier pur : aucun bloc", () => {
