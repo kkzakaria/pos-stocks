@@ -128,14 +128,14 @@ describe("POST /api/v1/purchases/:id/receive", () => {
       await seed()
     const { variantId } = await creerProduitSimple(organizationId)
 
-    // 3 unités à 100 → CMP 100.
+    // 3 units at 100 → weighted-average cost 100.
     const premier = await creerBrouillon(ownerCookie, warehouseId, supplierId, [
       { variantId, quantity: 3, unitCost: 100 },
     ])
     await req(ownerCookie, "POST", `/api/v1/purchases/${premier}/receive`)
 
-    // 4 unités à 150 → CMP round((3×100 + 4×150)/7) = round(900/7)
-    //               = round(128.57…) = 129 (une troncature donnerait 128).
+    // 4 units at 150 → cost round((3×100 + 4×150)/7) = round(900/7)
+    //               = round(128.57…) = 129 (truncation would give 128).
     const second = await creerBrouillon(ownerCookie, warehouseId, supplierId, [
       { variantId, quantity: 4, unitCost: 150 },
     ])

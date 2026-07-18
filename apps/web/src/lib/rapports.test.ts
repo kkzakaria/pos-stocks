@@ -52,7 +52,7 @@ describe("periodePreset", () => {
   })
 
   it("semaine à cheval sur deux années (passage d'année)", () => {
-    // 3 janvier 2026 − 6 jours → 28 décembre 2025.
+    // 3 January 2026 − 6 days → 28 December 2025.
     expect(periodePreset("semaine", new Date(2026, 0, 3))).toEqual({
       du: "2025-12-28",
       au: "2026-01-03",
@@ -60,7 +60,7 @@ describe("periodePreset", () => {
   })
 
   it("semaine traversant le 29 février d'une année bissextile", () => {
-    // 2 mars 2028 − 6 jours → 25 février 2028 (fenêtre incluant le 29 février).
+    // 2 March 2028 − 6 days → 25 February 2028 (window including 29 February).
     expect(periodePreset("semaine", new Date(2028, 2, 2))).toEqual({
       du: "2028-02-25",
       au: "2028-03-02",

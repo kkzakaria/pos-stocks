@@ -231,8 +231,13 @@ salesRoute.get("/", async (c) => {
       400
     )
   }
-  // jour (jour unique) et du/au (période) sont mutuellement exclusifs — les
-  // combiner produirait une intersection silencieuse plutôt qu'une erreur.
+  // Cross-tenant / access guard BEFORE any parameter validation (invariant #7):
+  // a store outside the organization must answer 404 INTROUVABLE / 403
+  // ACCES_REFUSE, never a 400 leaked through the param-shape checks below.
+  const refus = await verifierLectureVentes(c, storeId)
+  if (refus) return refus
+  // jour (single day) and du/au (period) are mutually exclusive — combining them
+  // would silently intersect the filters instead of erroring.
   if (jour && (du !== undefined || au !== undefined)) {
     return c.json(
       {
@@ -279,8 +284,6 @@ salesRoute.get("/", async (c) => {
       400
     )
   }
-  const refus = await verifierLectureVentes(c, storeId)
-  if (refus) return refus
   const db = drizzle(c.env.DB, { schema })
   const conditions: SQL[] = [
     eq(schema.sales.organizationId, organizationId),

@@ -374,10 +374,10 @@ function TableauDeBord() {
   })
 
   if (blocs.aucun) {
-    // Un compte sans aucun bloc est soit un caissier (affecté à une boutique →
-    // le POS est son poste), soit un staff sans affectation (aucune boutique →
-    // /pos afficherait « aucune boutique »). On ne le renvoie vers le POS que
-    // dans le premier cas ; sinon on l'oriente vers un administrateur.
+    // An account with no block is either a cashier (assigned to a store → the
+    // POS is their workstation) or a staff member with no assignment (no store →
+    // /pos would show "no store"). We only send them to the POS in the first
+    // case; otherwise we point them to an administrator.
     const estCaissier = me.assignments.some((a) => a.role === "cashier")
     return (
       <div>

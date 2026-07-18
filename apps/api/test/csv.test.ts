@@ -9,11 +9,13 @@ describe("champCsv — neutralisation des formules (injection CSV)", () => {
     expect(champCsv("@SUM(A1)")).toBe("'@SUM(A1)")
   })
 
-  it("neutralise aussi une tabulation ou un retour chariot en tête", () => {
-    // Tabulation : préfixée mais non guillemetée (hors jeu RFC 4180 " ; \n \r).
+  it("neutralise aussi tabulation, retour chariot et saut de ligne en tête", () => {
+    // Tab: prefixed but not quoted (outside the RFC 4180 set " ; \n \r).
     expect(champCsv("\t=1+1")).toBe("'\t=1+1")
-    // Retour chariot : préfixé PUIS guillemeté (le \r déclenche le guillemetage).
+    // CR: prefixed THEN quoted (\r triggers RFC 4180 quoting).
     expect(champCsv("\r=1+1")).toBe('"' + "'\r=1+1" + '"')
+    // LF: prefixed THEN quoted (\n triggers RFC 4180 quoting).
+    expect(champCsv("\n=1+1")).toBe('"' + "'\n=1+1" + '"')
   })
 
   it("laisse les nombres intacts — un montant négatif n'est pas une formule", () => {
@@ -28,14 +30,15 @@ describe("champCsv — neutralisation des formules (injection CSV)", () => {
   })
 
   it("compose neutralisation ET guillemetage RFC 4180", () => {
-    // La formule contient aussi un point-virgule → apostrophe PUIS guillemets.
+    // Formula that also contains a semicolon → apostrophe THEN quotes.
     expect(champCsv("=A1;B2")).toBe('"' + "'=A1;B2" + '"')
-    // Une formule avec guillemet interne : apostrophe puis doublement.
+    // Formula with an inner quote: apostrophe then quote-doubling.
     expect(champCsv('=HYPERLINK("x")')).toBe('"' + '\'=HYPERLINK(""x"")' + '"')
   })
 
   it("le guillemet CSV ne suffit pas : la formule reste préfixée", () => {
-    // Sans préfixe, un tableur évaluerait la cellule même entre guillemets CSV.
+    // Without the prefix a spreadsheet would evaluate the cell even when the
+    // CSV field is quoted (the CSV quotes are stripped on parse).
     const champ = champCsv("=2+2")
     expect(champ.startsWith("'")).toBe(true)
   })

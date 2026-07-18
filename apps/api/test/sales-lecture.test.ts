@@ -136,6 +136,22 @@ describe("lecture des ventes", () => {
     expect(res.status).toBe(400)
   })
 
+  it("store hors organisation + paramètres exclusifs → 403 (accès avant validation)", async () => {
+    const { ownerCookie } = await seedAvecVente()
+    // Out-of-org storeId combined with jour+du/au: the cross-tenant guard
+    // (invariant #7) must win. verifierAccesEntrepot returns 403 ACCES_REFUSE
+    // for a warehouse outside the org (without revealing its existence), never
+    // the 400 exclusivity validation that, without the access check at the top
+    // of the route, would leak first.
+    const res = await req(
+      ownerCookie,
+      "GET",
+      `/api/v1/sales?storeId=${crypto.randomUUID()}&jour=${JOUR}&du=${JOUR}&au=${JOUR}`
+    )
+    expect(res.status).toBe(403)
+    expect((await res.json<{ code: string }>()).code).toBe("ACCES_REFUSE")
+  })
+
   it("détail complet pour réimpression (lignes enrichies + paiements)", async () => {
     const { caissier, saleId } = await seedAvecVente()
     const res = await req(caissier.cookie, "GET", `/api/v1/sales/${saleId}`)

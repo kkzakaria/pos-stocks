@@ -138,7 +138,7 @@ describe("lireLotsDisponibles (dérivé du journal)", () => {
       expiryDate: new Date("2026-08-01"),
       createdAt: new Date(),
     })
-    // Même lot acheté dans les deux entrepôts : 5 dans E1, 8 dans E2.
+    // Same lot purchased in both warehouses: 5 in E1, 8 in E2.
     await applyMovements(db, {
       organizationId,
       userId: ownerId,
@@ -161,7 +161,7 @@ describe("lireLotsDisponibles (dérivé du journal)", () => {
         },
       ],
     })
-    // Chaque entrepôt ne voit QUE sa propre quantité (jamais la somme 13).
+    // Each warehouse sees ONLY its own quantity (never the sum of 13).
     expect(await lireLotsDisponibles(db, entrepot1, variantId)).toEqual([
       { lotId: lotA, expiryDate: new Date("2026-08-01"), disponible: 5 },
     ])

@@ -5,10 +5,11 @@
 const BOM = "\uFEFF"
 
 // CSV/formula-injection guard (OWASP): a spreadsheet treats a cell as a formula
-// when it starts with = + - @, a tab or a carriage return. RFC 4180 quoting does
-// NOT neutralize this \u2014 the quotes are stripped on parse, so the formula still
-// runs. We prefix such cells with an apostrophe so they render as literal text.
-const DEBUT_FORMULE = /^[=+\-@\t\r]/
+// when it starts with = + - @, a tab, a carriage return or a line feed. RFC 4180
+// quoting does NOT neutralize this \u2014 the quotes are stripped on parse, so the
+// formula still runs. We prefix such cells with an apostrophe so they render as
+// literal text.
+const DEBUT_FORMULE = /^[=+\-@\t\r\n]/
 
 export function champCsv(valeur: string | number | null): string {
   if (valeur === null) return ""
