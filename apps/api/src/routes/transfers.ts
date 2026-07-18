@@ -22,6 +22,7 @@ import {
 import { applyMovements, ErreurStockInsuffisant } from "../services/stock"
 import type { InstructionBatch, MouvementStock } from "../services/stock"
 import { reponseStockInsuffisant } from "../lib/stock-erreurs"
+import { requeterParLots } from "../lib/db-batch"
 import { requireAuth } from "../middleware/require-auth"
 import {
   requireMembership,
@@ -192,18 +193,17 @@ transfersRoute.get("/", async (c) => {
   const rows = await (limite === undefined ? requete : requete.limit(limite))
 
   const ids = rows.map((r) => r.id)
-  const agregats =
-    ids.length > 0
-      ? await db
-          .select({
-            transferId: schema.transferItems.transferId,
-            itemCount: sql<number>`COUNT(*)`,
-            totalQuantity: sql<number>`COALESCE(SUM(${schema.transferItems.quantity}), 0)`,
-          })
-          .from(schema.transferItems)
-          .where(inArray(schema.transferItems.transferId, ids))
-          .groupBy(schema.transferItems.transferId)
-      : []
+  const agregats = await requeterParLots(ids, (lot) =>
+    db
+      .select({
+        transferId: schema.transferItems.transferId,
+        itemCount: sql<number>`COUNT(*)`,
+        totalQuantity: sql<number>`COALESCE(SUM(${schema.transferItems.quantity}), 0)`,
+      })
+      .from(schema.transferItems)
+      .where(inArray(schema.transferItems.transferId, lot))
+      .groupBy(schema.transferItems.transferId)
+  )
   const transfers = rows.map((r) => {
     const agregat = agregats.find((a) => a.transferId === r.id)
     return {

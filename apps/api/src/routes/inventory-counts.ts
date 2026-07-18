@@ -25,6 +25,7 @@ import type { Env } from "../env"
 import { applyMovements, ErreurStockInsuffisant } from "../services/stock"
 import type { MouvementStock } from "../services/stock"
 import { reponseStockInsuffisant } from "../lib/stock-erreurs"
+import { requeterParLots } from "../lib/db-batch"
 
 export const inventoryCountsRoute = new Hono<{
   Bindings: Env
@@ -118,18 +119,17 @@ inventoryCountsRoute.get("/", async (c) => {
     .where(and(...conditions))
     .orderBy(desc(schema.inventoryCounts.openedAt))
   const ids = rows.map((r) => r.id)
-  const agregats =
-    ids.length > 0
-      ? await db
-          .select({
-            countId: schema.inventoryCountItems.countId,
-            itemCount: sql<number>`COUNT(*)`,
-            countedCount: sql<number>`SUM(CASE WHEN ${schema.inventoryCountItems.countedQuantity} IS NOT NULL THEN 1 ELSE 0 END)`,
-          })
-          .from(schema.inventoryCountItems)
-          .where(inArray(schema.inventoryCountItems.countId, ids))
-          .groupBy(schema.inventoryCountItems.countId)
-      : []
+  const agregats = await requeterParLots(ids, (lot) =>
+    db
+      .select({
+        countId: schema.inventoryCountItems.countId,
+        itemCount: sql<number>`COUNT(*)`,
+        countedCount: sql<number>`SUM(CASE WHEN ${schema.inventoryCountItems.countedQuantity} IS NOT NULL THEN 1 ELSE 0 END)`,
+      })
+      .from(schema.inventoryCountItems)
+      .where(inArray(schema.inventoryCountItems.countId, lot))
+      .groupBy(schema.inventoryCountItems.countId)
+  )
   const counts = rows.map((r) => {
     const agregat = agregats.find((a) => a.countId === r.id)
     return {
@@ -538,19 +538,21 @@ inventoryCountsRoute.post("/:id/close", async (c) => {
     productName: string
   }> = []
   try {
-    variantes = await db
-      .select({
-        id: schema.productVariants.id,
-        sku: schema.productVariants.sku,
-        variantName: schema.productVariants.name,
-        productName: schema.products.name,
-      })
-      .from(schema.productVariants)
-      .innerJoin(
-        schema.products,
-        eq(schema.productVariants.productId, schema.products.id)
-      )
-      .where(inArray(schema.productVariants.id, variantIds))
+    variantes = await requeterParLots(variantIds, (lot) =>
+      db
+        .select({
+          id: schema.productVariants.id,
+          sku: schema.productVariants.sku,
+          variantName: schema.productVariants.name,
+          productName: schema.products.name,
+        })
+        .from(schema.productVariants)
+        .innerJoin(
+          schema.products,
+          eq(schema.productVariants.productId, schema.products.id)
+        )
+        .where(inArray(schema.productVariants.id, lot))
+    )
   } catch {
     variantes = []
   }

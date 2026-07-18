@@ -15,6 +15,7 @@ import { fournisseurExiste, varianteScope } from "../lib/org-scope"
 import { applyMovements } from "../services/stock"
 import type { InstructionBatch, MouvementStock } from "../services/stock"
 import { porteeLectureStock } from "../lib/stock-acces"
+import { requeterParLots } from "../lib/db-batch"
 import { requireAuth } from "../middleware/require-auth"
 import {
   requireMembership,
@@ -152,18 +153,17 @@ purchasesRoute.get("/", async (c) => {
     .orderBy(desc(schema.purchases.createdAt))
 
   const ids = rows.map((r) => r.id)
-  const agregats =
-    ids.length > 0
-      ? await db
-          .select({
-            purchaseId: schema.purchaseItems.purchaseId,
-            itemCount: sql<number>`COUNT(*)`,
-            totalCost: sql<number>`COALESCE(SUM(${schema.purchaseItems.quantity} * ${schema.purchaseItems.unitCost}), 0)`,
-          })
-          .from(schema.purchaseItems)
-          .where(inArray(schema.purchaseItems.purchaseId, ids))
-          .groupBy(schema.purchaseItems.purchaseId)
-      : []
+  const agregats = await requeterParLots(ids, (lot) =>
+    db
+      .select({
+        purchaseId: schema.purchaseItems.purchaseId,
+        itemCount: sql<number>`COUNT(*)`,
+        totalCost: sql<number>`COALESCE(SUM(${schema.purchaseItems.quantity} * ${schema.purchaseItems.unitCost}), 0)`,
+      })
+      .from(schema.purchaseItems)
+      .where(inArray(schema.purchaseItems.purchaseId, lot))
+      .groupBy(schema.purchaseItems.purchaseId)
+  )
   const purchases = rows.map((r) => {
     const agregat = agregats.find((a) => a.purchaseId === r.id)
     return {
