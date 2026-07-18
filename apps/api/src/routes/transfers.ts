@@ -11,6 +11,7 @@ import {
   transferReceiveSchema,
 } from "shared"
 import * as schema from "../db/schema"
+import { lirePagination } from "../lib/pagination"
 import { validerCorps } from "../lib/validation"
 import { estErreurDeclencheur } from "../lib/db-errors"
 import { entrepotExiste, varianteScope } from "../lib/org-scope"
@@ -119,20 +120,9 @@ transfersRoute.get("/", async (c) => {
   ) {
     return c.json({ code: "VALIDATION", message: "Statut invalide" }, 400)
   }
-  const limiteBrute = c.req.query("limit")
-  let limite: number | undefined
-  if (limiteBrute !== undefined) {
-    limite = Number(limiteBrute)
-    if (!Number.isInteger(limite) || limite < 1 || limite > 200) {
-      return c.json(
-        {
-          code: "VALIDATION",
-          message: "limit doit être un entier entre 1 et 200",
-        },
-        400
-      )
-    }
-  }
+  const pagination = lirePagination(c)
+  if (pagination instanceof Response) return pagination
+  const { page, limite } = pagination
   const conditions: SQL[] = [
     eq(schema.transfers.organizationId, organizationId),
   ]
@@ -162,12 +152,18 @@ transfersRoute.get("/", async (c) => {
       schema.transfers.toWarehouseId
     )
     if (filtre.vide) {
-      return c.json({ transfers: [] })
+      return c.json({ transfers: [], total: 0, page, limite })
     }
     if (filtre.condition) {
       conditions.push(filtre.condition)
     }
   }
+
+  const totalRows = await db
+    .select({ total: sql<number>`COUNT(*)` })
+    .from(schema.transfers)
+    .where(and(...conditions))
+  const total = totalRows[0]?.total ?? 0
 
   const origine = alias(schema.warehouses, "origine")
   const destination = alias(schema.warehouses, "destination")
@@ -189,8 +185,9 @@ transfersRoute.get("/", async (c) => {
     .innerJoin(destination, eq(schema.transfers.toWarehouseId, destination.id))
     .where(and(...conditions))
     .orderBy(desc(schema.transfers.createdAt))
-    .$dynamic()
-  const rows = await (limite === undefined ? requete : requete.limit(limite))
+    .limit(limite)
+    .offset((page - 1) * limite)
+  const rows = await requete
 
   const ids = rows.map((r) => r.id)
   const agregats = await requeterParLots(ids, (lot) =>
@@ -212,7 +209,7 @@ transfersRoute.get("/", async (c) => {
       totalQuantity: agregat?.totalQuantity ?? 0,
     }
   })
-  return c.json({ transfers })
+  return c.json({ transfers, total, page, limite })
 })
 
 transfersRoute.post("/", async (c) => {
