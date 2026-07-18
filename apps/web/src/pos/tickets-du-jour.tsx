@@ -6,6 +6,7 @@ import { fetchVente, fetchVentesDuJour } from "@/lib/pos-api"
 import { usePiegeFocus } from "@/lib/use-piege-focus"
 import type { VenteDetail } from "@/lib/pos-api"
 import { Button } from "@/components/ui/button"
+import { Pagination } from "@/components/ui/pagination"
 
 type Props = {
   storeId: string
@@ -23,7 +24,6 @@ export function TicketsDuJour({ storeId, onReimprimer, onFermer }: Props) {
   })
   const liste = ventes.data?.sales ?? []
   const total = ventes.data?.total ?? 0
-  const pages = Math.max(1, Math.ceil(total / 50))
   // Un rejet de fetchVente ne doit pas rester une promesse non gérée : le
   // caissier voit l'erreur et le bouton se désactive pendant le chargement.
   const reimpression = useMutation({
@@ -109,25 +109,15 @@ export function TicketsDuJour({ storeId, onReimprimer, onFermer }: Props) {
             )
           })}
         </div>
-        {pages > 1 && (
-          <div className="flex items-center justify-between border-t px-5 py-2 text-sm">
-            <Button
-              variant="outline"
-              disabled={page <= 1}
-              onClick={() => setPage((p) => p - 1)}
-            >
-              Précédent
-            </Button>
-            <span className="text-muted-foreground">
-              Page {page} / {pages} — {total} tickets
-            </span>
-            <Button
-              variant="outline"
-              disabled={page >= pages}
-              onClick={() => setPage((p) => p + 1)}
-            >
-              Suivant
-            </Button>
+        {liste.length > 0 && (
+          <div className="border-t px-5 py-2">
+            <Pagination
+              page={page}
+              total={total}
+              pageSize={50}
+              onPageChange={setPage}
+              element={{ un: "ticket", plusieurs: "tickets" }}
+            />
           </div>
         )}
       </div>
