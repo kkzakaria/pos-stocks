@@ -17,14 +17,16 @@ export interface ClientApi {
 export async function connecter(
   baseUrl: string,
   email: string,
-  password: string
+  password: string,
+  origin: string
 ): Promise<ClientApi> {
   const reponse = await fetch(`${baseUrl}/api/auth/sign-in/email`, {
     method: "POST",
     headers: {
       "content-type": "application/json",
-      // Le seul WEB_ORIGIN de confiance en dev local (auth.ts trustedOrigins).
-      origin: "http://localhost:3000",
+      // Web origin configured as trustedOrigins in auth.ts (differs by environment:
+      // dev local = http://localhost:3000, prod = https://pos-stocks-web.koffiz2110.workers.dev).
+      origin,
     },
     body: JSON.stringify({ email, password }),
   })
