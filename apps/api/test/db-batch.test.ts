@@ -22,24 +22,24 @@ describe("requeterParLots", () => {
     expect(resultat).toEqual([{ id: "a" }, { id: "b" }, { id: "c" }])
   })
 
-  it("découpe en lots de 100 au maximum et concatène les résultats dans l'ordre", async () => {
+  it("découpe en lots de 90 au maximum et concatène les résultats dans l'ordre", async () => {
     const ids = Array.from({ length: 250 }, (_, i) => `id-${i}`)
     const taillesLots: number[] = []
     const resultat = await requeterParLots(ids, async (lot) => {
       taillesLots.push(lot.length)
       return lot.map((id) => ({ id }))
     })
-    expect(taillesLots).toEqual([100, 100, 50])
+    expect(taillesLots).toEqual([90, 90, 70])
     expect(resultat).toEqual(ids.map((id) => ({ id })))
   })
 
   it("gère exactement un multiple de la taille de lot sans lot vide final", async () => {
-    const ids = Array.from({ length: 200 }, (_, i) => `id-${i}`)
+    const ids = Array.from({ length: 180 }, (_, i) => `id-${i}`)
     const taillesLots: number[] = []
     await requeterParLots(ids, async (lot) => {
       taillesLots.push(lot.length)
       return []
     })
-    expect(taillesLots).toEqual([100, 100])
+    expect(taillesLots).toEqual([90, 90])
   })
 })

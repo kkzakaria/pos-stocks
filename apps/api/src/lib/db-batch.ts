@@ -1,11 +1,14 @@
-// SQLite/D1 limite le nombre de variables liées par requête préparée
-// (observé : crash « too many SQL variables » sur GET /products à 720
-// lignes, cf. docs/superpowers/specs/2026-07-18-inarray-lots-design.md).
-// Un inArray() alimenté par une liste non bornée (résultat d'une liste
-// non paginée, par exemple) peut dépasser cette limite une fois le volume
-// de données réel atteint. Ce helper découpe l'appel en lots sûrs et
-// concatène les résultats.
-const TAILLE_LOT_MAX = 100
+// D1 caps a query at 100 bound parameters ("too many SQL variables", observed
+// crashing GET /products at 720 rows — see
+// docs/superpowers/specs/2026-07-18-inarray-lots-design.md). An inArray() fed by
+// an unbounded list can exceed that cap once real data volume is reached. This
+// helper splits the call into safe batches and concatenates the results.
+//
+// The batch is capped BELOW 100 so the surrounding query keeps room for its own
+// bound parameters: e.g. GET /products binds an extra organizationId alongside
+// the inArray, so a full 100-id batch would total 101 and still crash. 90 leaves
+// 10 parameters of headroom for every current call site.
+const TAILLE_LOT_MAX = 90
 
 export async function requeterParLots<T>(
   ids: string[],

@@ -9,6 +9,7 @@ import {
 import * as schema from "../db/schema"
 import { validerCorps } from "../lib/validation"
 import { estViolationUnicite } from "../lib/db-errors"
+import { requeterParLots } from "../lib/db-batch"
 import { barcodeDejaUtilise } from "../lib/barcode"
 import { genererSkuProduit, genererSkuVariante } from "../lib/sku"
 import { categorieExiste, produitScope } from "../lib/org-scope"
@@ -75,20 +76,21 @@ productsRoute.get("/", async (c) => {
     .where(and(...conditions))
     .orderBy(asc(schema.products.name))
   const idsProduits = produits.map((p) => p.id)
-  // inArray([]) génère un SQL invalide : garde explicite (même motif que
-  // GET /:id) — évite aussi de charger les variantes de tout l'org.
-  const variantes =
-    idsProduits.length > 0
-      ? await db
-          .select()
-          .from(schema.productVariants)
-          .where(
-            and(
-              eq(schema.productVariants.organizationId, organizationId),
-              inArray(schema.productVariants.productId, idsProduits)
-            )
-          )
-      : []
+  // Batched: idsProduits is unbounded (every product in the list), so a plain
+  // inArray exceeds SQLite/D1's bound-variable cap on large catalogs (observed
+  // crash at 720 products). requeterParLots also handles the empty case, so the
+  // former inArray([]) guard is no longer needed here.
+  const variantes = await requeterParLots(idsProduits, (lot) =>
+    db
+      .select()
+      .from(schema.productVariants)
+      .where(
+        and(
+          eq(schema.productVariants.organizationId, organizationId),
+          inArray(schema.productVariants.productId, lot)
+        )
+      )
+  )
   const products = produits.map((p) => ({
     ...p,
     variants: variantes.filter((v) => v.productId === p.id),

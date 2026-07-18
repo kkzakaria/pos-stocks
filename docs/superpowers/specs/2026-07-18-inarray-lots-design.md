@@ -20,12 +20,18 @@ non borné (tous les produits de l'organisation), ce qui dépasse la limite
 de variables liées par requête de SQLite/D1 une fois le volume de données
 réel atteint.
 
-**Décision de cadrage** : `products.ts` (lignes 51/88/118) est **explicitement
-exclu** de ce fix — une branche locale (`feat/pagination-composant-partage`,
-PR #17) traite déjà l'issue #13, dont le périmètre inclut la pagination
-serveur de `GET /api/v1/products`. Toucher ce fichier créerait un risque de
-conflit avec ce travail en cours. Ce fix se limite aux **autres**
-emplacements du même défaut, non couverts par un travail en cours.
+**Correction (reprise du fix)** : `products.ts:88` — la source exacte du crash —
+est **inclus** dans ce fix. L'hypothèse initiale (« PR #17 couvre déjà la
+pagination serveur de `GET /products` ») était erronée : PR #17 (issue #13,
+sous-projet A) était **web-only** (composant de pagination + refactos), elle n'a
+ajouté aucune pagination serveur. La pagination serveur des listes reste
+l'objet du sous-projet B (non démarré) ; en attendant, le découpage en lots est
+la seule protection contre le crash — et reste utile en défense en profondeur
+même après pagination (une taille de page > 90 dépasserait encore la limite).
+Sur les trois `inArray` de `products.ts` : seul le **88** (variantes de tous les
+produits listés, tableau JS non borné) est batché ; le **51** est une
+sous-requête (`IN (SELECT …)`, aucune variable liée en masse) et le **118** est
+borné par les variantes d'un seul produit — tous deux sûrs, non touchés.
 
 ## 2. Audit des emplacements à risque
 
@@ -52,10 +58,17 @@ une liste littérale fixe) — non touchés par ce fix.
 
 **Helper générique** `requeterParLots` (nouveau fichier
 `apps/api/src/lib/db-batch.ts`) : découpe un tableau d'identifiants en
-lots d'au plus 100 (marge de sécurité sous la limite de variables SQLite/D1),
-exécute la requête fournie par l'appelant pour chaque lot, concatène les
-résultats. Retourne `[]` immédiatement si le tableau est vide — remplace
-la garde `ids.length > 0 ? … : []` dupliquée à chaque site aujourd'hui.
+lots d'au plus **90**, exécute la requête fournie par l'appelant pour chaque
+lot, concatène les résultats. Retourne `[]` immédiatement si le tableau est
+vide — remplace la garde `ids.length > 0 ? … : []` dupliquée à chaque site.
+
+**Taille de lot = 90, pas 100** : D1 plafonne une requête à **100 paramètres
+liés**. Le lot est donc capé SOUS 100 pour laisser de la place aux autres
+paramètres liés de la requête englobante — `GET /products` lie un
+`organizationId` en plus de l'`inArray`, si bien qu'un lot plein de 100 ids
+totaliserait 101 et crasherait encore. 90 laisse 10 paramètres de marge pour
+tous les sites d'appel actuels (vérifié empiriquement par un test de régression
+qui semait > 90 produits et reproduisait le crash à 100).
 
 ```ts
 export async function requeterParLots<T>(
@@ -96,7 +109,8 @@ généreuse).
 
 ## 4. Hors périmètre
 
-- `apps/api/src/routes/products.ts` (lignes 51, 88, 118) — exclu, cf. §1.
+- `apps/api/src/routes/products.ts:88` — **inclus** (source du crash), cf. §1 ;
+  les sites 51 (sous-requête) et 118 (borné) restent sûrs et non touchés.
 - `apps/api/src/routes/inventory-counts.ts:553` classé « à surveiller »
   plutôt que confirmé RISQUÉ — inclus quand même par décision utilisateur
   (coût marginal nul, même helper).
