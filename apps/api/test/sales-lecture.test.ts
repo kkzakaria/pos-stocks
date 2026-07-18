@@ -136,17 +136,32 @@ describe("lecture des ventes", () => {
     expect(res.status).toBe(400)
   })
 
-  it("store hors organisation + paramètres exclusifs → 403 (accès avant validation)", async () => {
+  it("store d'une AUTRE organisation + paramètres exclusifs → 403 (accès avant validation)", async () => {
     const { ownerCookie } = await seedAvecVente()
-    // Out-of-org storeId combined with jour+du/au: the cross-tenant guard
-    // (invariant #7) must win. verifierAccesEntrepot returns 403 ACCES_REFUSE
-    // for a warehouse outside the org (without revealing its existence), never
-    // the 400 exclusivity validation that, without the access check at the top
-    // of the route, would leak first.
+    // A REAL warehouse owned by a second organization, inserted directly, so the
+    // test exercises the actual cross-tenant branch of verifierAccesEntrepot
+    // (warehouse exists but belongs to another org) rather than a missing id.
+    const db = drizzle(env.DB, { schema })
+    const autreOrgId = crypto.randomUUID()
+    await db.insert(schema.organization).values({
+      id: autreOrgId,
+      name: "Autre Société",
+      slug: "autre-org",
+      createdAt: new Date(),
+    })
+    const autreStore = await creerEntrepot(
+      autreOrgId,
+      "Boutique autre org",
+      "store"
+    )
+    // The org-1 owner querying an org-2 store with jour+du/au: the cross-tenant
+    // guard (invariant #7) must win with 403 ACCES_REFUSE (without revealing the
+    // store's existence), never the 400 exclusivity validation that, without the
+    // access check at the top of the route, would leak first.
     const res = await req(
       ownerCookie,
       "GET",
-      `/api/v1/sales?storeId=${crypto.randomUUID()}&jour=${JOUR}&du=${JOUR}&au=${JOUR}`
+      `/api/v1/sales?storeId=${autreStore}&jour=${JOUR}&du=${JOUR}&au=${JOUR}`
     )
     expect(res.status).toBe(403)
     expect((await res.json<{ code: string }>()).code).toBe("ACCES_REFUSE")
