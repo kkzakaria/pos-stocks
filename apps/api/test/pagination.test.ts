@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest"
 import type { Context } from "hono"
 import { lirePagination } from "../src/lib/pagination"
 
-// Contexte minimal : lirePagination n'utilise que c.req.query() et c.json().
+// Minimal context: lirePagination only uses c.req.query() and c.json().
 function contexteFactice(query: Record<string, string>): Context {
   return {
     req: { query: (cle: string) => query[cle] },

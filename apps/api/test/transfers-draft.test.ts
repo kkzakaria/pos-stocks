@@ -487,7 +487,7 @@ describe("GET /api/v1/transfers — pagination", () => {
   it("isolation : un transfert hors portée du demandeur n'est compté ni dans total ni dans les pages", async () => {
     const { organizationId, ownerCookie, origineId, destinationId } =
       await seed()
-    // Transfert DANS la portée du futur manager (origine)
+    // Transfer WITHIN the future manager's scope (origin)
     const creation = await req(ownerCookie, "POST", "/api/v1/transfers", {
       fromWarehouseId: origineId,
       toWarehouseId: destinationId,
@@ -495,7 +495,7 @@ describe("GET /api/v1/transfers — pagination", () => {
     expect(creation.status).toBe(201)
     const { id } = await creation.json<{ id: string }>()
 
-    // Transfert entre deux AUTRES entrepôts, hors portée du manager ci-dessous
+    // Transfer between two OTHER warehouses, outside the manager's scope below
     const autreOrigine = await creerEntrepot(organizationId, "Autre origine")
     const autreDestination = await creerEntrepot(
       organizationId,

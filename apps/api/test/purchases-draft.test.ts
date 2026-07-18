@@ -377,8 +377,8 @@ describe("réceptions fournisseur — liste à grande échelle", () => {
       await db.batch([premiere, ...reste])
     }
 
-    // limite=200 (max autorisé) : dépasse NB_RECEPTIONS pour éviter que la
-    // pagination (limite par défaut 50) ne tronque la régression testée ici.
+    // limite=200 (max allowed): exceeds NB_RECEPTIONS so that pagination
+    // (default limit 50) does not truncate the regression under test here.
     const liste = await req(ownerCookie, "GET", "/api/v1/purchases?limite=200")
     expect(liste.status).toBe(200)
     const { purchases } = await liste.json<{
@@ -458,8 +458,8 @@ describe("GET /api/v1/purchases — pagination", () => {
       ).status
     ).toBe(201)
 
-    // Seconde organisation avec sa propre réception (insert direct, motif de
-    // products.test.ts « isolation »).
+    // Second organization with its own reception (direct insert, same reason
+    // as products.test.ts's "isolation").
     const db = drizzle(env.DB, { schema })
     const autreOrgId = crypto.randomUUID()
     await db.insert(schema.organization).values({
