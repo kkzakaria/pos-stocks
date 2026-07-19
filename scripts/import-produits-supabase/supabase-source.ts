@@ -95,7 +95,11 @@ export function lireInventaire(workdir?: string): LigneInventaireSource[] {
     requeter(
       "select pt.sku as sku, pi.store_id as store_id, pi.quantity as quantity, pt.cost as cost " +
         "from product_inventory pi join product_templates pt on pt.id = pi.product_id " +
-        "where pi.quantity > 0",
+        "where pi.quantity > 0 " +
+        // Deterministic order: chunk boundaries (and thus the resume-by-chunk
+        // -index journal) must be stable across runs, so a crashed run resumes
+        // on identical chunks. Without ORDER BY, Postgres row order is undefined.
+        "order by pt.sku, pi.store_id",
       workdir
     )
   )

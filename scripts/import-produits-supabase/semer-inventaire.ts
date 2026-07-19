@@ -48,13 +48,21 @@ function lireOptions(argv: string[]): OptionsCli {
       "dry-run": { type: "boolean", default: false },
     },
   })
+  const tailleLot = Number(values["taille-lot"])
+  // Guard operator input: a non-numeric or out-of-range value would make
+  // chunk() loop forever (i += NaN) or exceed the D1 batch limit (>100).
+  if (!Number.isInteger(tailleLot) || tailleLot < 1 || tailleLot > 100) {
+    throw new Error(
+      `--taille-lot invalide : ${values["taille-lot"]} (entier attendu entre 1 et 100)`
+    )
+  }
   return {
     apiUrl: values["api-url"],
     webOrigin: values["web-origin"],
     journalMagasins: values["journal-magasins"],
     journal: values.journal,
     supabaseWorkdir: values["supabase-workdir"],
-    tailleLot: Number(values["taille-lot"]),
+    tailleLot,
     dryRun: values["dry-run"],
   }
 }
@@ -114,7 +122,14 @@ async function recupererProduits(client: ClientApi): Promise<ProduitApi[]> {
       limite: number
     }>(client, "GET", `/api/v1/products?page=${page}&limite=${limite}`)
     produits.push(...donnees.products)
-    if (donnees.products.length === 0 || produits.length >= donnees.total) {
+    // Terminate on any of: empty page, collected >= total, or a short page
+    // (< limite). The last guard is defensive — it stops even if the server
+    // ever omits/!honors `total`, so a non-paginated /products can't loop.
+    if (
+      donnees.products.length === 0 ||
+      donnees.products.length < limite ||
+      produits.length >= donnees.total
+    ) {
       break
     }
     page += 1
@@ -126,6 +141,43 @@ interface RapportMagasin {
   items: number
   quantite: number
   receptions: number
+}
+
+/**
+ * Collects the references of a warehouse's already-received opening-stock
+ * receipts. A chunk received on a previous run whose journal write was lost in
+ * the receive↔write gap is then recognized by its (per-warehouse unique)
+ * reference and never re-seeded.
+ */
+async function recupererReferencesRecues(
+  client: ClientApi,
+  warehouseId: string
+): Promise<Set<string>> {
+  const references = new Set<string>()
+  const limite = 200
+  let page = 1
+  for (;;) {
+    const { donnees } = await requeteJson<{
+      purchases: Array<{ reference: string | null }>
+      total: number
+    }>(
+      client,
+      "GET",
+      `/api/v1/purchases?warehouseId=${warehouseId}&statut=received&page=${page}&limite=${limite}`
+    )
+    for (const achat of donnees.purchases) {
+      if (achat.reference !== null) references.add(achat.reference)
+    }
+    if (
+      donnees.purchases.length === 0 ||
+      donnees.purchases.length < limite ||
+      page * limite >= donnees.total
+    ) {
+      break
+    }
+    page += 1
+  }
+  return references
 }
 
 /**
@@ -153,6 +205,11 @@ async function traiterMagasin(
   // the possible absence explicit for eslint/TS.
   const dejaValides =
     (journalInventaire[warehouseId] as number | undefined) ?? 0
+  // Idempotency across the receive↔journal-write gap: references of this
+  // warehouse's chunks already received on a prior run, fetched once.
+  const referencesRecues = dryRun
+    ? new Set<string>()
+    : await recupererReferencesRecues(client, warehouseId)
   const rapport: RapportMagasin = { items: 0, quantite: 0, receptions: 0 }
 
   for (let k = 0; k < lots.length; k += 1) {
@@ -160,6 +217,7 @@ async function traiterMagasin(
 
     const lot = lots[k]
     const quantiteLot = lot.reduce((somme, item) => somme + item.quantity, 0)
+    const reference = `Stock initial Supabase (lot ${k + 1})`
 
     if (dryRun) {
       console.log(
@@ -171,7 +229,14 @@ async function traiterMagasin(
       continue
     }
 
-    const reference = `Stock initial Supabase (lot ${k + 1})`
+    // Chunk already received on a prior run (journal write lost after
+    // receive) — advance the journal and skip re-seeding to avoid double count.
+    if (referencesRecues.has(reference)) {
+      journalInventaire[warehouseId] = k + 1
+      ecrireJsonAtomique(cheminJournal, journalInventaire)
+      continue
+    }
+
     const achat = await requeteJson<{
       id?: string
       code?: string
