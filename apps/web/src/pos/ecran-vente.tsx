@@ -22,6 +22,7 @@ import {
   charger,
   enregistrer,
   purger,
+  revaliderPanier,
 } from "@/lib/panier-persistance"
 import {
   envoyerVente,
@@ -127,6 +128,26 @@ export function EcranVente({ me, boutique, session, onSessionFermee }: Props) {
       majA: new Date().toISOString(),
     })
   }, [cle, lignes, panierVerrouille])
+
+  // One-shot revalidation of a RESTORED cart, run when the catalogue first
+  // arrives. The ref guard means a cart typed normally is never revalidated
+  // and later catalogue refetches never replay it.
+  const aRevalider = useRef((etatRestaure?.lignes.length ?? 0) > 0)
+  const [resumeRestauration, setResumeRestauration] = useState<{
+    retirees: number
+    prixModifies: number
+  } | null>(null)
+  useEffect(() => {
+    if (!aRevalider.current || !catalogue.isSuccess) return
+    aRevalider.current = false
+    const resultat = revaliderPanier(lignes, articles)
+    if (resultat.retirees === 0 && resultat.prixModifies === 0) return
+    setLignes(resultat.lignes)
+    setResumeRestauration({
+      retirees: resultat.retirees,
+      prixModifies: resultat.prixModifies,
+    })
+  }, [catalogue.isSuccess, articles, lignes])
 
   const ligneDe = (refLigne: CleLigne | null): LignePanier | null =>
     refLigne
@@ -373,7 +394,28 @@ export function EcranVente({ me, boutique, session, onSessionFermee }: Props) {
             <GrilleArticles articles={filtres} onChoisir={ajouterAuPanier} />
           )}
         </section>
-        <div className="flex w-96 shrink-0">
+        <div className="flex w-96 shrink-0 flex-col">
+          {resumeRestauration && (
+            <div
+              role="status"
+              className="mb-2 flex items-start justify-between gap-2 rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-xs"
+            >
+              <p>
+                Panier restauré
+                {resumeRestauration.retirees > 0 &&
+                  ` — ${resumeRestauration.retirees} article(s) retiré(s)`}
+                {resumeRestauration.prixModifies > 0 &&
+                  ` — ${resumeRestauration.prixModifies} prix modifié(s)`}
+              </p>
+              <button
+                type="button"
+                className="shrink-0 font-medium underline"
+                onClick={() => setResumeRestauration(null)}
+              >
+                Fermer
+              </button>
+            </div>
+          )}
           <Panier
             lignes={lignes}
             verrouille={panierVerrouille}

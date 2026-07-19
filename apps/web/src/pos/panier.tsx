@@ -164,7 +164,8 @@ export function Panier({
               key={cle}
               className={cn(
                 "border-b px-3 py-2.5",
-                ligne.enAlerte && "bg-destructive/10"
+                ligne.enAlerte && "bg-destructive/10",
+                !ligne.enAlerte && ligne.prixModifie && "bg-warning/10"
               )}
             >
               <div className="flex items-start gap-2">
@@ -330,6 +331,11 @@ export function Panier({
               {ligne.enAlerte && (
                 <p className="mt-1 text-xs font-semibold text-destructive">
                   Stock insuffisant
+                </p>
+              )}
+              {ligne.prixModifie && (
+                <p className="mt-1 text-xs font-semibold text-warning">
+                  Prix catalogue modifié depuis la mise au panier
                 </p>
               )}
             </li>

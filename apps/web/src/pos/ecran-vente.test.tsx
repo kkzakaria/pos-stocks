@@ -515,4 +515,58 @@ describe("EcranVente — persistance du panier", () => {
       expect(stocke.lignes[0].quantite).toBe(1)
     })
   })
+
+  function panierStocke(quantite: number, prixCatalogue: number) {
+    return JSON.stringify({
+      v: 1,
+      lignes: [
+        {
+          variantId: "v1",
+          nom: "Coca 50cl",
+          sku: "SKU1",
+          imageKey: null,
+          quantite,
+          prixUnitaire: 500,
+          prixCatalogue,
+          prixPlancher: null,
+          sourceWarehouseId: null,
+          sourceNom: null,
+          enAlerte: false,
+        },
+      ],
+      requestId: "req-1",
+      verrouille: false,
+      majA: "2026-07-19T10:00:00.000Z",
+    })
+  }
+
+  it("signale un prix catalogue modifié depuis la mise au panier", async () => {
+    // Stocké à 450, catalogue à 500 → 1 prix modifié, 0 retrait.
+    localStorage.setItem(CLE, panierStocke(1, 450))
+    renderEcran()
+    expect(await screen.findByText(/Panier restauré/)).toBeTruthy()
+    expect(screen.getByText(/1 prix modifié/)).toBeTruthy()
+  })
+
+  it("retire une ligne dont l'article a disparu du catalogue", async () => {
+    vi.spyOn(posApi, "fetchCataloguePos").mockResolvedValue({
+      articles: [],
+      categories: [],
+    })
+    localStorage.setItem(CLE, panierStocke(1, 500))
+    renderEcran()
+    expect(await screen.findByText(/Panier restauré/)).toBeTruthy()
+    expect(screen.getByText(/1 article\(s\) retiré/)).toBeTruthy()
+    // Discriminant : plus aucune LIGNE de panier pour cet article.
+    expect(
+      screen.queryByRole("button", { name: "Retirer Coca 50cl" })
+    ).toBeNull()
+  })
+
+  it("n'affiche aucun bandeau si rien n'a changé", async () => {
+    localStorage.setItem(CLE, panierStocke(1, 500))
+    renderEcran()
+    await screen.findByRole("button", { name: /^Coca 50cl/ })
+    expect(screen.queryByText(/Panier restauré/)).toBeNull()
+  })
 })
