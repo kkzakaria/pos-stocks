@@ -126,6 +126,20 @@ describe("panier-persistance", () => {
     vi.unstubAllGlobals()
   })
 
+  it("absorbe un rejet de navigator.locks.request sans rejeter", async () => {
+    // `request()` can reject (SecurityError, AbortError…). These calls are
+    // fire-and-forget from the sale screen, so a rejection must never escape.
+    const verrous = {
+      request: () => Promise.reject(new Error("SecurityError")),
+    }
+    vi.stubGlobal("navigator", { ...globalThis.navigator, locks: verrous })
+
+    await expect(enregistrer("k", etat)).resolves.toBeUndefined()
+    await expect(purger("k", etat.requestId)).resolves.toBeUndefined()
+
+    vi.unstubAllGlobals()
+  })
+
   it("ne persiste RIEN si l'API Web Locks est absente (fail-safe)", async () => {
     // No atomic cross-tab primitive means the anti-duplicate-sale guard cannot
     // hold, so persistence is disabled rather than run non-atomically.

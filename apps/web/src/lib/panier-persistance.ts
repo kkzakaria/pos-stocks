@@ -74,9 +74,17 @@ function supprimerBrut(cle: string): void {
 async function sousVerrou(cle: string, operation: () => void): Promise<void> {
   const verrous = globalThis.navigator.locks as LockManager | undefined
   if (verrous === undefined) return
-  await verrous.request(`pos:panier-lock:${cle}`, () => {
-    operation()
-  })
+  try {
+    await verrous.request(`pos:panier-lock:${cle}`, () => {
+      operation()
+    })
+  } catch {
+    // `request()` itself can reject (SecurityError on an opaque origin,
+    // InvalidStateError, AbortError…). These calls are fire-and-forget from the
+    // sale screen, so an unhandled rejection must never surface: skip the write,
+    // exactly as when the API is missing. Persistence is a convenience and is
+    // never a reason to disturb the till.
+  }
 }
 
 /**
