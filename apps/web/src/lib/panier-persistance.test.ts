@@ -39,66 +39,115 @@ describe("panier-persistance", () => {
     expect(clePanier("store1", "sess1")).toBe("pos:panier:store1:sess1")
   })
 
-  it("round-trip : prix négocié et dépannage survivent à l'identique", () => {
-    enregistrer("k", etat)
+  it("round-trip : prix négocié et dépannage survivent à l'identique", async () => {
+    await enregistrer("k", etat)
     expect(charger("k")).toEqual(etat)
   })
 
-  it("renvoie null si rien n'est stocké", () => {
+  it("renvoie null si rien n'est stocké", async () => {
     expect(charger("k")).toBeNull()
   })
 
-  it("purge et renvoie null sur une version inconnue", () => {
+  it("purge et renvoie null sur une version inconnue", async () => {
     localStorage.setItem("k", JSON.stringify({ ...etat, v: 2 }))
     expect(charger("k")).toBeNull()
     expect(localStorage.getItem("k")).toBeNull()
   })
 
-  it("purge et renvoie null sur un JSON illisible", () => {
+  it("purge et renvoie null sur un JSON illisible", async () => {
     localStorage.setItem("k", "{pas du json")
     expect(charger("k")).toBeNull()
     expect(localStorage.getItem("k")).toBeNull()
   })
 
-  it("purger supprime l'entrée", () => {
-    enregistrer("k", etat)
-    purger("k")
+  it("purger supprime l'entrée", async () => {
+    await enregistrer("k", etat)
+    await purger("k")
     expect(localStorage.getItem("k")).toBeNull()
   })
 
-  it("n'écrase pas un panier verrouillé d'un AUTRE onglet/requestId", () => {
+  it("n'écrase pas un panier verrouillé d'un AUTRE onglet/requestId", async () => {
     const verrouilleAutreOnglet: PanierPersiste = {
       ...etat,
       verrouille: true,
       requestId: "req-onglet-a",
     }
-    enregistrer("k", verrouilleAutreOnglet)
+    await enregistrer("k", verrouilleAutreOnglet)
     // Tab B has a DIFFERENT requestId: the write is refused so tab A's lock
     // (and its idempotency key) survives intact.
-    enregistrer("k", { ...etat, verrouille: false, requestId: "req-onglet-b" })
+    await enregistrer("k", {
+      ...etat,
+      verrouille: false,
+      requestId: "req-onglet-b",
+    })
     expect(charger("k")).toEqual(verrouilleAutreOnglet)
   })
 
-  it("purger ne supprime pas un panier verrouillé d'un AUTRE requestId", () => {
+  it("purger ne supprime pas un panier verrouillé d'un AUTRE requestId", async () => {
     const verrouilleAutreOnglet: PanierPersiste = {
       ...etat,
       verrouille: true,
       requestId: "req-onglet-a",
     }
-    enregistrer("k", verrouilleAutreOnglet)
+    await enregistrer("k", verrouilleAutreOnglet)
     // Tab B empties its cart: it must NOT wipe tab A's locked entry, which is
     // the only thing preventing a duplicate sale on retry.
-    purger("k", "req-onglet-b")
+    await purger("k", "req-onglet-b")
     expect(charger("k")).toEqual(verrouilleAutreOnglet)
   })
 
-  it("purger supprime un panier verrouillé du MÊME requestId", () => {
-    enregistrer("k", { ...etat, verrouille: true, requestId: "req-onglet-a" })
-    purger("k", "req-onglet-a")
+  it("purger supprime un panier verrouillé du MÊME requestId", async () => {
+    await enregistrer("k", {
+      ...etat,
+      verrouille: true,
+      requestId: "req-onglet-a",
+    })
+    await purger("k", "req-onglet-a")
     expect(localStorage.getItem("k")).toBeNull()
   })
 
-  it("purge et renvoie null si une ligne n'a pas tous ses champs requis", () => {
+  it("sérialise l'écriture sous un verrou inter-onglets quand navigator.locks existe", async () => {
+    // jsdom n'implémente pas l'API Web Locks : on la simule pour prouver que
+    // le chemin atomique est bien emprunté (et non le repli inline).
+    const nomsDemandes: string[] = []
+    const verrous = {
+      request: async (nom: string, rappel: () => void): Promise<void> => {
+        nomsDemandes.push(nom)
+        rappel()
+      },
+    }
+    vi.stubGlobal("navigator", { ...globalThis.navigator, locks: verrous })
+
+    await enregistrer("k", etat)
+    await purger("k", etat.requestId)
+
+    expect(nomsDemandes).toEqual(["pos:panier-lock:k", "pos:panier-lock:k"])
+    expect(localStorage.getItem("k")).toBeNull()
+    vi.unstubAllGlobals()
+  })
+
+  it("garde le verrou d'un autre onglet même sous Web Locks", async () => {
+    const verrous = {
+      request: async (_nom: string, rappel: () => void): Promise<void> => {
+        rappel()
+      },
+    }
+    vi.stubGlobal("navigator", { ...globalThis.navigator, locks: verrous })
+
+    const verrouilleAutreOnglet: PanierPersiste = {
+      ...etat,
+      verrouille: true,
+      requestId: "req-onglet-a",
+    }
+    await enregistrer("k", verrouilleAutreOnglet)
+    await enregistrer("k", { ...etat, requestId: "req-onglet-b" })
+    await purger("k", "req-onglet-b")
+
+    expect(charger("k")).toEqual(verrouilleAutreOnglet)
+    vi.unstubAllGlobals()
+  })
+
+  it("purge et renvoie null si une ligne n'a pas tous ses champs requis", async () => {
     const { nom: _nom, ...ligneSansNom } = ligne
     localStorage.setItem(
       "k",
@@ -108,24 +157,24 @@ describe("panier-persistance", () => {
     expect(localStorage.getItem("k")).toBeNull()
   })
 
-  it("autorise l'écrasement d'un panier verrouillé par le MÊME requestId (le même onglet résout son propre verrou)", () => {
+  it("autorise l'écrasement d'un panier verrouillé par le MÊME requestId (le même onglet résout son propre verrou)", async () => {
     const verrouille: PanierPersiste = {
       ...etat,
       verrouille: true,
       requestId: "req-onglet-a",
     }
-    enregistrer("k", verrouille)
+    await enregistrer("k", verrouille)
     const resolu: PanierPersiste = {
       ...etat,
       verrouille: false,
       requestId: "req-onglet-a",
       lignes: [],
     }
-    enregistrer("k", resolu)
+    await enregistrer("k", resolu)
     expect(charger("k")).toEqual(resolu)
   })
 
-  it("purge et renvoie null si une ligne est corrompue (variantId non-string)", () => {
+  it("purge et renvoie null si une ligne est corrompue (variantId non-string)", async () => {
     localStorage.setItem(
       "k",
       JSON.stringify({
@@ -137,7 +186,7 @@ describe("panier-persistance", () => {
     expect(localStorage.getItem("k")).toBeNull()
   })
 
-  it("purge et renvoie null si une ligne a une quantité non finie", () => {
+  it("purge et renvoie null si une ligne a une quantité non finie", async () => {
     localStorage.setItem(
       "k",
       JSON.stringify({
@@ -149,7 +198,7 @@ describe("panier-persistance", () => {
     expect(localStorage.getItem("k")).toBeNull()
   })
 
-  it("purge et renvoie null si une ligne a un prixUnitaire non finie", () => {
+  it("purge et renvoie null si une ligne a un prixUnitaire non finie", async () => {
     localStorage.setItem(
       "k",
       JSON.stringify({
@@ -161,7 +210,7 @@ describe("panier-persistance", () => {
     expect(localStorage.getItem("k")).toBeNull()
   })
 
-  it("ne lève jamais si localStorage est indisponible", () => {
+  it("ne lève jamais si localStorage est indisponible", async () => {
     vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
       throw new Error("indisponible")
     })

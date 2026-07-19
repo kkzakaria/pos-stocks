@@ -119,10 +119,12 @@ export function EcranVente({ me, boutique, session, onSessionFermee }: Props) {
     if (lignes.length === 0) {
       // Pass our own key: an empty cart here must not wipe another tab's
       // locked (ambiguous) entry, which guards against a duplicate sale.
-      purger(cle, requestId.current)
+      // Fire-and-forget: the write runs under a cross-tab lock (async), and
+      // nothing in this render path depends on its completion.
+      void purger(cle, requestId.current)
       return
     }
-    enregistrer(cle, {
+    void enregistrer(cle, {
       v: 1,
       lignes,
       requestId: requestId.current,

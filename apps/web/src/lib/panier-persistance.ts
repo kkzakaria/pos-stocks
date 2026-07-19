@@ -30,7 +30,7 @@ export function charger(cle: string): PanierPersiste | null {
   try {
     donnees = JSON.parse(brut)
   } catch {
-    purger(cle)
+    supprimerBrut(cle)
     return null
   }
   if (
@@ -43,10 +43,39 @@ export function charger(cle: string): PanierPersiste | null {
     typeof (donnees as { majA?: unknown }).majA !== "string" ||
     !(donnees as { lignes: unknown[] }).lignes.every(ligneValide)
   ) {
-    purger(cle)
+    supprimerBrut(cle)
     return null
   }
   return donnees as PanierPersiste
+}
+
+/**
+ * Unconditional delete, used for corrupted payloads: they carry no meaningful
+ * lock state, so they need neither the guard nor the cross-tab lock.
+ */
+function supprimerBrut(cle: string): void {
+  try {
+    localStorage.removeItem(cle)
+  } catch {
+    // Never crash the till screen on a storage failure.
+  }
+}
+
+/**
+ * Runs a read-modify-write on the stored cart under a cross-tab lock, so two
+ * tabs cannot interleave between the guard's read and its write. Falls back to
+ * running inline where the Web Locks API is missing (older browsers, jsdom in
+ * tests): the guard still applies, only its atomicity is lost.
+ */
+async function sousVerrou(cle: string, operation: () => void): Promise<void> {
+  const verrous = globalThis.navigator.locks as LockManager | undefined
+  if (verrous === undefined) {
+    operation()
+    return
+  }
+  await verrous.request(`pos:panier-lock:${cle}`, () => {
+    operation()
+  })
 }
 
 /**
@@ -77,23 +106,28 @@ function ligneValide(ligne: unknown): boolean {
   )
 }
 
-export function enregistrer(cle: string, etat: PanierPersiste): void {
-  try {
-    // Never clobber another tab's AMBIGUOUS (locked) cart: its requestId is
-    // the only thing standing between a retry and a duplicate sale.
-    const existant = charger(cle)
-    if (
-      existant !== null &&
-      existant.verrouille &&
-      existant.requestId !== etat.requestId
-    ) {
-      return
+export async function enregistrer(
+  cle: string,
+  etat: PanierPersiste
+): Promise<void> {
+  await sousVerrou(cle, () => {
+    try {
+      // Never clobber another tab's AMBIGUOUS (locked) cart: its requestId is
+      // the only thing standing between a retry and a duplicate sale.
+      const existant = charger(cle)
+      if (
+        existant !== null &&
+        existant.verrouille &&
+        existant.requestId !== etat.requestId
+      ) {
+        return
+      }
+      localStorage.setItem(cle, JSON.stringify(etat))
+    } catch {
+      // Storage unavailable (private mode) or quota exceeded: degrade silently
+      // to the in-memory behaviour rather than crashing the till screen.
     }
-    localStorage.setItem(cle, JSON.stringify(etat))
-  } catch {
-    // Storage unavailable (private mode) or quota exceeded: degrade silently
-    // to the in-memory behaviour rather than crashing the till screen.
-  }
+  })
 }
 
 /**
@@ -103,22 +137,27 @@ export function enregistrer(cle: string, etat: PanierPersiste): void {
  * another tab depends on to avoid a duplicate sale. Called without it (the
  * corrupted-payload path in `charger`) the deletion is unconditional.
  */
-export function purger(cle: string, requestIdAttendu?: string): void {
-  try {
-    if (requestIdAttendu !== undefined) {
-      const existant = charger(cle)
-      if (
-        existant !== null &&
-        existant.verrouille &&
-        existant.requestId !== requestIdAttendu
-      ) {
-        return
+export async function purger(
+  cle: string,
+  requestIdAttendu?: string
+): Promise<void> {
+  await sousVerrou(cle, () => {
+    try {
+      if (requestIdAttendu !== undefined) {
+        const existant = charger(cle)
+        if (
+          existant !== null &&
+          existant.verrouille &&
+          existant.requestId !== requestIdAttendu
+        ) {
+          return
+        }
       }
+      localStorage.removeItem(cle)
+    } catch {
+      // Same rationale as enregistrer: never crash on storage failure.
     }
-    localStorage.removeItem(cle)
-  } catch {
-    // Same rationale as enregistrer: never crash on storage failure.
-  }
+  })
 }
 
 export interface ResultatRevalidation {
