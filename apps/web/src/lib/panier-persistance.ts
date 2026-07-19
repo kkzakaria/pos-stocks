@@ -63,16 +63,17 @@ function supprimerBrut(cle: string): void {
 
 /**
  * Runs a read-modify-write on the stored cart under a cross-tab lock, so two
- * tabs cannot interleave between the guard's read and its write. Falls back to
- * running inline where the Web Locks API is missing (older browsers, jsdom in
- * tests): the guard still applies, only its atomicity is lost.
+ * tabs cannot interleave between the guard's read and its write.
+ *
+ * Without the Web Locks API, persistence is DISABLED rather than run
+ * non-atomically: the guard that stops one tab from clobbering another tab's
+ * ambiguous (locked) cart could not hold, and its failure mode is a duplicate
+ * sale — the customer charged twice. Losing the convenience of a restored cart
+ * is the lesser harm.
  */
 async function sousVerrou(cle: string, operation: () => void): Promise<void> {
   const verrous = globalThis.navigator.locks as LockManager | undefined
-  if (verrous === undefined) {
-    operation()
-    return
-  }
+  if (verrous === undefined) return
   await verrous.request(`pos:panier-lock:${cle}`, () => {
     operation()
   })

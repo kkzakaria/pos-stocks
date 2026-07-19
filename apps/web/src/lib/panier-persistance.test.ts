@@ -107,8 +107,8 @@ describe("panier-persistance", () => {
   })
 
   it("sérialise l'écriture sous un verrou inter-onglets quand navigator.locks existe", async () => {
-    // jsdom n'implémente pas l'API Web Locks : on la simule pour prouver que
-    // le chemin atomique est bien emprunté (et non le repli inline).
+    // jsdom does not implement the Web Locks API: it is stubbed here to prove
+    // that the atomic path is actually taken.
     const nomsDemandes: string[] = []
     const verrous = {
       request: async (nom: string, rappel: () => void): Promise<void> => {
@@ -123,6 +123,19 @@ describe("panier-persistance", () => {
 
     expect(nomsDemandes).toEqual(["pos:panier-lock:k", "pos:panier-lock:k"])
     expect(localStorage.getItem("k")).toBeNull()
+    vi.unstubAllGlobals()
+  })
+
+  it("ne persiste RIEN si l'API Web Locks est absente (fail-safe)", async () => {
+    // No atomic cross-tab primitive means the anti-duplicate-sale guard cannot
+    // hold, so persistence is disabled rather than run non-atomically.
+    const sansVerrous = { ...globalThis.navigator }
+    delete (sansVerrous as { locks?: unknown }).locks
+    vi.stubGlobal("navigator", sansVerrous)
+
+    await enregistrer("k", etat)
+    expect(localStorage.getItem("k")).toBeNull()
+
     vi.unstubAllGlobals()
   })
 
@@ -221,9 +234,9 @@ describe("panier-persistance", () => {
       throw new Error("indisponible")
     })
     expect(charger("k")).toBeNull()
-    // `enregistrer`/`purger` étant asynchrones, un `expect(() => …).not.toThrow()`
-    // serait tautologique : il faut attendre la promesse pour prouver que le
-    // try/catch interne absorbe bien l'échec du stockage.
+    // Since `enregistrer`/`purger` are async, `expect(() => …).not.toThrow()`
+    // would be tautological: the promise must be awaited to prove the internal
+    // try/catch actually absorbs the storage failure.
     await expect(enregistrer("k", etat)).resolves.toBeUndefined()
     await expect(purger("k")).resolves.toBeUndefined()
   })
