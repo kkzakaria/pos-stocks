@@ -1,7 +1,7 @@
 import { Hono } from "hono"
 import type { ContentfulStatusCode } from "hono/utils/http-status"
 import { drizzle } from "drizzle-orm/d1"
-import { and, asc, eq, ne } from "drizzle-orm"
+import { and, asc, eq, inArray, ne, sql } from "drizzle-orm"
 import { userCreateSchema, userRoleSchema, userStatusSchema } from "shared"
 import type { CompanyRole } from "shared"
 import { APIError } from "better-auth/api"
@@ -12,6 +12,8 @@ import { requireAuth } from "../middleware/require-auth"
 import { requireMembership, requireRole } from "../middleware/permissions"
 import type { PermissionVariables } from "../middleware/permissions"
 import { validerCorps } from "../lib/validation"
+import { lirePagination } from "../lib/pagination"
+import { requeterParLots } from "../lib/db-batch"
 import type { Env } from "../env"
 
 export const usersRoute = new Hono<{
@@ -121,6 +123,15 @@ usersRoute.post("/", requireRole("owner", "admin"), async (c) => {
 usersRoute.get("/", requireRole("owner", "admin", "auditor"), async (c) => {
   const db = drizzle(c.env.DB, { schema })
   const organizationId = c.get("membership").organizationId
+  const pagination = lirePagination(c)
+  if (pagination instanceof Response) return pagination
+  const { page, limite } = pagination
+  const totalRows = await db
+    .select({ total: sql<number>`COUNT(*)` })
+    .from(schema.member)
+    .where(eq(schema.member.organizationId, organizationId))
+  const total = totalRows[0]?.total ?? 0
+
   const rows = await db
     .select({
       id: schema.user.id,
@@ -132,22 +143,34 @@ usersRoute.get("/", requireRole("owner", "admin", "auditor"), async (c) => {
     .from(schema.member)
     .innerJoin(schema.user, eq(schema.member.userId, schema.user.id))
     .where(eq(schema.member.organizationId, organizationId))
-    .orderBy(asc(schema.user.name))
+    .orderBy(asc(schema.user.name), asc(schema.user.id))
+    .limit(limite)
+    .offset((page - 1) * limite)
 
-  const affectations = await db
-    .select({
-      id: schema.warehouseMembers.id,
-      userId: schema.warehouseMembers.userId,
-      warehouseId: schema.warehouseMembers.warehouseId,
-      warehouseName: schema.warehouses.name,
-      role: schema.warehouseMembers.role,
-    })
-    .from(schema.warehouseMembers)
-    .innerJoin(
-      schema.warehouses,
-      eq(schema.warehouseMembers.warehouseId, schema.warehouses.id)
-    )
-    .where(eq(schema.warehouseMembers.organizationId, organizationId))
+  // Assignments enrichment is scoped to this page's user ids only, not the
+  // whole organization, to keep the query bounded regardless of org size.
+  const idsUsers = rows.map((u) => u.id)
+  const affectations = await requeterParLots(idsUsers, (lot) =>
+    db
+      .select({
+        id: schema.warehouseMembers.id,
+        userId: schema.warehouseMembers.userId,
+        warehouseId: schema.warehouseMembers.warehouseId,
+        warehouseName: schema.warehouses.name,
+        role: schema.warehouseMembers.role,
+      })
+      .from(schema.warehouseMembers)
+      .innerJoin(
+        schema.warehouses,
+        eq(schema.warehouseMembers.warehouseId, schema.warehouses.id)
+      )
+      .where(
+        and(
+          eq(schema.warehouseMembers.organizationId, organizationId),
+          inArray(schema.warehouseMembers.userId, lot)
+        )
+      )
+  )
 
   const users = rows.map((u) => ({
     ...u,
@@ -160,7 +183,7 @@ usersRoute.get("/", requireRole("owner", "admin", "auditor"), async (c) => {
         role,
       })),
   }))
-  return c.json({ users })
+  return c.json({ users, total, page, limite })
 })
 
 // Note : le typage du helper avec un `Context` générique posait problème au

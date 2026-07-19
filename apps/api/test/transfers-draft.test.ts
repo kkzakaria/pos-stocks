@@ -432,31 +432,96 @@ describe("transferts — brouillon", () => {
       (await req(ownerCookie, "GET", "/api/v1/transfers?statut=zzz")).status
     ).toBe(400)
   })
+})
 
-  it("liste : limit borne le nombre de résultats, rejette les valeurs invalides", async () => {
+describe("GET /api/v1/transfers — pagination", () => {
+  it("borne la page et renvoie total/page/limite", async () => {
     const { ownerCookie, origineId, destinationId } = await seed()
     for (let i = 0; i < 3; i++) {
-      await req(ownerCookie, "POST", "/api/v1/transfers", {
+      const creation = await req(ownerCookie, "POST", "/api/v1/transfers", {
         fromWarehouseId: origineId,
         toWarehouseId: destinationId,
       })
+      expect(creation.status).toBe(201)
     }
-    const limitee = await req(
+
+    const page1 = await req(
       ownerCookie,
       "GET",
-      "/api/v1/transfers?statut=pending&limit=2"
+      "/api/v1/transfers?page=1&limite=2"
     )
-    expect(
-      (await limitee.json<{ transfers: unknown[] }>()).transfers
-    ).toHaveLength(2)
-    expect(
-      (await req(ownerCookie, "GET", "/api/v1/transfers?limit=0")).status
-    ).toBe(400)
-    expect(
-      (await req(ownerCookie, "GET", "/api/v1/transfers?limit=abc")).status
-    ).toBe(400)
-    expect(
-      (await req(ownerCookie, "GET", "/api/v1/transfers?limit=201")).status
-    ).toBe(400)
+    expect(page1.status).toBe(200)
+    const c1 = await page1.json<{
+      transfers: unknown[]
+      total: number
+      page: number
+      limite: number
+    }>()
+    expect(c1.total).toBe(3)
+    expect(c1.page).toBe(1)
+    expect(c1.limite).toBe(2)
+    expect(c1.transfers).toHaveLength(2)
+
+    const page2 = await req(
+      ownerCookie,
+      "GET",
+      "/api/v1/transfers?page=2&limite=2"
+    )
+    const c2 = await page2.json<{ transfers: unknown[]; total: number }>()
+    expect(c2.total).toBe(3)
+    expect(c2.transfers).toHaveLength(1)
+
+    const page3 = await req(
+      ownerCookie,
+      "GET",
+      "/api/v1/transfers?page=3&limite=2"
+    )
+    const c3 = await page3.json<{ transfers: unknown[]; total: number }>()
+    expect(c3.total).toBe(3)
+    expect(c3.transfers).toEqual([])
+
+    const invalide = await req(ownerCookie, "GET", "/api/v1/transfers?limite=0")
+    expect(invalide.status).toBe(400)
+  })
+
+  it("isolation : un transfert hors portée du demandeur n'est compté ni dans total ni dans les pages", async () => {
+    const { organizationId, ownerCookie, origineId, destinationId } =
+      await seed()
+    // Transfer WITHIN the future manager's scope (origin)
+    const creation = await req(ownerCookie, "POST", "/api/v1/transfers", {
+      fromWarehouseId: origineId,
+      toWarehouseId: destinationId,
+    })
+    expect(creation.status).toBe(201)
+    const { id } = await creation.json<{ id: string }>()
+
+    // Transfer between two OTHER warehouses, outside the manager's scope below
+    const autreOrigine = await creerEntrepot(organizationId, "Autre origine")
+    const autreDestination = await creerEntrepot(
+      organizationId,
+      "Autre destination"
+    )
+    const horsPortee = await req(ownerCookie, "POST", "/api/v1/transfers", {
+      fromWarehouseId: autreOrigine,
+      toWarehouseId: autreDestination,
+    })
+    expect(horsPortee.status).toBe(201)
+
+    const managerOrigine = await createUserWithRole(organizationId, "staff")
+    await affecterEntrepot(
+      organizationId,
+      managerOrigine.userId,
+      origineId,
+      "manager"
+    )
+
+    const res = await req(managerOrigine.cookie, "GET", "/api/v1/transfers")
+    expect(res.status).toBe(200)
+    const corps = await res.json<{
+      transfers: Array<{ id: string }>
+      total: number
+    }>()
+    expect(corps.total).toBe(1)
+    expect(corps.transfers).toEqual([expect.objectContaining({ id })])
   })
 })

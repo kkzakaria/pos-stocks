@@ -119,6 +119,8 @@ function TransfertDetailPage() {
     queryFn: () => {
       const params = new URLSearchParams({ actifs: "true" })
       if (rechercheDebouncee) params.set("recherche", rechercheDebouncee)
+      // Search picker: fetch up to the max page (search narrows further).
+      params.set("limite", "200")
       return apiFetch<{ products: ProduitCatalogue[] }>(
         `/api/v1/products?${params.toString()}`
       )

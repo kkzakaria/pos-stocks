@@ -236,14 +236,14 @@ function BlocTransferts() {
     queryKey: ["dashboard-transferts", "pending"],
     queryFn: () =>
       apiFetch<{ transfers: TransfertEnAttente[] }>(
-        "/api/v1/transfers?statut=pending&limit=50"
+        "/api/v1/transfers?statut=pending&limite=50"
       ),
   })
   const enTransit = useQuery({
     queryKey: ["dashboard-transferts", "sent"],
     queryFn: () =>
       apiFetch<{ transfers: TransfertEnAttente[] }>(
-        "/api/v1/transfers?statut=sent&limit=50"
+        "/api/v1/transfers?statut=sent&limite=50"
       ),
   })
   const lignes = [

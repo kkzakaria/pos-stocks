@@ -15,6 +15,7 @@ import { fournisseurExiste, varianteScope } from "../lib/org-scope"
 import { applyMovements } from "../services/stock"
 import type { InstructionBatch, MouvementStock } from "../services/stock"
 import { porteeLectureStock } from "../lib/stock-acces"
+import { lirePagination } from "../lib/pagination"
 import { requeterParLots } from "../lib/db-batch"
 import { requireAuth } from "../middleware/require-auth"
 import {
@@ -105,6 +106,9 @@ purchasesRoute.get("/", async (c) => {
   ) {
     return c.json({ code: "VALIDATION", message: "Statut invalide" }, 400)
   }
+  const pagination = lirePagination(c)
+  if (pagination instanceof Response) return pagination
+  const { page, limite } = pagination
   const conditions: SQL[] = [
     eq(schema.purchases.organizationId, organizationId),
   ]
@@ -123,10 +127,16 @@ purchasesRoute.get("/", async (c) => {
     conditions.push(eq(schema.purchases.warehouseId, warehouseId))
   } else if (!portee.tous) {
     if (portee.warehouseIds.length === 0) {
-      return c.json({ purchases: [] })
+      return c.json({ purchases: [], total: 0, page, limite })
     }
     conditions.push(inArray(schema.purchases.warehouseId, portee.warehouseIds))
   }
+
+  const totalRows = await db
+    .select({ total: sql<number>`COUNT(*)` })
+    .from(schema.purchases)
+    .where(and(...conditions))
+  const total = totalRows[0]?.total ?? 0
 
   const rows = await db
     .select({
@@ -150,7 +160,9 @@ purchasesRoute.get("/", async (c) => {
       eq(schema.purchases.supplierId, schema.suppliers.id)
     )
     .where(and(...conditions))
-    .orderBy(desc(schema.purchases.createdAt))
+    .orderBy(desc(schema.purchases.createdAt), desc(schema.purchases.id))
+    .limit(limite)
+    .offset((page - 1) * limite)
 
   const ids = rows.map((r) => r.id)
   const agregats = await requeterParLots(ids, (lot) =>
@@ -172,7 +184,7 @@ purchasesRoute.get("/", async (c) => {
       totalCost: agregat?.totalCost ?? 0,
     }
   })
-  return c.json({ purchases })
+  return c.json({ purchases, total, page, limite })
 })
 
 purchasesRoute.post("/", async (c) => {

@@ -72,9 +72,9 @@ function HistoriqueVentes() {
   })
   const liste = ventes.data?.sales ?? []
   const total = ventes.data?.total ?? 0
-  // Page size read from the API response (it echoes parPage) rather than a
+  // Page size read from the API response (it echoes limite) rather than a
   // literal, so the page count can't drift from the server's actual paging.
-  const parPage = ventes.data?.parPage ?? 50
+  const parPage = ventes.data?.limite ?? 50
   const aucuneBoutique = destinations.isSuccess && boutiques.length === 0
 
   return (

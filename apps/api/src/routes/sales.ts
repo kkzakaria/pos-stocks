@@ -19,6 +19,7 @@ import { allouerFefo, lireLotsDisponibles } from "../services/fefo"
 import { applyMovements, ErreurStockInsuffisant } from "../services/stock"
 import type { InstructionBatch, MouvementStock } from "../services/stock"
 import { reponseStockInsuffisant } from "../lib/stock-erreurs"
+import { lirePagination } from "../lib/pagination"
 import { requireAuth } from "../middleware/require-auth"
 import {
   requireMembership,
@@ -266,24 +267,9 @@ salesRoute.get("/", async (c) => {
       400
     )
   }
-  // Pagination (différé P6 : limite fixe 200 sans pagination)
-  const page = Number(c.req.query("page") ?? "1")
-  const parPage = Number(c.req.query("parPage") ?? "50")
-  if (
-    !Number.isInteger(page) ||
-    page < 1 ||
-    !Number.isInteger(parPage) ||
-    parPage < 1 ||
-    parPage > 200
-  ) {
-    return c.json(
-      {
-        code: "VALIDATION",
-        message: "Pagination invalide (page ≥ 1, parPage entre 1 et 200)",
-      },
-      400
-    )
-  }
+  const pagination = lirePagination(c)
+  if (pagination instanceof Response) return pagination
+  const { page, limite } = pagination
   const db = drizzle(c.env.DB, { schema })
   const conditions: SQL[] = [
     eq(schema.sales.organizationId, organizationId),
@@ -322,8 +308,8 @@ salesRoute.get("/", async (c) => {
     .innerJoin(schema.user, eq(schema.sales.cashierId, schema.user.id))
     .where(and(...conditions))
     .orderBy(desc(schema.sales.createdAt), desc(schema.sales.ticketNumber))
-    .limit(parPage)
-    .offset((page - 1) * parPage)
+    .limit(limite)
+    .offset((page - 1) * limite)
   const ids = rows.map((r) => r.id)
   const agregats =
     ids.length > 0
@@ -340,7 +326,7 @@ salesRoute.get("/", async (c) => {
     ...r,
     itemCount: agregats.find((a) => a.saleId === r.id)?.itemCount ?? 0,
   }))
-  return c.json({ sales: ventes, total, page, parPage })
+  return c.json({ sales: ventes, total, page, limite })
 })
 
 // Retour annoté `| null` (piège eslint no-unnecessary-condition — motif

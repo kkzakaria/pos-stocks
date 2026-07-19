@@ -6,6 +6,7 @@ import type { SQL } from "drizzle-orm"
 import { adjustmentCreateSchema, minStockSchema } from "shared"
 import * as schema from "../db/schema"
 import { dateCalendaireValide } from "../lib/dates"
+import { lirePagination } from "../lib/pagination"
 import { likeEchappe } from "../lib/recherche"
 import {
   estDansPortee,
@@ -111,6 +112,24 @@ stockRoute.get("/levels", async (c) => {
     )
   }
 
+  const pagination = lirePagination(c)
+  if (pagination instanceof Response) return pagination
+  const { page, limite } = pagination
+
+  const totalRows = await db
+    .select({ total: sql<number>`COUNT(*)` })
+    .from(schema.stockLevels)
+    .innerJoin(
+      schema.productVariants,
+      eq(schema.stockLevels.variantId, schema.productVariants.id)
+    )
+    .innerJoin(
+      schema.products,
+      eq(schema.productVariants.productId, schema.products.id)
+    )
+    .where(and(...conditions))
+  const total = totalRows[0]?.total ?? 0
+
   const rows = await db
     .select({
       variantId: schema.stockLevels.variantId,
@@ -133,12 +152,18 @@ stockRoute.get("/levels", async (c) => {
       eq(schema.productVariants.productId, schema.products.id)
     )
     .where(and(...conditions))
-    .orderBy(asc(schema.products.name), asc(schema.productVariants.name))
+    .orderBy(
+      asc(schema.products.name),
+      asc(schema.productVariants.name),
+      asc(schema.stockLevels.variantId)
+    )
+    .limit(limite)
+    .offset((page - 1) * limite)
   const levels = rows.map((r) => ({
     ...r,
     enAlerte: r.seuilEffectif !== null && r.quantity <= r.seuilEffectif,
   }))
-  return c.json({ levels })
+  return c.json({ levels, total, page, limite })
 })
 
 stockRoute.get("/movements", async (c) => {
@@ -157,11 +182,23 @@ stockRoute.get("/movements", async (c) => {
   const recherche = c.req.query("recherche")
   const du = c.req.query("du")
   const au = c.req.query("au")
-  const page = Math.max(1, Number(c.req.query("page") ?? "1") || 1)
-  const limite = Math.min(
-    200,
-    Math.max(1, Number(c.req.query("limite") ?? "50") || 50)
-  )
+  // Cross-tenant / access guard BEFORE any parameter validation (invariant #7):
+  // an out-of-org warehouse must answer 404 INTROUVABLE / an out-of-scope one
+  // 403 ACCES_REFUSE, even when pagination or another param is invalid.
+  if (warehouseId) {
+    if (!estDansPortee(portee, warehouseId)) {
+      return c.json({ code: "ACCES_REFUSE", message: "Accès refusé" }, 403)
+    }
+    if (!(await entrepotDansOrganisation(db, organizationId, warehouseId))) {
+      return c.json(
+        { code: "INTROUVABLE", message: "Entrepôt introuvable" },
+        404
+      )
+    }
+  }
+  const pagination = lirePagination(c)
+  if (pagination instanceof Response) return pagination
+  const { page, limite } = pagination
 
   if (type && !(schema.MOVEMENT_TYPES as readonly string[]).includes(type)) {
     return c.json(
@@ -180,15 +217,7 @@ stockRoute.get("/movements", async (c) => {
     eq(schema.stockMovements.organizationId, organizationId),
   ]
   if (warehouseId) {
-    if (!estDansPortee(portee, warehouseId)) {
-      return c.json({ code: "ACCES_REFUSE", message: "Accès refusé" }, 403)
-    }
-    if (!(await entrepotDansOrganisation(db, organizationId, warehouseId))) {
-      return c.json(
-        { code: "INTROUVABLE", message: "Entrepôt introuvable" },
-        404
-      )
-    }
+    // Access already guarded above (invariant #7); here we only add the filter.
     conditions.push(eq(schema.stockMovements.warehouseId, warehouseId))
   } else {
     const filtre = filtrePortee(portee, schema.stockMovements.warehouseId)

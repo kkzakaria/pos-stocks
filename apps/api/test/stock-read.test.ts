@@ -219,6 +219,74 @@ describe("GET /api/v1/stock/levels", () => {
       expect(levelsBoutique[0]?.quantity).toBe(4)
     }
   )
+
+  it("pagination : borne les niveaux, total compte le même périmètre, isolation par entrepôt", async () => {
+    const { organizationId, ownerId, ownerCookie, depotId, db } = await seed()
+    const fanta = await creerProduitSimple(organizationId, { nom: "Fanta" })
+    const sprite = await creerProduitSimple(organizationId, { nom: "Sprite" })
+    await applyMovements(db, {
+      organizationId,
+      userId: ownerId,
+      mouvements: [
+        {
+          warehouseId: depotId,
+          variantId: fanta.variantId,
+          delta: 5,
+          type: "purchase",
+          unitCost: 100,
+        },
+        {
+          warehouseId: depotId,
+          variantId: sprite.variantId,
+          delta: 5,
+          type: "purchase",
+          unitCost: 100,
+        },
+      ],
+    })
+    // depotId now has 3 variants in stock; boutiqueId (via seed()) has only
+    // 1 — serves as the isolation witness.
+
+    const page1 = await get(
+      ownerCookie,
+      `/api/v1/stock/levels?warehouseId=${depotId}&page=1&limite=2`
+    )
+    expect(page1.status).toBe(200)
+    const corps1 = await page1.json<{
+      levels: Niveau[]
+      total: number
+      page: number
+      limite: number
+    }>()
+    expect(corps1.total).toBe(3)
+    expect(corps1.levels).toHaveLength(2)
+    expect(corps1.page).toBe(1)
+    expect(corps1.limite).toBe(2)
+
+    const page2 = await get(
+      ownerCookie,
+      `/api/v1/stock/levels?warehouseId=${depotId}&page=2&limite=2`
+    )
+    const corps2 = await page2.json<{ levels: Niveau[]; total: number }>()
+    expect(corps2.levels).toHaveLength(1)
+    expect(corps2.total).toBe(3)
+
+    const page3 = await get(
+      ownerCookie,
+      `/api/v1/stock/levels?warehouseId=${depotId}&page=3&limite=2`
+    )
+    const corps3 = await page3.json<{ levels: Niveau[]; total: number }>()
+    expect(corps3.levels).toEqual([])
+    expect(corps3.total).toBe(3)
+
+    const invalide = await get(
+      ownerCookie,
+      `/api/v1/stock/levels?warehouseId=${depotId}&limite=0`
+    )
+    expect(invalide.status).toBe(400)
+    const corpsInvalide = await invalide.json<{ code: string }>()
+    expect(corpsInvalide.code).toBe("VALIDATION")
+  })
 })
 
 describe("GET /api/v1/stock/movements", () => {
@@ -298,6 +366,38 @@ describe("GET /api/v1/stock/movements", () => {
         )
       ).status
     ).toBe(403)
+  })
+
+  it("limite invalide → 400 VALIDATION", async () => {
+    const { ownerCookie, depotId } = await seed()
+    const res = await get(
+      ownerCookie,
+      `/api/v1/stock/movements?warehouseId=${depotId}&limite=500`
+    )
+    expect(res.status).toBe(400)
+    expect((await res.json<{ code: string }>()).code).toBe("VALIDATION")
+  })
+
+  it("entrepôt hors organisation + pagination invalide → 404 (accès avant validation)", async () => {
+    const { ownerCookie } = await seed()
+    // A real warehouse in another organization.
+    const db = drizzle(env.DB, { schema })
+    const autreOrgId = crypto.randomUUID()
+    await db.insert(schema.organization).values({
+      id: autreOrgId,
+      name: "Autre",
+      slug: "autre-mvt",
+      createdAt: new Date(),
+    })
+    const entrepotCache = await creerEntrepot(autreOrgId, "Caché mvt")
+    // Out-of-org warehouse combined with an invalid limite: the cross-tenant
+    // guard (invariant #7) must win with 404, never the 400 pagination error.
+    const res = await get(
+      ownerCookie,
+      `/api/v1/stock/movements?warehouseId=${entrepotCache}&limite=500`
+    )
+    expect(res.status).toBe(404)
+    expect((await res.json<{ code: string }>()).code).toBe("INTROUVABLE")
   })
 })
 

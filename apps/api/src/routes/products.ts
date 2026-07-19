@@ -1,6 +1,6 @@
 import { Hono } from "hono"
 import { drizzle } from "drizzle-orm/d1"
-import { and, asc, eq, gt, inArray, isNull, or } from "drizzle-orm"
+import { and, asc, eq, gt, inArray, isNull, or, sql } from "drizzle-orm"
 import {
   productCreateSchema,
   productUpdateSchema,
@@ -14,6 +14,7 @@ import { barcodeDejaUtilise } from "../lib/barcode"
 import { genererSkuProduit, genererSkuVariante } from "../lib/sku"
 import { categorieExiste, produitScope } from "../lib/org-scope"
 import { likeEchappe } from "../lib/recherche"
+import { lirePagination } from "../lib/pagination"
 import { requireAuth } from "../middleware/require-auth"
 import { requireMembership, requireRole } from "../middleware/permissions"
 import type { PermissionVariables } from "../middleware/permissions"
@@ -70,11 +71,22 @@ productsRoute.get("/", async (c) => {
     }
   }
 
+  const pagination = lirePagination(c)
+  if (pagination instanceof Response) return pagination
+  const { page, limite } = pagination
+  const totalRows = await db
+    .select({ total: sql<number>`COUNT(*)` })
+    .from(schema.products)
+    .where(and(...conditions))
+  const total = totalRows[0]?.total ?? 0
+
   const produits = await db
     .select()
     .from(schema.products)
     .where(and(...conditions))
-    .orderBy(asc(schema.products.name))
+    .orderBy(asc(schema.products.name), asc(schema.products.id))
+    .limit(limite)
+    .offset((page - 1) * limite)
   const idsProduits = produits.map((p) => p.id)
   // Batched: idsProduits is unbounded (every product in the list), so a plain
   // inArray exceeds SQLite/D1's bound-variable cap on large catalogs (observed
@@ -95,7 +107,7 @@ productsRoute.get("/", async (c) => {
     ...p,
     variants: variantes.filter((v) => v.productId === p.id),
   }))
-  return c.json({ products })
+  return c.json({ products, total, page, limite })
 })
 
 productsRoute.get("/:id", async (c) => {

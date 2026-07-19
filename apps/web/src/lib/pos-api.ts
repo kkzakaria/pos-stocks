@@ -134,12 +134,12 @@ export type PageVentes = {
   sales: VenteListe[]
   total: number
   page: number
-  parPage: number
+  limite: number
 }
 
 export function fetchVentesDuJour(storeId: string, jour: string, page = 1) {
   return apiFetch<PageVentes>(
-    `/api/v1/sales?storeId=${storeId}&jour=${jour}&page=${page}&parPage=50`
+    `/api/v1/sales?storeId=${storeId}&jour=${jour}&page=${page}&limite=50`
   )
 }
 

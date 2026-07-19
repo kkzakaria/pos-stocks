@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { createFileRoute, useNavigate } from "@tanstack/react-router"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { apiFetch } from "@/lib/api"
@@ -36,6 +36,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { TableSkeleton } from "@/components/ui/table-skeleton"
+import { Pagination } from "@/components/ui/pagination"
 
 export const Route = createFileRoute("/_app/stock/transferts/")({
   component: TransfertsPage,
@@ -72,12 +73,20 @@ function TransfertsPage() {
   const entrepotsDestination = destinations.data?.warehouses ?? []
 
   const [statut, setStatut] = useState("")
+  const [page, setPage] = useState(1)
+  useEffect(() => setPage(1), [statut])
   const transferts = useQuery({
-    queryKey: ["transfers", statut],
-    queryFn: () =>
-      apiFetch<{ transfers: TransfertListe[] }>(
-        `/api/v1/transfers${statut ? `?statut=${statut}` : ""}`
-      ),
+    queryKey: ["transfers", statut, page],
+    queryFn: () => {
+      const params = new URLSearchParams({ page: String(page) })
+      if (statut) params.set("statut", statut)
+      return apiFetch<{
+        transfers: TransfertListe[]
+        total: number
+        page: number
+        limite: number
+      }>(`/api/v1/transfers?${params.toString()}`)
+    },
   })
 
   const [dialogOuvert, setDialogOuvert] = useState(false)
@@ -302,6 +311,16 @@ function TransfertsPage() {
             )}
           </TableBody>
         </Table>
+      )}
+      {(transferts.data?.total ?? 0) > 0 && (
+        <Pagination
+          className="mt-3"
+          page={page}
+          total={transferts.data?.total ?? 0}
+          pageSize={transferts.data?.limite ?? 50}
+          onPageChange={setPage}
+          element={{ un: "transfert", plusieurs: "transferts" }}
+        />
       )}
     </div>
   )

@@ -377,7 +377,9 @@ describe("réceptions fournisseur — liste à grande échelle", () => {
       await db.batch([premiere, ...reste])
     }
 
-    const liste = await req(ownerCookie, "GET", "/api/v1/purchases")
+    // limite=200 (max allowed): exceeds NB_RECEPTIONS so that pagination
+    // (default limit 50) does not truncate the regression under test here.
+    const liste = await req(ownerCookie, "GET", "/api/v1/purchases?limite=200")
     expect(liste.status).toBe(200)
     const { purchases } = await liste.json<{
       purchases: Array<{ id: string; itemCount: number; totalCost: number }>
@@ -391,5 +393,143 @@ describe("réceptions fournisseur — liste à grande échelle", () => {
       expect(echantillon?.itemCount).toBe(1)
       expect(echantillon?.totalCost).toBe(500)
     }
+  })
+})
+
+describe("GET /api/v1/purchases — pagination", () => {
+  it("borne la page et renvoie total/page/limite", async () => {
+    const { ownerCookie, warehouseId, supplierId } = await seed()
+    for (let i = 0; i < 3; i++) {
+      const creation = await req(ownerCookie, "POST", "/api/v1/purchases", {
+        warehouseId,
+        supplierId,
+        reference: `BL-PAGIN-${i}`,
+      })
+      expect(creation.status).toBe(201)
+    }
+
+    const page1 = await req(
+      ownerCookie,
+      "GET",
+      "/api/v1/purchases?page=1&limite=2"
+    )
+    expect(page1.status).toBe(200)
+    const c1 = await page1.json<{
+      purchases: unknown[]
+      total: number
+      page: number
+      limite: number
+    }>()
+    expect(c1.total).toBe(3)
+    expect(c1.page).toBe(1)
+    expect(c1.limite).toBe(2)
+    expect(c1.purchases).toHaveLength(2)
+
+    const page2 = await req(
+      ownerCookie,
+      "GET",
+      "/api/v1/purchases?page=2&limite=2"
+    )
+    const c2 = await page2.json<{ purchases: unknown[]; total: number }>()
+    expect(c2.total).toBe(3)
+    expect(c2.purchases).toHaveLength(1)
+
+    const page3 = await req(
+      ownerCookie,
+      "GET",
+      "/api/v1/purchases?page=3&limite=2"
+    )
+    const c3 = await page3.json<{ purchases: unknown[]; total: number }>()
+    expect(c3.total).toBe(3)
+    expect(c3.purchases).toEqual([])
+
+    const invalide = await req(ownerCookie, "GET", "/api/v1/purchases?limite=0")
+    expect(invalide.status).toBe(400)
+  })
+
+  it("tri stable : réceptions au même createdAt paginées sans doublon ni omission", async () => {
+    const { organizationId, ownerId, ownerCookie } = await bootstrapOwner()
+    const warehouseId = await creerEntrepot(organizationId)
+    const supplierId = await creerFournisseur(ownerCookie)
+    const db = drizzle(env.DB, { schema })
+    const maintenant = new Date()
+    const ids = Array.from({ length: 5 }, () => crypto.randomUUID())
+    // All share the SAME createdAt: without a unique secondary sort key, OFFSET
+    // paging could duplicate or drop rows across pages.
+    for (const [i, id] of ids.entries()) {
+      await db.insert(schema.purchases).values({
+        id,
+        organizationId,
+        warehouseId,
+        supplierId,
+        status: "draft" as const,
+        reference: `BL-TIE-${i}`,
+        createdBy: ownerId,
+        createdAt: maintenant,
+        updatedAt: maintenant,
+      })
+    }
+    const collecte = new Set<string>()
+    for (const page of [1, 2, 3]) {
+      const res = await req(
+        ownerCookie,
+        "GET",
+        `/api/v1/purchases?page=${page}&limite=2`
+      )
+      const corps = await res.json<{ purchases: Array<{ id: string }> }>()
+      for (const p of corps.purchases) collecte.add(p.id)
+    }
+    // The 5 distinct ids are all retrieved, none duplicated (Set), none dropped.
+    expect(collecte.size).toBe(5)
+    for (const id of ids) expect(collecte.has(id)).toBe(true)
+  })
+
+  it("isolation : le total ne compte pas les réceptions d'une autre organisation", async () => {
+    const { ownerCookie, warehouseId, supplierId } = await seed()
+    expect(
+      (
+        await req(ownerCookie, "POST", "/api/v1/purchases", {
+          warehouseId,
+          supplierId,
+        })
+      ).status
+    ).toBe(201)
+
+    // Second organization with its own reception (direct insert, same reason
+    // as products.test.ts's "isolation").
+    const db = drizzle(env.DB, { schema })
+    const autreOrgId = crypto.randomUUID()
+    await db.insert(schema.organization).values({
+      id: autreOrgId,
+      name: "Autre Société",
+      slug: `autre-org-${autreOrgId.slice(0, 8)}`,
+      createdAt: new Date(),
+    })
+    const autreEntrepot = await creerEntrepot(autreOrgId, "Entrepôt étranger")
+    const autreUtilisateur = await createUserWithRole(autreOrgId, "staff")
+    const now = new Date()
+    const autreSupplierId = crypto.randomUUID()
+    await db.insert(schema.suppliers).values({
+      id: autreSupplierId,
+      organizationId: autreOrgId,
+      name: "Fournisseur étranger",
+      createdAt: now,
+    })
+    await db.insert(schema.purchases).values({
+      id: crypto.randomUUID(),
+      organizationId: autreOrgId,
+      warehouseId: autreEntrepot,
+      supplierId: autreSupplierId,
+      status: "draft" as const,
+      reference: "BL-AUTRE-ORG",
+      createdBy: autreUtilisateur.userId,
+      createdAt: now,
+      updatedAt: now,
+    })
+
+    const res = await req(ownerCookie, "GET", "/api/v1/purchases")
+    const corps = await res.json<{ purchases: unknown[]; total: number }>()
+    expect(corps.total).toBe(1)
+    expect(corps.purchases).toHaveLength(1)
   })
 })

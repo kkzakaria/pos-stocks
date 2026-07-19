@@ -9,6 +9,7 @@ import {
 } from "shared"
 import * as schema from "../db/schema"
 import { validerCorps } from "../lib/validation"
+import { lirePagination } from "../lib/pagination"
 import { estErreurDeclencheur, estViolationUnicite } from "../lib/db-errors"
 import {
   estDansPortee,
@@ -77,6 +78,9 @@ inventoryCountsRoute.get("/", async (c) => {
   ) {
     return c.json({ code: "VALIDATION", message: "Statut invalide" }, 400)
   }
+  const pagination = lirePagination(c)
+  if (pagination instanceof Response) return pagination
+  const { page, limite } = pagination
   const conditions: SQL[] = [
     eq(schema.inventoryCounts.organizationId, organizationId),
   ]
@@ -96,12 +100,17 @@ inventoryCountsRoute.get("/", async (c) => {
   } else {
     const filtre = filtrePortee(portee, schema.inventoryCounts.warehouseId)
     if (filtre.vide) {
-      return c.json({ counts: [] })
+      return c.json({ counts: [], total: 0, page, limite })
     }
     if (filtre.condition) {
       conditions.push(filtre.condition)
     }
   }
+  const totalRows = await db
+    .select({ total: sql<number>`COUNT(*)` })
+    .from(schema.inventoryCounts)
+    .where(and(...conditions))
+  const total = totalRows[0]?.total ?? 0
   const rows = await db
     .select({
       id: schema.inventoryCounts.id,
@@ -117,7 +126,12 @@ inventoryCountsRoute.get("/", async (c) => {
       eq(schema.inventoryCounts.warehouseId, schema.warehouses.id)
     )
     .where(and(...conditions))
-    .orderBy(desc(schema.inventoryCounts.openedAt))
+    .orderBy(
+      desc(schema.inventoryCounts.openedAt),
+      desc(schema.inventoryCounts.id)
+    )
+    .limit(limite)
+    .offset((page - 1) * limite)
   const ids = rows.map((r) => r.id)
   const agregats = await requeterParLots(ids, (lot) =>
     db
@@ -138,7 +152,7 @@ inventoryCountsRoute.get("/", async (c) => {
       countedCount: agregat?.countedCount ?? 0,
     }
   })
-  return c.json({ counts })
+  return c.json({ counts, total, page, limite })
 })
 
 inventoryCountsRoute.post("/", async (c) => {
