@@ -71,9 +71,21 @@ function requeter(
   sql: string,
   workdir: string = RACINE_SUPABASE_DEFAUT
 ): string {
+  // Force JSON output: interactively (TTY) the CLI defaults to an ASCII table
+  // (agent-detection off), which breaks parsing. --output-format json is
+  // deterministic regardless of who runs the command.
   return execFileSync(
     "supabase",
-    ["db", "query", "--linked", "--workdir", workdir, sql],
+    [
+      "db",
+      "query",
+      "--linked",
+      "--workdir",
+      workdir,
+      "--output-format",
+      "json",
+      sql,
+    ],
     {
       encoding: "utf-8",
       maxBuffer: 64 * 1024 * 1024,
