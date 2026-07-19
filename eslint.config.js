@@ -20,6 +20,9 @@ export default [
       ".prettierrc",
       "**/routeTree.gen.ts",
       "**/.wrangler/",
+      // Worktrees d'agent : checkouts complets du dépôt, hors périmètre du
+      // lint racine (leurs fichiers ne résolvent pas les tsconfig d'ici).
+      ".claude/",
     ],
   },
 ]
