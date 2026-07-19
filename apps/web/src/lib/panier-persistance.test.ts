@@ -221,8 +221,11 @@ describe("panier-persistance", () => {
       throw new Error("indisponible")
     })
     expect(charger("k")).toBeNull()
-    expect(() => enregistrer("k", etat)).not.toThrow()
-    expect(() => purger("k")).not.toThrow()
+    // `enregistrer`/`purger` étant asynchrones, un `expect(() => …).not.toThrow()`
+    // serait tautologique : il faut attendre la promesse pour prouver que le
+    // try/catch interne absorbe bien l'échec du stockage.
+    await expect(enregistrer("k", etat)).resolves.toBeUndefined()
+    await expect(purger("k")).resolves.toBeUndefined()
   })
 })
 
