@@ -18,6 +18,12 @@ import {
 } from "@/lib/pos"
 import type { ArticlePos, LignePanier } from "@/lib/pos"
 import {
+  clePanier,
+  charger,
+  enregistrer,
+  purger,
+} from "@/lib/panier-persistance"
+import {
   envoyerVente,
   fetchCataloguePos,
   fetchReglagesTicket,
@@ -63,7 +69,14 @@ export function EcranVente({ me, boutique, session, onSessionFermee }: Props) {
   const articles = catalogue.data?.articles ?? []
   const categories = catalogue.data?.categories ?? []
 
-  const [lignes, setLignes] = useState<LignePanier[]>([])
+  // Restored once, at first render, so a refresh or an accidental tab close
+  // never loses the cart. Scoped to the till session: closing the register
+  // drops it.
+  const cle = clePanier(boutique.id, session.id)
+  const [etatRestaure] = useState(() => charger(cle))
+  const [lignes, setLignes] = useState<LignePanier[]>(
+    () => etatRestaure?.lignes ?? []
+  )
   const [recherche, setRecherche] = useState("")
   const [categorieId, setCategorieId] = useState<string | null>(null)
   const [erreurPrix, setErreurPrix] = useState<{
@@ -83,7 +96,9 @@ export function EcranVente({ me, boutique, session, onSessionFermee }: Props) {
   // et les modifications manuelles jusqu'à résolution (succès) ou abandon
   // explicite (fermeture de la modale de paiement) ; requestId.current
   // n'est PAS régénéré tant que ce n'est pas résolu.
-  const [panierVerrouille, setPanierVerrouille] = useState(false)
+  const [panierVerrouille, setPanierVerrouille] = useState(
+    etatRestaure?.verrouille ?? false
+  )
   const [confirmation, setConfirmation] = useState<VenteDetail | null>(null)
   const [vue, setVue] = useState<"vente" | "tickets" | "fermeture">("vente")
   const [reimpression, setReimpression] = useState<VenteDetail | null>(null)
@@ -93,14 +108,32 @@ export function EcranVente({ me, boutique, session, onSessionFermee }: Props) {
   })
   // Identifiant d'idempotence (décision 5) : UN par panier encaissé,
   // conservé tel quel sur retry, régénéré après chaque vente réussie.
-  const requestId = useRef(crypto.randomUUID())
+  const requestId = useRef(etatRestaure?.requestId ?? crypto.randomUUID())
   const rechercheRef = useRef<HTMLInputElement>(null)
 
-  const ligneDe = (cle: CleLigne | null): LignePanier | null =>
-    cle
+  // Persist on every cart-affecting change. An empty cart purges the entry,
+  // which covers both exits for free: successful checkout and "vider le
+  // panier" both end on setLignes([]).
+  useEffect(() => {
+    if (lignes.length === 0) {
+      purger(cle)
+      return
+    }
+    enregistrer(cle, {
+      v: 1,
+      lignes,
+      requestId: requestId.current,
+      verrouille: panierVerrouille,
+      majA: new Date().toISOString(),
+    })
+  }, [cle, lignes, panierVerrouille])
+
+  const ligneDe = (refLigne: CleLigne | null): LignePanier | null =>
+    refLigne
       ? (lignes.find(
           (l) =>
-            l.variantId === cle.variantId && l.sourceWarehouseId === cle.source
+            l.variantId === refLigne.variantId &&
+            l.sourceWarehouseId === refLigne.source
         ) ?? null)
       : null
   const ligneDepannage = ligneDe(depannagePour)

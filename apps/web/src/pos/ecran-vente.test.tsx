@@ -393,3 +393,126 @@ describe("EcranVente — erreur de catalogue (différé P6)", () => {
     await screen.findByText("Coca 50cl")
   })
 })
+
+describe("EcranVente — persistance du panier", () => {
+  const CLE = "pos:panier:store1:sess1"
+
+  beforeEach(() => {
+    localStorage.clear()
+    vi.spyOn(posApi, "fetchCataloguePos").mockResolvedValue({
+      articles: [article],
+      categories: [],
+    })
+  })
+  afterEach(() => {
+    localStorage.clear()
+    vi.restoreAllMocks()
+  })
+
+  it("restaure un panier sauvegardé au montage", async () => {
+    localStorage.setItem(
+      CLE,
+      JSON.stringify({
+        v: 1,
+        lignes: [
+          {
+            variantId: "v1",
+            nom: "Coca 50cl",
+            sku: "SKU1",
+            imageKey: null,
+            quantite: 3,
+            prixUnitaire: 500,
+            prixCatalogue: 500,
+            prixPlancher: null,
+            sourceWarehouseId: null,
+            sourceNom: null,
+            enAlerte: false,
+          },
+        ],
+        requestId: "req-restaure",
+        verrouille: false,
+        majA: "2026-07-19T10:00:00.000Z",
+      })
+    )
+    renderEcran()
+    // Assertion DISCRIMINANTE : « Retirer <nom> » n'existe que pour une LIGNE
+    // DE PANIER. Le nom du produit seul apparaît aussi sur la tuile du
+    // catalogue — l'asserter passerait même sans restauration (faux positif).
+    expect(
+      await screen.findByRole("button", { name: "Retirer Coca 50cl" })
+    ).toBeTruthy()
+  })
+
+  it("écrit le panier dans le stockage quand on ajoute un article", async () => {
+    renderEcran()
+    const tuile = await screen.findByRole("button", { name: /Coca 50cl/ })
+    fireEvent.click(tuile)
+    await waitFor(() => {
+      expect(localStorage.getItem(CLE)).not.toBeNull()
+    })
+    const stocke = JSON.parse(localStorage.getItem(CLE) ?? "{}") as {
+      v: number
+      lignes: Array<{ variantId: string; quantite: number }>
+    }
+    expect(stocke.v).toBe(1)
+    expect(stocke.lignes).toHaveLength(1)
+    expect(stocke.lignes[0].variantId).toBe("v1")
+  })
+
+  it("purge le stockage quand le panier redevient vide", async () => {
+    renderEcran()
+    const tuile = await screen.findByRole("button", { name: /Coca 50cl/ })
+    fireEvent.click(tuile)
+    await waitFor(() => expect(localStorage.getItem(CLE)).not.toBeNull())
+    // Libellés exacts du composant Panier : le déclencheur porte
+    // aria-label="Vider le panier", le bouton de validation de l'AlertDialog
+    // s'appelle exactement "Vider" (voir pos/panier.test.tsx).
+    fireEvent.click(screen.getByRole("button", { name: "Vider le panier" }))
+    fireEvent.click(await screen.findByRole("button", { name: "Vider" }))
+    await waitFor(() => {
+      expect(localStorage.getItem(CLE)).toBeNull()
+    })
+  })
+
+  it("restaure l'état verrouillé d'une soumission ambiguë", async () => {
+    localStorage.setItem(
+      CLE,
+      JSON.stringify({
+        v: 1,
+        lignes: [
+          {
+            variantId: "v1",
+            nom: "Coca 50cl",
+            sku: "SKU1",
+            imageKey: null,
+            quantite: 1,
+            prixUnitaire: 500,
+            prixCatalogue: 500,
+            prixPlancher: null,
+            sourceWarehouseId: null,
+            sourceNom: null,
+            enAlerte: false,
+          },
+        ],
+        requestId: "req-ambigu",
+        verrouille: true,
+        majA: "2026-07-19T10:00:00.000Z",
+      })
+    )
+    renderEcran()
+    // Regex ancrée en début de nom : le panier restauré contient déjà une
+    // ligne « Coca 50cl », dont le bouton « Retirer Coca 50cl » matcherait
+    // aussi /Coca 50cl/ sans l'ancre — ambiguïté propre à ce test (cart
+    // pré-rempli au montage), absente des autres tests du fichier qui
+    // interrogent la tuile avant tout ajout.
+    const tuile = await screen.findByRole("button", { name: /^Coca 50cl/ })
+    fireEvent.click(tuile)
+    // Panier verrouillé : le clic ne doit RIEN ajouter (quantité reste 1).
+    await waitFor(() => {
+      const stocke = JSON.parse(localStorage.getItem(CLE) ?? "{}") as {
+        lignes: Array<{ quantite: number }>
+      }
+      expect(stocke.lignes[0].quantite).toBe(1)
+    })
+  })
+})
