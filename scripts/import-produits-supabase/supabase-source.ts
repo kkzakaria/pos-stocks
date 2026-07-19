@@ -1,6 +1,13 @@
 import { execFileSync } from "node:child_process"
-import type {} from "zod"
+import path from "node:path"
 import { z } from "zod"
+
+// The linked Supabase project resolves from a repo that holds the supabase/
+// config (the main pos-stocks checkout). From a nested script directory the
+// CLI cannot walk up to it, so every query passes --workdir explicitly.
+// Default: the worktree root (two levels up from this module), which is nested
+// inside that repo and therefore resolves the link.
+const RACINE_SUPABASE_DEFAUT = path.resolve(import.meta.dir, "..", "..")
 
 export interface StoreSource {
   id: string
@@ -57,28 +64,36 @@ export function parseInventaire(raw: string): LigneInventaireSource[] {
   })
 }
 
-function requeter(sql: string, projet?: string): string {
-  const args = ["db", "query", "--linked", sql]
-  if (projet) args.push("--project-ref", projet)
-  return execFileSync("supabase", args, {
-    encoding: "utf-8",
-    maxBuffer: 64 * 1024 * 1024,
-  })
-}
-
-export function lireStores(projet?: string): StoreSource[] {
-  return parseStores(
-    requeter("select id, name, address from stores order by created_at", projet)
+function requeter(
+  sql: string,
+  workdir: string = RACINE_SUPABASE_DEFAUT
+): string {
+  return execFileSync(
+    "supabase",
+    ["db", "query", "--linked", "--workdir", workdir, sql],
+    {
+      encoding: "utf-8",
+      maxBuffer: 64 * 1024 * 1024,
+    }
   )
 }
 
-export function lireInventaire(projet?: string): LigneInventaireSource[] {
+export function lireStores(workdir?: string): StoreSource[] {
+  return parseStores(
+    requeter(
+      "select id, name, address from stores order by created_at",
+      workdir
+    )
+  )
+}
+
+export function lireInventaire(workdir?: string): LigneInventaireSource[] {
   return parseInventaire(
     requeter(
       "select pt.sku as sku, pi.store_id as store_id, pi.quantity as quantity, pt.cost as cost " +
         "from product_inventory pi join product_templates pt on pt.id = pi.product_id " +
         "where pi.quantity > 0",
-      projet
+      workdir
     )
   )
 }

@@ -16,7 +16,7 @@ interface OptionsCli {
   apiUrl: string
   webOrigin: string
   journal: string
-  projet: string | undefined
+  supabaseWorkdir: string | undefined
   dryRun: boolean
 }
 
@@ -32,7 +32,9 @@ function lireOptions(argv: string[]): OptionsCli {
         type: "string",
         default: path.join(import.meta.dir, "data", "magasins-local.json"),
       },
-      projet: { type: "string" },
+      // Directory from which `supabase db query --linked` resolves the linked
+      // project. Optional — defaults (in supabase-source) to the worktree root.
+      "supabase-workdir": { type: "string" },
       "dry-run": { type: "boolean", default: false },
     },
   })
@@ -40,7 +42,7 @@ function lireOptions(argv: string[]): OptionsCli {
     apiUrl: values["api-url"],
     webOrigin: values["web-origin"],
     journal: values.journal,
-    projet: values.projet,
+    supabaseWorkdir: values["supabase-workdir"],
     dryRun: values["dry-run"],
   }
 }
@@ -226,7 +228,7 @@ async function main(): Promise<void> {
     warehousesByName: {},
   })
 
-  const stores = lireStores(options.projet)
+  const stores = lireStores(options.supabaseWorkdir)
   console.log(`${stores.length} magasins chargés depuis Supabase`)
 
   const client = await obtenirClient(options)
