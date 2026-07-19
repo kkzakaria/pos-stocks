@@ -63,3 +63,106 @@ connexion avec un 403, même si `--api-url` est correct.
 | `--progression` | `data/progress.json` | Chemin du journal de reprise |
 | `--concurrence` | `5` | Nombre d'imports en parallèle |
 | `--dry-run` | `false` | N'effectue aucun appel réseau, affiche ce qui serait fait |
+
+---
+
+# Recréation des magasins et de l'inventaire Supabase
+
+Voir `docs/superpowers/specs/2026-07-19-recreation-magasins-inventaire-supabase-design.md`.
+Reconstruit en pos-stocks, depuis le backend Supabase, les **magasins** puis le
+**stock par magasin** (le catalogue restant couvert par `run.ts` ci-dessus).
+
+Ces deux scripts lisent Supabase via la CLI `supabase db query --linked`
+(projet lié « gest »). Ils passent `--workdir` (défaut : racine du worktree)
+pour que `--linked` résolve le projet même exécutés depuis ce sous-dossier.
+
+## Ordre d'exécution
+
+1. **Magasins + fournisseur** — `creer-magasins.ts`
+2. **Catalogue** — `run.ts` (voir plus haut)
+3. **Inventaire par magasin** — `semer-inventaire.ts`
+
+L'étape 3 dépend de 1 (entrepôts + fournisseur) et 2 (variantes à peupler).
+
+```bash
+cd scripts/import-produits-supabase
+
+# 1. Magasins + fournisseur (local)
+IMPORT_EMAIL=owner@exemple.com IMPORT_PASSWORD='OwnerLocal!2026' \
+  bun run creer-magasins.ts --journal data/magasins-local.json
+
+# 3. Inventaire (local), après le catalogue
+IMPORT_EMAIL=owner@exemple.com IMPORT_PASSWORD='OwnerLocal!2026' \
+  bun run semer-inventaire.ts \
+  --journal-magasins data/magasins-local.json \
+  --journal data/inventaire-local.json
+```
+
+En **prod** (lancé par l'utilisateur, identifiants owner prod jamais collés en
+chat), avec des journaux `*-prod.json` dédiés et le domaine web de prod :
+
+```bash
+IMPORT_EMAIL=<owner-prod> IMPORT_PASSWORD='<mdp-prod>' \
+  bun run creer-magasins.ts \
+  --api-url https://pos-stocks-api.koffiz2110.workers.dev \
+  --web-origin https://pos-stocks-web.koffiz2110.workers.dev \
+  --journal data/magasins-prod.json
+
+# puis run.ts --progression data/progress-prod.json (catalogue), puis :
+
+IMPORT_EMAIL=<owner-prod> IMPORT_PASSWORD='<mdp-prod>' \
+  bun run semer-inventaire.ts \
+  --api-url https://pos-stocks-api.koffiz2110.workers.dev \
+  --web-origin https://pos-stocks-web.koffiz2110.workers.dev \
+  --journal-magasins data/magasins-prod.json \
+  --journal data/inventaire-prod.json
+```
+
+## `creer-magasins.ts`
+
+Crée les magasins Supabase (`stores`) comme entrepôts de type `store`
+(`phone`/`email` non repris) et le fournisseur technique
+« Stock initial (import Supabase) ». **Idempotent** : un nom déjà présent
+(journal ou `GET /warehouses`/`/suppliers`) est réutilisé, jamais recréé.
+
+| Option | Défaut | Description |
+|---|---|---|
+| `--api-url` | `http://localhost:8787` | Base URL de l'API cible |
+| `--web-origin` | `http://localhost:3000` | Origin frontend attendu (trustedOrigins) |
+| `--journal` | `data/magasins-local.json` | Journal `{warehousesByName, supplierId}` |
+| `--supabase-workdir` | racine worktree | Dossier de résolution du lien Supabase |
+| `--dry-run` | `false` | Aucune écriture API ; lit Supabase et affiche le plan |
+
+## `semer-inventaire.ts`
+
+Peuple le stock initial par **réceptions valorisées** (`purchase`) : pour
+chaque ligne `product_inventory`, une entrée valorisée par le `cost` Supabase
+(arrondi entier XOF) qui pose la quantité **et fige le CMP** (`avg_cost`). La
+correspondance produit se fait par **SKU** (`sku → variante « Standard »`).
+Les réceptions sont **découpées en lots de ≤ `--taille-lot`** (limite batch D1).
+
+- Ligne dont le SKU n'existe pas en cible (produit non importé) → **ignorée et
+  rapportée**, jamais bloquante.
+- **Reprenable** : `data/inventaire-*.json` = nombre de lots validés par
+  entrepôt ; une relance saute les lots déjà passés.
+- En `--dry-run` : sans identifiants, affiche un plan brut (lignes/quantités
+  par magasin) ; avec identifiants, résout les variantes et détaille les lots.
+
+| Option | Défaut | Description |
+|---|---|---|
+| `--api-url` | `http://localhost:8787` | Base URL de l'API cible |
+| `--web-origin` | `http://localhost:3000` | Origin frontend attendu (trustedOrigins) |
+| `--journal-magasins` | `data/magasins-local.json` | Journal produit par `creer-magasins.ts` (lecture) |
+| `--journal` | `data/inventaire-local.json` | Journal de reprise des lots validés |
+| `--supabase-workdir` | racine worktree | Dossier de résolution du lien Supabase |
+| `--taille-lot` | `100` | Nombre de lignes max par réception |
+| `--dry-run` | `false` | Aucune écriture API |
+
+## Validation locale (2026-07-19)
+
+Sur la D1 locale (catalogue des 720 produits déjà importé) : 3 magasins + 1
+fournisseur créés ; niveaux de stock **Quincaillerie 691**, **Symotocycle 15**,
+**Electronics 0** (= 745 lignes d'inventaire Supabase − 39 SKU absents du
+catalogue). Quantités et CMP (`avg_cost = round(cost)`) vérifiés valeur par
+valeur contre Supabase, y compris des coûts décimaux (200,35→200 ; 3,50→4).
+Relance = 0 nouvelle réception (idempotence confirmée).
