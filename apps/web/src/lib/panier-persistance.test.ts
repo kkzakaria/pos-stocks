@@ -48,15 +48,26 @@ describe("panier-persistance", () => {
     expect(charger("k")).toBeNull()
   })
 
-  it("purge et renvoie null sur une version inconnue", async () => {
+  it("renvoie null sur une version inconnue", async () => {
     localStorage.setItem("k", JSON.stringify({ ...etat, v: 2 }))
     expect(charger("k")).toBeNull()
-    expect(localStorage.getItem("k")).toBeNull()
+    // `charger` never deletes: that write would happen outside the lock.
+    expect(localStorage.getItem("k")).not.toBeNull()
   })
 
-  it("purge et renvoie null sur un JSON illisible", async () => {
+  it("renvoie null sur un JSON illisible", async () => {
     localStorage.setItem("k", "{pas du json")
     expect(charger("k")).toBeNull()
+    // `charger` never deletes: that write would happen outside the lock.
+    expect(localStorage.getItem("k")).not.toBeNull()
+  })
+
+  it("une entrée invalide est récupérée par la purge verrouillée suivante", async () => {
+    // `charger` leaves the stale entry in place; the next lock-protected purge
+    // (an empty cart) is what reclaims it.
+    localStorage.setItem("k", JSON.stringify({ ...etat, v: 2 }))
+    expect(charger("k")).toBeNull()
+    await purger("k", "req-quelconque")
     expect(localStorage.getItem("k")).toBeNull()
   })
 
@@ -174,14 +185,15 @@ describe("panier-persistance", () => {
     vi.unstubAllGlobals()
   })
 
-  it("purge et renvoie null si une ligne n'a pas tous ses champs requis", async () => {
+  it("renvoie null si une ligne n'a pas tous ses champs requis", async () => {
     const { nom: _nom, ...ligneSansNom } = ligne
     localStorage.setItem(
       "k",
       JSON.stringify({ ...etat, lignes: [ligneSansNom] })
     )
     expect(charger("k")).toBeNull()
-    expect(localStorage.getItem("k")).toBeNull()
+    // `charger` never deletes: that write would happen outside the lock.
+    expect(localStorage.getItem("k")).not.toBeNull()
   })
 
   it("autorise l'écrasement d'un panier verrouillé par le MÊME requestId (le même onglet résout son propre verrou)", async () => {
@@ -201,7 +213,7 @@ describe("panier-persistance", () => {
     expect(charger("k")).toEqual(resolu)
   })
 
-  it("purge et renvoie null si une ligne est corrompue (variantId non-string)", async () => {
+  it("renvoie null si une ligne est corrompue (variantId non-string)", async () => {
     localStorage.setItem(
       "k",
       JSON.stringify({
@@ -210,10 +222,11 @@ describe("panier-persistance", () => {
       })
     )
     expect(charger("k")).toBeNull()
-    expect(localStorage.getItem("k")).toBeNull()
+    // `charger` never deletes: that write would happen outside the lock.
+    expect(localStorage.getItem("k")).not.toBeNull()
   })
 
-  it("purge et renvoie null si une ligne a une quantité non finie", async () => {
+  it("renvoie null si une ligne a une quantité non finie", async () => {
     localStorage.setItem(
       "k",
       JSON.stringify({
@@ -222,10 +235,11 @@ describe("panier-persistance", () => {
       })
     )
     expect(charger("k")).toBeNull()
-    expect(localStorage.getItem("k")).toBeNull()
+    // `charger` never deletes: that write would happen outside the lock.
+    expect(localStorage.getItem("k")).not.toBeNull()
   })
 
-  it("purge et renvoie null si une ligne a un prixUnitaire non finie", async () => {
+  it("renvoie null si une ligne a un prixUnitaire non finie", async () => {
     localStorage.setItem(
       "k",
       JSON.stringify({
@@ -234,7 +248,8 @@ describe("panier-persistance", () => {
       })
     )
     expect(charger("k")).toBeNull()
-    expect(localStorage.getItem("k")).toBeNull()
+    // `charger` never deletes: that write would happen outside the lock.
+    expect(localStorage.getItem("k")).not.toBeNull()
   })
 
   it("ne lève jamais si localStorage est indisponible", async () => {

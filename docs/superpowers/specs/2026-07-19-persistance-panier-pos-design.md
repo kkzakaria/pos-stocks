@@ -56,7 +56,7 @@ interface PanierPersiste {
 `apps/web/src/lib/panier-persistance.ts` — fonctions **pures**, testables sans React ni DOM :
 
 - `clePanier(boutiqueId: string, sessionId: string): string`
-- `charger(cle: string): PanierPersiste | null` — parse, valide `v`, purge et renvoie `null` si invalide
+- `charger(cle: string): PanierPersiste | null` — parse, valide `v` et chaque ligne, renvoie `null` si invalide. Ne **supprime pas** : ce serait une écriture hors verrou, susceptible d'effacer un panier valide (voire verrouillé) écrit entre-temps par un autre onglet.
 - `enregistrer(cle: string, etat: PanierPersiste): void`
 - `purger(cle: string): void`
 - `revaliderPanier(lignes, articles): { lignes: LignePanier[]; retirees: number; prixModifies: number }`
@@ -106,7 +106,7 @@ Au pire, hors de ces cas, un ticket est réimprimé.
 ## Gestion d'erreurs
 
 - `localStorage` indisponible ou en échec (mode privé, quota dépassé) : tout accès est encadré par un `try/catch`. On dégrade **silencieusement** vers le comportement actuel (pas de persistance) — jamais de crash de l'écran de vente, qui est l'écran critique du comptoir.
-- Entrée illisible ou `v` inconnu : purge + départ à zéro.
+- Entrée illisible ou `v` inconnu : départ à zéro. L'entrée périmée est laissée en place — inoffensive, puisque chaque lecture la rejette — et récupérée par la purge suivante, qui s'exécute sous le verrou.
 - Le panier restauré n'est jamais présumé valide : la revalidation et le serveur tranchent.
 
 ## Tests

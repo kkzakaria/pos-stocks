@@ -14,9 +14,13 @@ export function clePanier(boutiqueId: string, sessionId: string): string {
 }
 
 /**
- * Reads the stored cart. Returns null — purging the entry — when the payload
- * is unreadable or carries a foreign version, so a format change can never
- * crash the till screen.
+ * Reads the stored cart. Returns null when the payload is unreadable or carries
+ * a foreign version, so a format change can never crash the till screen.
+ *
+ * It deliberately does NOT delete an invalid entry: that write would happen
+ * outside the cross-tab lock, and could erase a valid — possibly locked — cart
+ * another tab wrote in between. The stale entry is harmless (every read
+ * rejects it) and is reclaimed by the next `purger`, which runs under the lock.
  */
 export function charger(cle: string): PanierPersiste | null {
   let brut: string | null
@@ -30,7 +34,6 @@ export function charger(cle: string): PanierPersiste | null {
   try {
     donnees = JSON.parse(brut)
   } catch {
-    supprimerBrut(cle)
     return null
   }
   if (
@@ -43,22 +46,9 @@ export function charger(cle: string): PanierPersiste | null {
     typeof (donnees as { majA?: unknown }).majA !== "string" ||
     !(donnees as { lignes: unknown[] }).lignes.every(ligneValide)
   ) {
-    supprimerBrut(cle)
     return null
   }
   return donnees as PanierPersiste
-}
-
-/**
- * Unconditional delete, used for corrupted payloads: they carry no meaningful
- * lock state, so they need neither the guard nor the cross-tab lock.
- */
-function supprimerBrut(cle: string): void {
-  try {
-    localStorage.removeItem(cle)
-  } catch {
-    // Never crash the till screen on a storage failure.
-  }
 }
 
 /**
@@ -90,7 +80,7 @@ async function sousVerrou(cle: string, operation: () => void): Promise<void> {
 /**
  * Cheap per-element shape check for a restored cart line: a corrupted entry
  * (wrong type, missing field) would otherwise reach `totalPanier` and yield
- * NaN totals at the till instead of being caught here and purged.
+ * NaN totals at the till instead of being rejected here.
  */
 function ligneValide(ligne: unknown): boolean {
   if (typeof ligne !== "object" || ligne === null) return false
@@ -143,8 +133,9 @@ export async function enregistrer(
  * Removes the stored cart. Pass `requestIdAttendu` from a live cart so the
  * deletion honours another tab's AMBIGUOUS (locked) entry — symmetrically to
  * `enregistrer`, an empty cart in one tab must not wipe the locked entry that
- * another tab depends on to avoid a duplicate sale. Called without it (the
- * corrupted-payload path in `charger`) the deletion is unconditional.
+ * another tab depends on to avoid a duplicate sale. Called without it, the
+ * deletion is unconditional — which is also what reclaims a stale invalid
+ * entry, since `charger` never deletes.
  */
 export async function purger(
   cle: string,
