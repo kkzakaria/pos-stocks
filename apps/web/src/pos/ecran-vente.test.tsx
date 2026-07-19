@@ -516,7 +516,11 @@ describe("EcranVente — persistance du panier", () => {
     })
   })
 
-  function panierStocke(quantite: number, prixCatalogue: number) {
+  function panierStocke(
+    quantite: number,
+    prixCatalogue: number,
+    requestId = "req-1"
+  ) {
     return JSON.stringify({
       v: 1,
       lignes: [
@@ -534,11 +538,112 @@ describe("EcranVente — persistance du panier", () => {
           enAlerte: false,
         },
       ],
-      requestId: "req-1",
+      requestId,
       verrouille: false,
       majA: "2026-07-19T10:00:00.000Z",
     })
   }
+
+  const venteMinimale: VenteDetail = {
+    id: "sale1",
+    ticketNumber: 1,
+    total: 500,
+    currency: "XOF",
+    status: "completed",
+    createdAt: new Date().toISOString(),
+    storeId: "store1",
+    storeName: "Boutique",
+    cashierName: "Caissier",
+    items: [],
+    payments: [
+      {
+        method: "cash",
+        amount: 500,
+        reference: null,
+        receivedAmount: 500,
+        changeGiven: 0,
+      },
+    ],
+  }
+
+  it("envoie le requestId restauré comme clientRequestId lors de l'encaissement", async () => {
+    localStorage.setItem(CLE, panierStocke(1, 500, "req-restaure"))
+    const envoyerVente = vi.spyOn(posApi, "envoyerVente").mockResolvedValue({
+      sale: venteMinimale,
+      dejaEnregistree: false,
+    })
+    vi.spyOn(posApi, "fetchReglagesTicket").mockResolvedValue({
+      name: "Org",
+      currency: "XOF",
+      receiptHeader: "",
+      receiptFooter: "",
+    })
+    vi.spyOn(window, "print").mockImplementation(() => undefined)
+    renderEcran()
+    await screen.findByRole("button", { name: "Retirer Coca 50cl" })
+    fireEvent.click(screen.getByRole("button", { name: /ENCAISSER/ }))
+    fireEvent.click(screen.getByRole("button", { name: "Montant exact" }))
+    fireEvent.click(screen.getByRole("button", { name: "Valider la vente" }))
+
+    await waitFor(() => expect(envoyerVente).toHaveBeenCalledTimes(1))
+    expect(envoyerVente.mock.calls[0][0]).toMatchObject({
+      clientRequestId: "req-restaure",
+    })
+  })
+
+  it("purge le stockage après un encaissement réussi (pas seulement Vider)", async () => {
+    localStorage.setItem(CLE, panierStocke(1, 500))
+    vi.spyOn(posApi, "envoyerVente").mockResolvedValue({
+      sale: venteMinimale,
+      dejaEnregistree: false,
+    })
+    vi.spyOn(posApi, "fetchReglagesTicket").mockResolvedValue({
+      name: "Org",
+      currency: "XOF",
+      receiptHeader: "",
+      receiptFooter: "",
+    })
+    vi.spyOn(window, "print").mockImplementation(() => undefined)
+    renderEcran()
+    await screen.findByRole("button", { name: "Retirer Coca 50cl" })
+    fireEvent.click(screen.getByRole("button", { name: /ENCAISSER/ }))
+    fireEvent.click(screen.getByRole("button", { name: "Montant exact" }))
+    fireEvent.click(screen.getByRole("button", { name: "Valider la vente" }))
+
+    await screen.findByText("Vente n° 1 enregistrée")
+    expect(localStorage.getItem(CLE)).toBeNull()
+  })
+
+  it("affiche le message d'ambiguïté quand un panier verrouillé est restauré", async () => {
+    localStorage.setItem(
+      CLE,
+      JSON.stringify({
+        v: 1,
+        lignes: [
+          {
+            variantId: "v1",
+            nom: "Coca 50cl",
+            sku: "SKU1",
+            imageKey: null,
+            quantite: 1,
+            prixUnitaire: 500,
+            prixCatalogue: 500,
+            prixPlancher: null,
+            sourceWarehouseId: null,
+            sourceNom: null,
+            enAlerte: false,
+          },
+        ],
+        requestId: "req-ambigu",
+        verrouille: true,
+        majA: "2026-07-19T10:00:00.000Z",
+      })
+    )
+    renderEcran()
+    expect(
+      await screen.findByText(/Vente peut-être déjà enregistrée/)
+    ).toBeTruthy()
+  })
 
   it("signale un prix catalogue modifié depuis la mise au panier", async () => {
     // Stocké à 450, catalogue à 500 → 1 prix modifié, 0 retrait.

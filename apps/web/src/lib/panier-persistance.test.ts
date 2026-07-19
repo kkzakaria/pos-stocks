@@ -66,6 +66,72 @@ describe("panier-persistance", () => {
     expect(localStorage.getItem("k")).toBeNull()
   })
 
+  it("ne rejoue pas la revalidation quand le catalogue est vide et n'écrase pas un panier verrouillé d'un AUTRE onglet/requestId", () => {
+    const verrouilleAutreOnglet: PanierPersiste = {
+      ...etat,
+      verrouille: true,
+      requestId: "req-onglet-a",
+    }
+    enregistrer("k", verrouilleAutreOnglet)
+    // Onglet B : requestId DIFFÉRENT — écriture refusée, le verrou de
+    // l'onglet A (et son idempotence) doit survivre intact.
+    enregistrer("k", { ...etat, verrouille: false, requestId: "req-onglet-b" })
+    expect(charger("k")).toEqual(verrouilleAutreOnglet)
+  })
+
+  it("autorise l'écrasement d'un panier verrouillé par le MÊME requestId (le même onglet résout son propre verrou)", () => {
+    const verrouille: PanierPersiste = {
+      ...etat,
+      verrouille: true,
+      requestId: "req-onglet-a",
+    }
+    enregistrer("k", verrouille)
+    const resolu: PanierPersiste = {
+      ...etat,
+      verrouille: false,
+      requestId: "req-onglet-a",
+      lignes: [],
+    }
+    enregistrer("k", resolu)
+    expect(charger("k")).toEqual(resolu)
+  })
+
+  it("purge et renvoie null si une ligne est corrompue (variantId non-string)", () => {
+    localStorage.setItem(
+      "k",
+      JSON.stringify({
+        ...etat,
+        lignes: [{ ...ligne, variantId: 42 }],
+      })
+    )
+    expect(charger("k")).toBeNull()
+    expect(localStorage.getItem("k")).toBeNull()
+  })
+
+  it("purge et renvoie null si une ligne a une quantité non finie", () => {
+    localStorage.setItem(
+      "k",
+      JSON.stringify({
+        ...etat,
+        lignes: [{ ...ligne, quantite: Number.NaN }],
+      })
+    )
+    expect(charger("k")).toBeNull()
+    expect(localStorage.getItem("k")).toBeNull()
+  })
+
+  it("purge et renvoie null si une ligne a un prixUnitaire non finie", () => {
+    localStorage.setItem(
+      "k",
+      JSON.stringify({
+        ...etat,
+        lignes: [{ ...ligne, prixUnitaire: "500" }],
+      })
+    )
+    expect(charger("k")).toBeNull()
+    expect(localStorage.getItem("k")).toBeNull()
+  })
+
   it("ne lève jamais si localStorage est indisponible", () => {
     vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
       throw new Error("indisponible")

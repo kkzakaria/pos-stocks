@@ -73,7 +73,7 @@ interface PanierPersiste {
 
 Le catalogue est asynchrone (`refetchOnMount: "always"`). La revalidation s'exécute donc **une seule fois**, à la première arrivée du catalogue après une restauration.
 
-Déclenchement explicite : l'initialisation paresseuse pose un drapeau « à revalider » (`useRef<boolean>`) uniquement si un panier non vide a été restauré. Le `useEffect` de revalidation ne fait rien tant que le catalogue n'est pas chargé ni si le drapeau est faux ; dès qu'il s'exécute, il abaisse le drapeau. Un panier saisi normalement (non restauré) n'est donc jamais revalidé, et un rechargement ultérieur du catalogue ne rejoue pas la revalidation.
+Déclenchement explicite : l'initialisation paresseuse pose un drapeau « à revalider » (`useRef<boolean>`) uniquement si un panier non vide et **non verrouillé** a été restauré. Un panier verrouillé (soumission ambiguë en cours, cf. section suivante) n'est jamais revalidé automatiquement : la vente est peut-être déjà commitée côté serveur, donc retirer/repriser une ligne ici puis rejouer le même `requestId` au retry ferait imprimer un ticket qui ne correspond plus à l'écran. Le `useEffect` de revalidation ne fait rien tant que le catalogue n'est pas chargé ni si le drapeau est faux ; dès qu'il s'exécute, il abaisse le drapeau. Un panier saisi normalement (non restauré) n'est donc jamais revalidé, et un rechargement ultérieur du catalogue ne rejoue pas la revalidation.
 
 Règles appliquées :
 
@@ -93,7 +93,7 @@ Le serveur reste l'autorité finale sur le stock : un `STOCK_INSUFFISANT` à l'e
 
 C'est le choix **le plus sûr** : restaurer le panier avec une clé neuve permettrait, si la vente avait bien été commitée avant le rechargement, un **doublon** — client débité deux fois et stock sorti deux fois. En conservant la clé, un nouvel envoi rejoue l'idempotence et le serveur renvoie la vente déjà enregistrée.
 
-**Multi-onglet** : dernier écrivain gagne, pas de synchronisation via l'événement `storage` (YAGNI). Sûr par construction — deux onglets partageant la même clé d'idempotence ne peuvent pas créer deux ventes ; au pire un ticket est réimprimé.
+**Multi-onglet** : dernier écrivain gagne, pas de synchronisation via l'événement `storage` (YAGNI). Chaque onglet mint son **propre** `requestId` au montage — deux onglets sur la même boutique/session n'ont donc **pas** la même clé d'idempotence. Sans garde, si l'onglet A verrouille son panier après une soumission ambiguë (vente peut-être déjà commitée) et que l'onglet B écrit ensuite dans le même stockage, le verrou et le `requestId` de A disparaissent ; un rechargement de A restaurerait alors l'état déverrouillé de B et pourrait committer une **seconde** vente pour le même panier. Garde appliquée dans `enregistrer` (`panier-persistance.ts`) : une écriture n'écrase jamais une entrée stockée qui est verrouillée et porte un `requestId` différent du sien — seul l'onglet qui détient ce verrou (même `requestId`) peut le lever. Au pire, hors de ce cas, un ticket est réimprimé.
 
 ## Gestion d'erreurs
 

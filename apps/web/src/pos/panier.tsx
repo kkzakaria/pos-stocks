@@ -109,7 +109,7 @@ export function Panier({
   }
 
   return (
-    <aside className="flex h-full w-full flex-col border-l bg-card">
+    <aside className="flex min-h-0 w-full flex-1 flex-col border-l bg-card">
       <div className="flex items-center justify-between border-b px-4 py-2">
         <h2 className="text-sm font-semibold text-muted-foreground">Panier</h2>
         <AlertDialog open={viderOuvert} onOpenChange={onViderOuvertChange}>
@@ -343,6 +343,12 @@ export function Panier({
         })}
       </ul>
       <div className="border-t p-4">
+        {verrouille && (
+          <p role="alert" className="mb-2 text-xs font-semibold text-warning">
+            Vente peut-être déjà enregistrée : réessayez l'encaissement, ou
+            vérifiez les tickets du jour avant de modifier le panier.
+          </p>
+        )}
         <p className="mb-3 flex items-baseline justify-between">
           <span className="text-sm text-muted-foreground">Total</span>
           <span className="text-2xl font-bold tabular-nums">

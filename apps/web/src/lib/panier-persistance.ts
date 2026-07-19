@@ -39,7 +39,8 @@ export function charger(cle: string): PanierPersiste | null {
     (donnees as { v?: unknown }).v !== 1 ||
     !Array.isArray((donnees as { lignes?: unknown }).lignes) ||
     typeof (donnees as { requestId?: unknown }).requestId !== "string" ||
-    typeof (donnees as { verrouille?: unknown }).verrouille !== "boolean"
+    typeof (donnees as { verrouille?: unknown }).verrouille !== "boolean" ||
+    !(donnees as { lignes: unknown[] }).lignes.every(ligneValide)
   ) {
     purger(cle)
     return null
@@ -47,8 +48,35 @@ export function charger(cle: string): PanierPersiste | null {
   return donnees as PanierPersiste
 }
 
+/**
+ * Cheap per-element shape check for a restored cart line: a corrupted entry
+ * (wrong type, missing field) would otherwise reach `totalPanier` and yield
+ * NaN totals at the till instead of being caught here and purged.
+ */
+function ligneValide(ligne: unknown): boolean {
+  if (typeof ligne !== "object" || ligne === null) return false
+  const l = ligne as Record<string, unknown>
+  return (
+    typeof l.variantId === "string" &&
+    typeof l.quantite === "number" &&
+    Number.isFinite(l.quantite) &&
+    typeof l.prixUnitaire === "number" &&
+    Number.isFinite(l.prixUnitaire)
+  )
+}
+
 export function enregistrer(cle: string, etat: PanierPersiste): void {
   try {
+    // Never clobber another tab's AMBIGUOUS (locked) cart: its requestId is
+    // the only thing standing between a retry and a duplicate sale.
+    const existant = charger(cle)
+    if (
+      existant !== null &&
+      existant.verrouille &&
+      existant.requestId !== etat.requestId
+    ) {
+      return
+    }
     localStorage.setItem(cle, JSON.stringify(etat))
   } catch {
     // Storage unavailable (private mode) or quota exceeded: degrade silently

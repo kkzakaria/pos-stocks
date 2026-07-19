@@ -123,6 +123,11 @@ function PagePos() {
   }
   return (
     <EcranVente
+      // Structural session invariant (M6, revue finale) : un changement de
+      // session (fermeture/réouverture de caisse) doit REMONTER l'écran,
+      // pas seulement changer une prop — sinon un état de panier restauré
+      // pour l'ancienne session pourrait persister au-delà de sa portée.
+      key={ouverte.id}
       me={me}
       boutique={boutique}
       session={ouverte}

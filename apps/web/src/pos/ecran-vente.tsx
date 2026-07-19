@@ -131,8 +131,15 @@ export function EcranVente({ me, boutique, session, onSessionFermee }: Props) {
 
   // One-shot revalidation of a RESTORED cart, run when the catalogue first
   // arrives. The ref guard means a cart typed normally is never revalidated
-  // and later catalogue refetches never replay it.
-  const aRevalider = useRef((etatRestaure?.lignes.length ?? 0) > 0)
+  // and later catalogue refetches never replay it. A LOCKED restored cart is
+  // excluded too (C1, revue finale) : the sale may already be committed, so
+  // mutating lines here then retrying would replay the same requestId
+  // against a cart that no longer matches what the server recorded.
+  const aRevalider = useRef(
+    etatRestaure !== null &&
+      etatRestaure.lignes.length > 0 &&
+      !etatRestaure.verrouille
+  )
   const [resumeRestauration, setResumeRestauration] = useState<{
     retirees: number
     prixModifies: number
@@ -394,7 +401,7 @@ export function EcranVente({ me, boutique, session, onSessionFermee }: Props) {
             <GrilleArticles articles={filtres} onChoisir={ajouterAuPanier} />
           )}
         </section>
-        <div className="flex w-96 shrink-0 flex-col">
+        <div className="flex min-h-0 w-96 shrink-0 flex-col">
           {resumeRestauration && (
             <div
               role="status"
