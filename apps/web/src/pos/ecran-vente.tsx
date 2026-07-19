@@ -117,7 +117,9 @@ export function EcranVente({ me, boutique, session, onSessionFermee }: Props) {
   // panier" both end on setLignes([]).
   useEffect(() => {
     if (lignes.length === 0) {
-      purger(cle)
+      // Pass our own key: an empty cart here must not wipe another tab's
+      // locked (ambiguous) entry, which guards against a duplicate sale.
+      purger(cle, requestId.current)
       return
     }
     enregistrer(cle, {

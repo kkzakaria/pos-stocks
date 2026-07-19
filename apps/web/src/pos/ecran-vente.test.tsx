@@ -435,9 +435,9 @@ describe("EcranVente — persistance du panier", () => {
       })
     )
     renderEcran()
-    // Assertion DISCRIMINANTE : « Retirer <nom> » n'existe que pour une LIGNE
-    // DE PANIER. Le nom du produit seul apparaît aussi sur la tuile du
-    // catalogue — l'asserter passerait même sans restauration (faux positif).
+    // DISCRIMINATING assertion: "Retirer <nom>" only exists for a CART LINE.
+    // The product name alone also appears on the catalogue tile, so asserting
+    // it would pass even without restoration (false positive).
     expect(
       await screen.findByRole("button", { name: "Retirer Coca 50cl" })
     ).toBeTruthy()

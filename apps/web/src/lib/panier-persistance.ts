@@ -40,6 +40,7 @@ export function charger(cle: string): PanierPersiste | null {
     !Array.isArray((donnees as { lignes?: unknown }).lignes) ||
     typeof (donnees as { requestId?: unknown }).requestId !== "string" ||
     typeof (donnees as { verrouille?: unknown }).verrouille !== "boolean" ||
+    typeof (donnees as { majA?: unknown }).majA !== "string" ||
     !(donnees as { lignes: unknown[] }).lignes.every(ligneValide)
   ) {
     purger(cle)
@@ -56,12 +57,23 @@ export function charger(cle: string): PanierPersiste | null {
 function ligneValide(ligne: unknown): boolean {
   if (typeof ligne !== "object" || ligne === null) return false
   const l = ligne as Record<string, unknown>
+  const nombre = (v: unknown): boolean =>
+    typeof v === "number" && Number.isFinite(v)
+  const nombreOuNul = (v: unknown): boolean => v === null || nombre(v)
+  const texteOuNul = (v: unknown): boolean =>
+    v === null || typeof v === "string"
+  // `imageKey` is optional on LignePanier, so it is deliberately not required.
   return (
     typeof l.variantId === "string" &&
-    typeof l.quantite === "number" &&
-    Number.isFinite(l.quantite) &&
-    typeof l.prixUnitaire === "number" &&
-    Number.isFinite(l.prixUnitaire)
+    typeof l.nom === "string" &&
+    typeof l.sku === "string" &&
+    nombre(l.quantite) &&
+    nombre(l.prixUnitaire) &&
+    nombre(l.prixCatalogue) &&
+    nombreOuNul(l.prixPlancher) &&
+    texteOuNul(l.sourceWarehouseId) &&
+    texteOuNul(l.sourceNom) &&
+    typeof l.enAlerte === "boolean"
   )
 }
 
@@ -84,8 +96,25 @@ export function enregistrer(cle: string, etat: PanierPersiste): void {
   }
 }
 
-export function purger(cle: string): void {
+/**
+ * Removes the stored cart. Pass `requestIdAttendu` from a live cart so the
+ * deletion honours another tab's AMBIGUOUS (locked) entry — symmetrically to
+ * `enregistrer`, an empty cart in one tab must not wipe the locked entry that
+ * another tab depends on to avoid a duplicate sale. Called without it (the
+ * corrupted-payload path in `charger`) the deletion is unconditional.
+ */
+export function purger(cle: string, requestIdAttendu?: string): void {
   try {
+    if (requestIdAttendu !== undefined) {
+      const existant = charger(cle)
+      if (
+        existant !== null &&
+        existant.verrouille &&
+        existant.requestId !== requestIdAttendu
+      ) {
+        return
+      }
+    }
     localStorage.removeItem(cle)
   } catch {
     // Same rationale as enregistrer: never crash on storage failure.

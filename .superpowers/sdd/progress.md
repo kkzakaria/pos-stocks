@@ -314,3 +314,45 @@ Vérification :
 CodeRabbit PR #11 : **6 findings sur 3 passages**, tous vérifiés puis corrigés (contraste muted AA, restauration focus, hover destructif du logout écrasé par classe partagée, assertion montant → séparateur, 2 contradictions DESIGN.md) ; méthode = vérifier chaque finding, aucun écarté.
 
 DESIGN MERGÉE (PR #11, 2026-07-13, merge commit **55bd4b5**, pas de squash) — **aucune migration D1** (frontend + docs + token), deploy success (migration prod no-op, Worker web redéployé), CI verte 2m22. Branche supprimée. Score audit 11→18. Différé unique : issue #10 (pipeline images).
+
+## Issue #13 — sous-projet A (composant Pagination), branche feat/pagination-composant-partage
+Task 1: complete (commits f7cc236..4d0737b, review clean — composant Pagination + 5 tests)
+Task 2: complete (commits 4d0737b..ef788de, review clean — tickets-du-jour refactoré, test existant vert)
+Task 3: complete (commits ef788de..382058b, review clean — mouvements refactoré, import Button retiré, 108/108)
+Task 4: complete (commits 382058b..6736c11, review clean — ventes/index refactoré, 108/108)
+Sous-projet A: 4/4 tâches complètes, prêt pour revue finale de branche.
+Revue finale (opus) : Ready to merge = Yes, 0 Critical/Important. 2 Minor : (1) mouvements affiche le compteur sur empty (incohérent avec liste.length>0) → À CORRIGER ; (2) nav landmark texte-seul sur page unique → gardé (conforme spec).
+Fix Minor #1: complete (commit 5fb3b72 — garde total>0 sur mouvements). Sous-projet A TERMINÉ, revue finale OK, prêt pour finishing-a-development-branch.
+Revue CLI + bot CodeRabbit PR #17 : #3 (assertion exacte, 2228773) appliqué ; #2 (throw pageSize) écarté YAGNI ; #1 (.mcp.json) hors périmètre (non-suivi) ; bot Minor garde mouvements total>0 → liste.length>0 aligné (f9f595b). Réponses postées.
+PR #17 MERGÉE (sous-projet A #13, merge commit, branche supprimée). Reste : sous-projet B (pagination serveur) + issue #14 (persistance panier POS).
+REPRISE inarray-lots : cherry-pické sur main courant (branche fix/inarray-lots-sql-limit). Bug trouvé via test régression : TAILLE_LOT_MAX=100 crashait encore (D1=100 params, inArray100+eq=101) → capé à 90. products.ts:88 réintégré (source du crash). Spec+plan amendés. 308 tests API verts.
+
+## Issue #13 sous-projet B (pagination serveur), branche feat/pagination-serveur-issue-13b
+Task 1: complete (commits 655e2c4..9f96239, review clean — helper lirePagination). Minor: commentaire FR dans pagination.test.ts (à balayer avant PR).
+Task 2: complete (commits 9f96239..f7b9e86, review clean — /sales parPage→limite + web callers + tickets-du-jour mock).
+Task 3: complete (commits f7b9e86..57b6b20, review clean — /stock/movements sur lirePagination, 400 au lieu de clamp).
+Task 4: complete (commits 57b6b20..4ee21ee, review Approved — pagination GET /products + front + isolation). MUST-FIX avant merge: pickers transferts/$transferId + receptions/$purchaseId passent limite=200 (régression browse recherche-vide). Minor: commentaires FR (balayage avant PR). Note spec ajoutée (febe89a).
+Task 5: complete (commits febe89a..e586d48, review Approved — pagination /stock/levels, COUNT avec joins, isolation).
+Task 6: complete fonctionnellement (commits e586d48..2a51cc6, spec 4/4 OK — pagination /purchases + front + isolation). Minor: 2 commentaires FR dans purchases-draft.test.ts:380,461 (→ balayage FR→EN avant PR).
+Task 7: complete (commits 2a51cc6..bd61332, review Approved — /transfers pagination remplace cap limit + dashboard limite=50 + isolation). Minor: 2 commentaires FR transfers-draft.test.ts:490,498 (→ balayage).
+Task 8: complete (commits bd61332..8189d3a, review Approved — pagination /inventory-counts + front + isolation, commentaires EN).
+Task 9: complete (commits 8189d3a..eae1ea9, review Approved — pagination /users, affectations scopées par page via requeterParLots, isolation). 9/9 TÂCHES COMPLÈTES. Restant avant revue finale: (1) picker fix limite=200, (2) balayage FR→EN commentaires (pagination.test.ts, purchases-draft:380/461, transfers-draft:490/498).
+Fix consolidé: complete (commit d07e513 — pickers produits limite=200 + traduction commentaires FR→EN des tests). Sous-projet B: 9 tâches + fix, prêt pour revue finale.
+Revue finale (opus): Ready to merge = Yes, 0 Critical/Important. 3 Minor non bloquants: (1) COUNT sans joins d affichage (theorique, FK-safe, gardé), (2) pagination masquée sur page vide (edge faible proba, cohérent sous-projet A, suivi possible), (3) pickers cap 200 (compromis spec). Commentaires FR→EN balayés (116c68e). Prêt pour finishing-a-development-branch.
+
+
+---
+
+# Ledger — persistance du panier POS (issue #14, branche feat/persistance-panier-issue-14)
+Plan: docs/superpowers/plans/2026-07-19-persistance-panier-pos.md
+Base commit: c5394d1
+Issue #14 — Task 1: complete (commits c5394d1..e1fb8a0, review clean — verbatim, 7/7 tests, typecheck OK)
+Issue #14 — Task 2: complete (commits e1fb8a0..96666b8, review clean — 12/12, prixUnitaire préservé, cast superflu retiré)
+Issue #14 — Task 3: complete (commits 96666b8..08767f4, review clean — production conforme au plan, suite 124/124, typecheck OK)
+  Déviations justifiées: afterEach(localStorage.clear()) global dans test-setup.ts (isolation, 8 tests fuyaient); toBeInTheDocument->toBeTruthy (pas de jest-dom); selecteur /^Coca 50cl/ (ambiguite tuile vs bouton Retirer); rename ligneDe(cle->refLigne) anti-shadowing
+Issue #14 — Task 4: complete (commits 08767f4..181d281, review clean — production conforme, 15/15 ciblé, 127/127 suite)
+  + fix hygiène f18cc15: eslint racine ignore .claude/ (worktree agent cassait bun run lint)
+Revue finale #14 (opus): 1 Critical + 3 Important + 6 Minor. Vague unique ab83972: C1 (revalidation ignorait panierVerrouille -> divergence ticket/ecran), I1 (verrou restaure sans message -> Panier porte le message), I2 (multi-onglet: chaque onglet mint sa cle -> garde anti-ecrasement dans enregistrer + spec corrigee), I3 (3 tests: requestId restaure reutilise, purge apres encaissement, message verrou), M1 (validation par ligne), M3 (layout ENCAISSER hors ecran), M6 (key=session.id). Suite 135/135, typecheck+lint verts.
+  Differes (ledger): M2 entrees orphelines + majA non lu; M4 prixModifie jamais efface; M5 prixPlancher non revalide (trou preexistant).
+E2E navigateur #14 validé (local, Boutique Centre): panier écrit en localStorage à l ajout; RECHARGEMENT -> panier restauré identique (Riz local 5kg x2, total 15 000 = 2x7500), sans modale, ENCAISSER visible (valide fix M3); encaissement -> panier vidé ET clé purgée. Portée par session vérifiée structurellement (session id dans la clé).
+BRANCHE PRÊTE POUR PR.

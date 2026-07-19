@@ -15,10 +15,10 @@ const ligne: LignePanier = {
   sku: "SKU1",
   imageKey: null,
   quantite: 2,
-  prixUnitaire: 450, // prix négocié, sous le prix catalogue
+  prixUnitaire: 450, // negotiated price, below the catalogue price
   prixCatalogue: 500,
   prixPlancher: 400,
-  sourceWarehouseId: "wh2", // dépannage
+  sourceWarehouseId: "wh2", // sourced from another warehouse
   sourceNom: "Dépôt central",
   enAlerte: false,
 }
@@ -66,17 +66,46 @@ describe("panier-persistance", () => {
     expect(localStorage.getItem("k")).toBeNull()
   })
 
-  it("ne rejoue pas la revalidation quand le catalogue est vide et n'écrase pas un panier verrouillé d'un AUTRE onglet/requestId", () => {
+  it("n'écrase pas un panier verrouillé d'un AUTRE onglet/requestId", () => {
     const verrouilleAutreOnglet: PanierPersiste = {
       ...etat,
       verrouille: true,
       requestId: "req-onglet-a",
     }
     enregistrer("k", verrouilleAutreOnglet)
-    // Onglet B : requestId DIFFÉRENT — écriture refusée, le verrou de
-    // l'onglet A (et son idempotence) doit survivre intact.
+    // Tab B has a DIFFERENT requestId: the write is refused so tab A's lock
+    // (and its idempotency key) survives intact.
     enregistrer("k", { ...etat, verrouille: false, requestId: "req-onglet-b" })
     expect(charger("k")).toEqual(verrouilleAutreOnglet)
+  })
+
+  it("purger ne supprime pas un panier verrouillé d'un AUTRE requestId", () => {
+    const verrouilleAutreOnglet: PanierPersiste = {
+      ...etat,
+      verrouille: true,
+      requestId: "req-onglet-a",
+    }
+    enregistrer("k", verrouilleAutreOnglet)
+    // Tab B empties its cart: it must NOT wipe tab A's locked entry, which is
+    // the only thing preventing a duplicate sale on retry.
+    purger("k", "req-onglet-b")
+    expect(charger("k")).toEqual(verrouilleAutreOnglet)
+  })
+
+  it("purger supprime un panier verrouillé du MÊME requestId", () => {
+    enregistrer("k", { ...etat, verrouille: true, requestId: "req-onglet-a" })
+    purger("k", "req-onglet-a")
+    expect(localStorage.getItem("k")).toBeNull()
+  })
+
+  it("purge et renvoie null si une ligne n'a pas tous ses champs requis", () => {
+    const { nom: _nom, ...ligneSansNom } = ligne
+    localStorage.setItem(
+      "k",
+      JSON.stringify({ ...etat, lignes: [ligneSansNom] })
+    )
+    expect(charger("k")).toBeNull()
+    expect(localStorage.getItem("k")).toBeNull()
   })
 
   it("autorise l'écrasement d'un panier verrouillé par le MÊME requestId (le même onglet résout son propre verrou)", () => {
@@ -185,7 +214,7 @@ describe("revaliderPanier", () => {
     expect(r.retirees).toBe(0)
     expect(r.lignes[0].prixCatalogue).toBe(600)
     expect(r.lignes[0].prixModifie).toBe(true)
-    // Le prix négocié doit survivre à la revalidation.
+    // The negotiated price must survive revalidation.
     expect(r.lignes[0].prixUnitaire).toBe(450)
   })
 
