@@ -84,7 +84,7 @@ productsRoute.get("/", async (c) => {
     .select()
     .from(schema.products)
     .where(and(...conditions))
-    .orderBy(asc(schema.products.name))
+    .orderBy(asc(schema.products.name), asc(schema.products.id))
     .limit(limite)
     .offset((page - 1) * limite)
   const idsProduits = produits.map((p) => p.id)

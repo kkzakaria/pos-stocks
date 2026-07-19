@@ -152,7 +152,11 @@ stockRoute.get("/levels", async (c) => {
       eq(schema.productVariants.productId, schema.products.id)
     )
     .where(and(...conditions))
-    .orderBy(asc(schema.products.name), asc(schema.productVariants.name))
+    .orderBy(
+      asc(schema.products.name),
+      asc(schema.productVariants.name),
+      asc(schema.stockLevels.variantId)
+    )
     .limit(limite)
     .offset((page - 1) * limite)
   const levels = rows.map((r) => ({

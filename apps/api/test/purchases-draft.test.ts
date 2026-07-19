@@ -447,6 +447,43 @@ describe("GET /api/v1/purchases — pagination", () => {
     expect(invalide.status).toBe(400)
   })
 
+  it("tri stable : réceptions au même createdAt paginées sans doublon ni omission", async () => {
+    const { organizationId, ownerId, ownerCookie } = await bootstrapOwner()
+    const warehouseId = await creerEntrepot(organizationId)
+    const supplierId = await creerFournisseur(ownerCookie)
+    const db = drizzle(env.DB, { schema })
+    const maintenant = new Date()
+    const ids = Array.from({ length: 5 }, () => crypto.randomUUID())
+    // All share the SAME createdAt: without a unique secondary sort key, OFFSET
+    // paging could duplicate or drop rows across pages.
+    for (const [i, id] of ids.entries()) {
+      await db.insert(schema.purchases).values({
+        id,
+        organizationId,
+        warehouseId,
+        supplierId,
+        status: "draft" as const,
+        reference: `BL-TIE-${i}`,
+        createdBy: ownerId,
+        createdAt: maintenant,
+        updatedAt: maintenant,
+      })
+    }
+    const collecte = new Set<string>()
+    for (const page of [1, 2, 3]) {
+      const res = await req(
+        ownerCookie,
+        "GET",
+        `/api/v1/purchases?page=${page}&limite=2`
+      )
+      const corps = await res.json<{ purchases: Array<{ id: string }> }>()
+      for (const p of corps.purchases) collecte.add(p.id)
+    }
+    // The 5 distinct ids are all retrieved, none duplicated (Set), none dropped.
+    expect(collecte.size).toBe(5)
+    for (const id of ids) expect(collecte.has(id)).toBe(true)
+  })
+
   it("isolation : le total ne compte pas les réceptions d'une autre organisation", async () => {
     const { ownerCookie, warehouseId, supplierId } = await seed()
     expect(

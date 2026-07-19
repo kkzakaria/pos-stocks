@@ -1,6 +1,6 @@
-# Pagination serveur des listes non bornées — Implementation Plan
+# Pagination serveur des listes non bornées — Plan d'implémentation
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **Pour les agents :** SOUS-SKILL REQUIS : utiliser `superpowers:subagent-driven-development` (recommandé) ou `superpowers:executing-plans` pour exécuter ce plan tâche par tâche. Les étapes utilisent la syntaxe case à cocher (`- [ ]`) pour le suivi.
 
 **Goal:** Ajouter la pagination serveur (`page`/`limite`) à six endpoints de liste non bornés, harmoniser les deux endpoints déjà paginés sur un helper partagé, et brancher le composant `Pagination` front déjà livré.
 

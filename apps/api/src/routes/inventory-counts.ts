@@ -126,7 +126,10 @@ inventoryCountsRoute.get("/", async (c) => {
       eq(schema.inventoryCounts.warehouseId, schema.warehouses.id)
     )
     .where(and(...conditions))
-    .orderBy(desc(schema.inventoryCounts.openedAt))
+    .orderBy(
+      desc(schema.inventoryCounts.openedAt),
+      desc(schema.inventoryCounts.id)
+    )
     .limit(limite)
     .offset((page - 1) * limite)
   const ids = rows.map((r) => r.id)

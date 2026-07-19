@@ -160,7 +160,7 @@ purchasesRoute.get("/", async (c) => {
       eq(schema.purchases.supplierId, schema.suppliers.id)
     )
     .where(and(...conditions))
-    .orderBy(desc(schema.purchases.createdAt))
+    .orderBy(desc(schema.purchases.createdAt), desc(schema.purchases.id))
     .limit(limite)
     .offset((page - 1) * limite)
 

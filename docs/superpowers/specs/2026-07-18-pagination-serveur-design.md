@@ -139,12 +139,12 @@ tous deux du même ensemble scopé. Le `total` ne compte jamais de lignes hors
 Les formulaires de détail transfert (`transferts/$transferId.tsx`) et réception
 (`receptions/$purchaseId.tsx`) consomment `GET /products` via un **sélecteur à
 recherche** (debounce → `?actifs=true&recherche=…`). Avec la pagination, ces
-sélecteurs reçoivent les **50 premiers résultats correspondants** — comportement
+sélecteurs reçoivent les **200 premiers résultats correspondants** (`limite=200`) — comportement
 acceptable et bénéfique à l'échelle (ils ne chargent plus tout le catalogue) :
 la recherche reste le mécanisme de sélection. Contrairement aux déroulants
 catégories/fournisseurs (qui peuplent des options à partir de la liste entière),
 un sélecteur à recherche est intrinsèquement borné. Seul l'état « recherche
-vide » est plafonné à 50 ; polir ce cas (ex. message d'invite à rechercher) est
+vide » est plafonné à 200 ; polir ce cas (ex. message d'invite à rechercher) est
 un suivi possible, hors périmètre de ce sous-projet.
 
 ## Hors périmètre

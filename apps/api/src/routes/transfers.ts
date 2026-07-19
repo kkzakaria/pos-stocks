@@ -184,7 +184,7 @@ transfersRoute.get("/", async (c) => {
     .innerJoin(origine, eq(schema.transfers.fromWarehouseId, origine.id))
     .innerJoin(destination, eq(schema.transfers.toWarehouseId, destination.id))
     .where(and(...conditions))
-    .orderBy(desc(schema.transfers.createdAt))
+    .orderBy(desc(schema.transfers.createdAt), desc(schema.transfers.id))
     .limit(limite)
     .offset((page - 1) * limite)
   const rows = await requete

@@ -143,7 +143,7 @@ usersRoute.get("/", requireRole("owner", "admin", "auditor"), async (c) => {
     .from(schema.member)
     .innerJoin(schema.user, eq(schema.member.userId, schema.user.id))
     .where(eq(schema.member.organizationId, organizationId))
-    .orderBy(asc(schema.user.name))
+    .orderBy(asc(schema.user.name), asc(schema.user.id))
     .limit(limite)
     .offset((page - 1) * limite)
 
