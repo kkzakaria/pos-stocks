@@ -311,7 +311,7 @@ function ReceptionsPage() {
           </TableBody>
         </Table>
       )}
-      {(receptions.data?.purchases.length ?? 0) > 0 && (
+      {(receptions.data?.total ?? 0) > 0 && (
         <Pagination
           className="mt-3"
           page={page}

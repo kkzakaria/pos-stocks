@@ -356,7 +356,7 @@ function NiveauxStockPage() {
         </Table>
       )}
 
-      {(niveaux.data?.levels.length ?? 0) > 0 && (
+      {(niveaux.data?.total ?? 0) > 0 && (
         <Pagination
           page={page}
           total={niveaux.data?.total ?? 0}

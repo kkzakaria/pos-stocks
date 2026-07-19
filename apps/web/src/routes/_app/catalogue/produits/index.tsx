@@ -409,7 +409,7 @@ function ProduitsPage() {
         </TableBody>
       </Table>
 
-      {(produits.data?.products.length ?? 0) > 0 && (
+      {(produits.data?.total ?? 0) > 0 && (
         <Pagination
           className="mt-3"
           page={page}

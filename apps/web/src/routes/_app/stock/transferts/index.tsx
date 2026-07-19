@@ -312,7 +312,7 @@ function TransfertsPage() {
           </TableBody>
         </Table>
       )}
-      {(transferts.data?.transfers.length ?? 0) > 0 && (
+      {(transferts.data?.total ?? 0) > 0 && (
         <Pagination
           className="mt-3"
           page={page}

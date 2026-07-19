@@ -422,7 +422,7 @@ function UtilisateursPage() {
         </TableBody>
       </Table>
 
-      {(utilisateurs.data?.users.length ?? 0) > 0 && (
+      {(utilisateurs.data?.total ?? 0) > 0 && (
         <Pagination
           page={page}
           total={utilisateurs.data?.total ?? 0}

@@ -271,7 +271,7 @@ function InventairesPage() {
           </TableBody>
         </Table>
       )}
-      {(inventaires.data?.counts.length ?? 0) > 0 && (
+      {(inventaires.data?.total ?? 0) > 0 && (
         <Pagination
           className="mt-3"
           page={page}

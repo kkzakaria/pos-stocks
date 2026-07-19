@@ -178,6 +178,20 @@ stockRoute.get("/movements", async (c) => {
   const recherche = c.req.query("recherche")
   const du = c.req.query("du")
   const au = c.req.query("au")
+  // Cross-tenant / access guard BEFORE any parameter validation (invariant #7):
+  // an out-of-org warehouse must answer 404 INTROUVABLE / an out-of-scope one
+  // 403 ACCES_REFUSE, even when pagination or another param is invalid.
+  if (warehouseId) {
+    if (!estDansPortee(portee, warehouseId)) {
+      return c.json({ code: "ACCES_REFUSE", message: "Accès refusé" }, 403)
+    }
+    if (!(await entrepotDansOrganisation(db, organizationId, warehouseId))) {
+      return c.json(
+        { code: "INTROUVABLE", message: "Entrepôt introuvable" },
+        404
+      )
+    }
+  }
   const pagination = lirePagination(c)
   if (pagination instanceof Response) return pagination
   const { page, limite } = pagination
@@ -199,15 +213,7 @@ stockRoute.get("/movements", async (c) => {
     eq(schema.stockMovements.organizationId, organizationId),
   ]
   if (warehouseId) {
-    if (!estDansPortee(portee, warehouseId)) {
-      return c.json({ code: "ACCES_REFUSE", message: "Accès refusé" }, 403)
-    }
-    if (!(await entrepotDansOrganisation(db, organizationId, warehouseId))) {
-      return c.json(
-        { code: "INTROUVABLE", message: "Entrepôt introuvable" },
-        404
-      )
-    }
+    // Access already guarded above (invariant #7); here we only add the filter.
     conditions.push(eq(schema.stockMovements.warehouseId, warehouseId))
   } else {
     const filtre = filtrePortee(portee, schema.stockMovements.warehouseId)

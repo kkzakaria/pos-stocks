@@ -377,6 +377,28 @@ describe("GET /api/v1/stock/movements", () => {
     expect(res.status).toBe(400)
     expect((await res.json<{ code: string }>()).code).toBe("VALIDATION")
   })
+
+  it("entrepôt hors organisation + pagination invalide → 404 (accès avant validation)", async () => {
+    const { ownerCookie } = await seed()
+    // A real warehouse in another organization.
+    const db = drizzle(env.DB, { schema })
+    const autreOrgId = crypto.randomUUID()
+    await db.insert(schema.organization).values({
+      id: autreOrgId,
+      name: "Autre",
+      slug: "autre-mvt",
+      createdAt: new Date(),
+    })
+    const entrepotCache = await creerEntrepot(autreOrgId, "Caché mvt")
+    // Out-of-org warehouse combined with an invalid limite: the cross-tenant
+    // guard (invariant #7) must win with 404, never the 400 pagination error.
+    const res = await get(
+      ownerCookie,
+      `/api/v1/stock/movements?warehouseId=${entrepotCache}&limite=500`
+    )
+    expect(res.status).toBe(404)
+    expect((await res.json<{ code: string }>()).code).toBe("INTROUVABLE")
+  })
 })
 
 describe("GET /api/v1/stock/alerts", () => {

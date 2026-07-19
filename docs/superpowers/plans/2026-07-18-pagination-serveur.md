@@ -27,7 +27,15 @@
 
 **Files:**
 - Create: `apps/api/src/lib/pagination.ts`
-- Test: `apps/api/test/pagination.test.ts`
+- Test: couverture du helper par le harnais D1 réel (voir amendement ci-dessous)
+
+> **Amendement (revue CodeRabbit)** : le test unitaire à `Context` factice décrit
+> ci-dessous (`apps/api/test/pagination.test.ts`) a été **retiré** au profit de la
+> convention du dépôt (tests d'intégration sur D1 réelle, sans cast `as`). Les cas
+> de bord du helper (`page < 1`, `limite` hors bornes, non-entiers) sont désormais
+> vérifiés via de vraies requêtes dans `apps/api/test/products.test.ts`, et chaque
+> endpoint paginé teste son propre `limite=0 → 400`. Le bloc de code ci-dessous est
+> conservé à titre historique.
 
 **Interfaces:**
 - Produces:

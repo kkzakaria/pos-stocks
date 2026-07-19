@@ -243,12 +243,22 @@ describe("GET /api/v1/products — pagination", () => {
     expect(c3.products).toEqual([])
     expect(c3.total).toBe(3)
 
-    const invalide = await app.request(
-      "/api/v1/products?limite=0",
-      { headers: { cookie: ownerCookie } },
-      env
-    )
-    expect(invalide.status).toBe(400)
+    // Pagination bounds enforced by lirePagination (page ≥ 1, 1 ≤ limite ≤ 200,
+    // integers only) — 400 VALIDATION on any invalid value.
+    for (const qs of [
+      "limite=0",
+      "limite=201",
+      "page=0",
+      "limite=abc",
+      "page=1.5",
+    ]) {
+      const invalide = await app.request(
+        `/api/v1/products?${qs}`,
+        { headers: { cookie: ownerCookie } },
+        env
+      )
+      expect(invalide.status).toBe(400)
+    }
   })
 
   it("isolation : le total ne compte pas les produits d'une autre organisation", async () => {
