@@ -49,7 +49,7 @@ interface PanierPersiste {
 }
 ```
 
-`v` permet d'ignorer proprement un format devenu incompatible : à la lecture, un `v` inconnu (ou un JSON illisible) entraîne une **purge** et un départ à zéro, jamais une exception.
+`v` permet d'ignorer proprement un format devenu incompatible : à la lecture, un `v` inconnu (ou un JSON illisible) entraîne un **départ à zéro**, jamais une exception.
 
 ### Module dédié
 
@@ -57,8 +57,8 @@ interface PanierPersiste {
 
 - `clePanier(boutiqueId: string, sessionId: string): string`
 - `charger(cle: string): PanierPersiste | null` — parse, valide `v` et chaque ligne, renvoie `null` si invalide. Ne **supprime pas** : ce serait une écriture hors verrou, susceptible d'effacer un panier valide (voire verrouillé) écrit entre-temps par un autre onglet.
-- `enregistrer(cle: string, etat: PanierPersiste): void`
-- `purger(cle: string): void`
+- `enregistrer(cle: string, etat: PanierPersiste): Promise<void>`
+- `purger(cle: string, requestIdAttendu?: string): Promise<void>`
 - `revaliderPanier(lignes, articles): { lignes: LignePanier[]; retirees: number; prixModifies: number }`
 
 `ecran-vente.tsx` ne gagne que l'initialisation paresseuse de l'état et deux `useEffect`.
