@@ -1,4 +1,4 @@
-import type { LignePanier } from "./pos"
+import type { ArticlePos, LignePanier } from "./pos"
 
 export interface PanierPersiste {
   v: 1
@@ -62,4 +62,43 @@ export function purger(cle: string): void {
   } catch {
     // Same rationale as enregistrer: never crash on storage failure.
   }
+}
+
+export interface ResultatRevalidation {
+  lignes: LignePanier[]
+  retirees: number
+  prixModifies: number
+}
+
+/**
+ * Reconciles a restored cart against the freshly loaded catalogue: drops lines
+ * whose variant disappeared, and flags lines whose catalogue price moved. It
+ * never touches `prixUnitaire`, which may hold a negotiated price.
+ */
+export function revaliderPanier(
+  lignes: LignePanier[],
+  articles: ArticlePos[]
+): ResultatRevalidation {
+  const parVariante = new Map(articles.map((a) => [a.variantId, a]))
+  const gardees: LignePanier[] = []
+  let retirees = 0
+  let prixModifies = 0
+  for (const ligne of lignes) {
+    const article = parVariante.get(ligne.variantId)
+    if (article === undefined) {
+      retirees += 1
+      continue
+    }
+    if (article.price !== ligne.prixCatalogue) {
+      gardees.push({
+        ...ligne,
+        prixCatalogue: article.price,
+        prixModifie: true,
+      })
+      prixModifies += 1
+      continue
+    }
+    gardees.push(ligne)
+  }
+  return { lignes: gardees, retirees, prixModifies }
 }
