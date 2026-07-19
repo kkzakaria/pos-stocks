@@ -31,7 +31,10 @@ const inventaireRow = z.object({
   sku: z.string().min(1),
   store_id: z.string().min(1),
   quantity: z.number(),
-  cost: z.number().nullable(),
+  // Postgres `numeric` columns are serialized as STRINGS by `supabase db
+  // query` (to preserve arbitrary precision), unlike `integer` columns which
+  // come as numbers. `cost` is numeric, so accept both and coerce below.
+  cost: z.union([z.number(), z.string()]).nullable(),
 })
 const enveloppe = z.object({ rows: z.array(z.unknown()) })
 
@@ -59,7 +62,7 @@ export function parseInventaire(raw: string): LigneInventaireSource[] {
       sku: v.sku,
       storeId: v.store_id,
       quantity: v.quantity,
-      cost: v.cost,
+      cost: v.cost === null ? null : Number(v.cost),
     }
   })
 }

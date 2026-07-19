@@ -27,3 +27,15 @@ test("parseInventaire mappe store_id/cost et garde les décimaux bruts", () => {
     { sku: "PRD-2", storeId: "s1", quantity: 5, cost: null },
   ])
 })
+
+// `supabase db query` serializes numeric columns as strings — coerce to number.
+const INV_JSON_COUT_CHAINE = `{"rows":[
+  {"sku":"PRD-9","store_id":"s1","quantity":3,"cost":"4200.50"}
+]}`
+
+test("parseInventaire coerce un cost numeric renvoyé en chaîne", () => {
+  const r = parseInventaire(INV_JSON_COUT_CHAINE)
+  expect(r).toEqual([
+    { sku: "PRD-9", storeId: "s1", quantity: 3, cost: 4200.5 },
+  ])
+})
