@@ -15,6 +15,18 @@ test("parseStores isole le JSON et mappe les colonnes", () => {
   ])
 })
 
+// Mode interactif (TTY) : Supabase imprime un tableau nu, pas `{rows:[…]}`.
+const STORES_ARRAY_JSON = `Initialising login role...
+[
+  {"id":"s1","name":"Quincaillerie","address":"Abidjan"}
+]`
+
+test("parseStores accepte aussi une sortie tableau nu (mode interactif)", () => {
+  expect(parseStores(STORES_ARRAY_JSON)).toEqual([
+    { id: "s1", name: "Quincaillerie", address: "Abidjan" },
+  ])
+})
+
 const INV_JSON = `{"rows":[
   {"sku":"PRD-1","store_id":"s1","quantity":10,"cost":3500.3},
   {"sku":"PRD-2","store_id":"s1","quantity":5,"cost":null}

@@ -38,16 +38,24 @@ const inventaireRow = z.object({
 })
 const enveloppe = z.object({ rows: z.array(z.unknown()) })
 
-/** Extract the JSON object printed after the CLI's login banner. */
-function extraireJson(raw: string): unknown {
-  const debut = raw.indexOf("{")
-  if (debut < 0)
+/**
+ * Extracts result rows from a `supabase db query` output. The CLI wraps them
+ * differently by mode: agent mode prints `{ boundary, rows: [...] }`,
+ * interactive mode a bare `[...]` array. Skip the leading login banner (start
+ * at the first `{` or `[`), parse, and normalize both shapes to a row array.
+ */
+function extraireRows(raw: string): unknown[] {
+  const indices = [raw.indexOf("{"), raw.indexOf("[")].filter((i) => i >= 0)
+  if (indices.length === 0) {
     throw new Error(`Sortie Supabase sans JSON : ${raw.slice(0, 200)}`)
-  return JSON.parse(raw.slice(debut))
+  }
+  const parsed: unknown = JSON.parse(raw.slice(Math.min(...indices)))
+  if (Array.isArray(parsed)) return parsed
+  return enveloppe.parse(parsed).rows
 }
 
 export function parseStores(raw: string): StoreSource[] {
-  const rows = enveloppe.parse(extraireJson(raw)).rows
+  const rows = extraireRows(raw)
   return rows.map((r) => {
     const v = storeRow.parse(r)
     return { id: v.id, name: v.name, address: v.address }
@@ -55,7 +63,7 @@ export function parseStores(raw: string): StoreSource[] {
 }
 
 export function parseInventaire(raw: string): LigneInventaireSource[] {
-  const rows = enveloppe.parse(extraireJson(raw)).rows
+  const rows = extraireRows(raw)
   return rows.map((r) => {
     const v = inventaireRow.parse(r)
     return {
@@ -71,9 +79,10 @@ function requeter(
   sql: string,
   workdir: string = RACINE_SUPABASE_DEFAUT
 ): string {
-  // Force JSON output: interactively (TTY) the CLI defaults to an ASCII table
-  // (agent-detection off), which breaks parsing. --output-format json is
-  // deterministic regardless of who runs the command.
+  // Force agent mode + JSON output: interactively (TTY) the CLI defaults to an
+  // ASCII table, and even --output-format json yields a differently-shaped
+  // bare array there. --agent yes pins the deterministic { boundary, rows: [] }
+  // envelope regardless of who runs the command (extraireRows handles both).
   return execFileSync(
     "supabase",
     [
@@ -82,6 +91,8 @@ function requeter(
       "--linked",
       "--workdir",
       workdir,
+      "--agent",
+      "yes",
       "--output-format",
       "json",
       sql,
