@@ -861,6 +861,9 @@ describe("EcranVente — levée de l'ambiguïté après réponse perdue", () => 
     })
     expect(encaisser.disabled).toBe(true)
     fireEvent.click(encaisser)
+    // F2 is the other door onto checkout: guarding only the button would leave
+    // the shortcut able to reopen the modal and send a second POST.
+    fireEvent.keyDown(window, { key: "F2" })
     // The modal does not reopen and no second POST goes out.
     expect(
       screen.queryByRole("button", { name: "Valider la vente" })

@@ -55,7 +55,7 @@ Le résultat est strictement meilleur que l'existant dans chaque branche, et jam
 
 ### Pas de re-soumission pendant la résolution
 
-La modale de paiement est **fermée** dès l'erreur ambiguë, et le bouton **ENCAISSER est désactivé** tant que le verrou tient — fermer la modale ne suffit pas seul, ce bouton la rouvrirait. La laisser ouverte permettait à un second envoi de courir contre la consultation en vol : si celle-ci répondait `404` et régénérait la clé avant que ce second envoi ne soit commité — et que lui aussi perde sa réponse — la résolution suivante chercherait la **nouvelle** clé, conclurait à tort « rien commité », déverrouillerait, et ouvrirait le doublon. La sortie n'est plus le retry mais « Vérifier ».
+La modale de paiement est **fermée** dès l'erreur ambiguë, et **toutes les portes vers l'encaissement sont fermées** tant que le verrou tient : le bouton `ENCAISSER` est désactivé **et** le raccourci `F2` est inerte. Fermer la modale ne suffit pas seul — l'un comme l'autre la rouvriraient. La laisser ouverte permettait à un second envoi de courir contre la consultation en vol : si celle-ci répondait `404` et régénérait la clé avant que ce second envoi ne soit commité — et que lui aussi perde sa réponse — la résolution suivante chercherait la **nouvelle** clé, conclurait à tort « rien commité », déverrouillerait, et ouvrirait le doublon. La sortie n'est plus le retry mais « Vérifier ».
 
 Corollaire : le bandeau et son bouton s'affichent aussi lorsque `panierVerrouille` est vrai **sans** message — cas d'un panier restauré depuis le stockage, où `erreurVente` n'est pas persisté. Sans ce repli, un rechargement pendant l'ambiguïté laisserait un panier verrouillé sans aucun moyen de le résoudre.
 

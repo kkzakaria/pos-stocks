@@ -230,9 +230,13 @@ export function EcranVente({ me, boutique, session, onSessionFermee }: Props) {
         (actif.tagName === "INPUT" ||
           actif.tagName === "TEXTAREA" ||
           actif.isContentEditable)
+      // F2 opens checkout — inert while the cart is locked, like the ENCAISSER
+      // button. Guarding only the button would leave this shortcut as a third
+      // door onto the same state: reopening the modal during an unresolved
+      // ambiguity allows a second POST under the same idempotency key.
       if (e.key === "F2") {
         e.preventDefault()
-        if (panierNonVide) setPaiementOuvert(true)
+        if (panierNonVide && !panierVerrouille) setPaiementOuvert(true)
         return
       }
       // Suppr/Delete: opens the clear-cart confirmation — inert while typing
