@@ -113,7 +113,7 @@ Au pire, hors de ces cas, un ticket est réimprimé.
 
 **Unitaires (purs, sans React)** — `lib/panier-persistance.test.ts` :
 - round-trip sérialisation (une ligne avec prix négocié et dépannage survit à l'identique) ;
-- `v` inconnu / JSON illisible → `null` + purge ;
+- `v` inconnu / JSON illisible → `null` **sans suppression** à la lecture, puis récupération de l'entrée par la purge verrouillée suivante ;
 - `localStorage` absent ou levant une exception → pas de crash, dégradation silencieuse ;
 - `revaliderPanier` : article disparu retiré ; prix catalogue changé → `prixCatalogue` actualisé, `prixModifie: true`, `prixUnitaire` **inchangé** ; ligne intacte non modifiée ; compteurs `retirees`/`prixModifies` exacts.
 
