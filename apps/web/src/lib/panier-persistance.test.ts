@@ -27,6 +27,7 @@ const etat: PanierPersiste = {
   v: 1,
   lignes: [ligne],
   requestId: "req-1",
+  proprietaire: "onglet-1",
   verrouille: true,
   majA: "2026-07-19T10:00:00.000Z",
 }
@@ -81,7 +82,7 @@ describe("panier-persistance", () => {
     const verrouilleAutreOnglet: PanierPersiste = {
       ...etat,
       verrouille: true,
-      requestId: "req-onglet-a",
+      proprietaire: "onglet-a",
     }
     await enregistrer("k", verrouilleAutreOnglet)
     // Tab B has a DIFFERENT requestId: the write is refused so tab A's lock
@@ -89,7 +90,7 @@ describe("panier-persistance", () => {
     await enregistrer("k", {
       ...etat,
       verrouille: false,
-      requestId: "req-onglet-b",
+      proprietaire: "onglet-b",
     })
     expect(charger("k")).toEqual(verrouilleAutreOnglet)
   })
@@ -98,12 +99,12 @@ describe("panier-persistance", () => {
     const verrouilleAutreOnglet: PanierPersiste = {
       ...etat,
       verrouille: true,
-      requestId: "req-onglet-a",
+      proprietaire: "onglet-a",
     }
     await enregistrer("k", verrouilleAutreOnglet)
     // Tab B empties its cart: it must NOT wipe tab A's locked entry, which is
     // the only thing preventing a duplicate sale on retry.
-    await purger("k", "req-onglet-b")
+    await purger("k", "onglet-b")
     expect(charger("k")).toEqual(verrouilleAutreOnglet)
   })
 
@@ -111,9 +112,23 @@ describe("panier-persistance", () => {
     await enregistrer("k", {
       ...etat,
       verrouille: true,
-      requestId: "req-onglet-a",
+      proprietaire: "onglet-a",
     })
-    await purger("k", "req-onglet-a")
+    await purger("k", "onglet-a")
+    expect(localStorage.getItem("k")).toBeNull()
+  })
+
+  it("purge son propre panier verrouillé après rotation du requestId (post-vente)", async () => {
+    // After a successful sale `requestId` rotates but the owner does not, so
+    // the tab must still be able to purge the entry it wrote while locked.
+    // Keying the guard on `requestId` used to strand a stale locked entry here.
+    await enregistrer("k", {
+      ...etat,
+      verrouille: true,
+      requestId: "req-avant-rotation",
+      proprietaire: "onglet-1",
+    })
+    await purger("k", "onglet-1")
     expect(localStorage.getItem("k")).toBeNull()
   })
 
@@ -130,7 +145,7 @@ describe("panier-persistance", () => {
     vi.stubGlobal("navigator", { ...globalThis.navigator, locks: verrous })
 
     await enregistrer("k", etat)
-    await purger("k", etat.requestId)
+    await purger("k", etat.proprietaire)
 
     expect(nomsDemandes).toEqual(["pos:panier-lock:k", "pos:panier-lock:k"])
     expect(localStorage.getItem("k")).toBeNull()
@@ -146,7 +161,7 @@ describe("panier-persistance", () => {
     vi.stubGlobal("navigator", { ...globalThis.navigator, locks: verrous })
 
     await expect(enregistrer("k", etat)).resolves.toBeUndefined()
-    await expect(purger("k", etat.requestId)).resolves.toBeUndefined()
+    await expect(purger("k", etat.proprietaire)).resolves.toBeUndefined()
 
     vi.unstubAllGlobals()
   })
@@ -175,11 +190,11 @@ describe("panier-persistance", () => {
     const verrouilleAutreOnglet: PanierPersiste = {
       ...etat,
       verrouille: true,
-      requestId: "req-onglet-a",
+      proprietaire: "onglet-a",
     }
     await enregistrer("k", verrouilleAutreOnglet)
-    await enregistrer("k", { ...etat, requestId: "req-onglet-b" })
-    await purger("k", "req-onglet-b")
+    await enregistrer("k", { ...etat, proprietaire: "onglet-b" })
+    await purger("k", "onglet-b")
 
     expect(charger("k")).toEqual(verrouilleAutreOnglet)
     vi.unstubAllGlobals()
@@ -200,13 +215,13 @@ describe("panier-persistance", () => {
     const verrouille: PanierPersiste = {
       ...etat,
       verrouille: true,
-      requestId: "req-onglet-a",
+      proprietaire: "onglet-a",
     }
     await enregistrer("k", verrouille)
     const resolu: PanierPersiste = {
       ...etat,
       verrouille: false,
-      requestId: "req-onglet-a",
+      proprietaire: "onglet-a",
       lignes: [],
     }
     await enregistrer("k", resolu)

@@ -110,6 +110,11 @@ export function EcranVente({ me, boutique, session, onSessionFermee }: Props) {
   // Identifiant d'idempotence (décision 5) : UN par panier encaissé,
   // conservé tel quel sur retry, régénéré après chaque vente réussie.
   const requestId = useRef(etatRestaure?.requestId ?? crypto.randomUUID())
+  // Ownership token for the stored entry, stable for this mount and restored
+  // with the cart. It must NOT be `requestId`, which rotates after every
+  // successful sale — a rotated key made this tab fail its own guard and left
+  // a stale locked entry behind.
+  const proprietaire = useRef(etatRestaure?.proprietaire ?? crypto.randomUUID())
   const rechercheRef = useRef<HTMLInputElement>(null)
 
   // Persist on every cart-affecting change. An empty cart purges the entry,
@@ -121,13 +126,14 @@ export function EcranVente({ me, boutique, session, onSessionFermee }: Props) {
       // locked (ambiguous) entry, which guards against a duplicate sale.
       // Fire-and-forget: the write runs under a cross-tab lock (async), and
       // nothing in this render path depends on its completion.
-      void purger(cle, requestId.current)
+      void purger(cle, proprietaire.current)
       return
     }
     void enregistrer(cle, {
       v: 1,
       lignes,
       requestId: requestId.current,
+      proprietaire: proprietaire.current,
       verrouille: panierVerrouille,
       majA: new Date().toISOString(),
     })

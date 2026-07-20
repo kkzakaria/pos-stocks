@@ -2,6 +2,14 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
+> **Note (2026-07-20) — document daté.** Ce plan reflète l'état *avant exécution*.
+> Le durcissement issu des revues a fait diverger deux points : `charger` ne
+> supprime plus l'entrée invalide (c'est la purge verrouillée suivante qui la
+> récupère), et la forme persistée porte un champ `proprietaire` sur lequel
+> s'appuie la garde multi-onglets. Le comportement livré fait foi : voir
+> `docs/superpowers/specs/2026-07-19-persistance-panier-pos-design.md` et
+> `apps/web/src/lib/panier-persistance.test.ts`.
+
 **Goal:** Persister localement le panier de l'écran de vente pour qu'il survive à un rafraîchissement ou à une fermeture d'onglet, sans compromettre les garanties d'idempotence existantes.
 
 **Architecture:** Un module pur `lib/panier-persistance.ts` encapsule `localStorage` (sérialisation versionnée, lecture tolérante aux pannes) et la revalidation catalogue. `pos/ecran-vente.tsx` ne gagne que l'initialisation paresseuse de trois états, deux `useEffect` et un bandeau.

@@ -4,6 +4,13 @@ export interface PanierPersiste {
   v: 1
   lignes: LignePanier[]
   requestId: string
+  /**
+   * Owner of the entry: stable for the whole life of a mounted sale screen,
+   * and restored with the cart. Distinct from `requestId`, which is REGENERATED
+   * after every successful sale — using it as an ownership token made a tab
+   * unable to purge its own entry once the key had rotated.
+   */
+  proprietaire: string
   verrouille: boolean
   majA: string
 }
@@ -42,6 +49,7 @@ export function charger(cle: string): PanierPersiste | null {
     (donnees as { v?: unknown }).v !== 1 ||
     !Array.isArray((donnees as { lignes?: unknown }).lignes) ||
     typeof (donnees as { requestId?: unknown }).requestId !== "string" ||
+    typeof (donnees as { proprietaire?: unknown }).proprietaire !== "string" ||
     typeof (donnees as { verrouille?: unknown }).verrouille !== "boolean" ||
     typeof (donnees as { majA?: unknown }).majA !== "string" ||
     !(donnees as { lignes: unknown[] }).lignes.every(ligneValide)
@@ -111,13 +119,13 @@ export async function enregistrer(
 ): Promise<void> {
   await sousVerrou(cle, () => {
     try {
-      // Never clobber another tab's AMBIGUOUS (locked) cart: its requestId is
+      // Never clobber ANOTHER tab's AMBIGUOUS (locked) cart: its requestId is
       // the only thing standing between a retry and a duplicate sale.
       const existant = charger(cle)
       if (
         existant !== null &&
         existant.verrouille &&
-        existant.requestId !== etat.requestId
+        existant.proprietaire !== etat.proprietaire
       ) {
         return
       }
@@ -130,7 +138,7 @@ export async function enregistrer(
 }
 
 /**
- * Removes the stored cart. Pass `requestIdAttendu` from a live cart so the
+ * Removes the stored cart. Pass `proprietaireAttendu` from a live cart so the
  * deletion honours another tab's AMBIGUOUS (locked) entry — symmetrically to
  * `enregistrer`, an empty cart in one tab must not wipe the locked entry that
  * another tab depends on to avoid a duplicate sale. Called without it, the
@@ -139,16 +147,16 @@ export async function enregistrer(
  */
 export async function purger(
   cle: string,
-  requestIdAttendu?: string
+  proprietaireAttendu?: string
 ): Promise<void> {
   await sousVerrou(cle, () => {
     try {
-      if (requestIdAttendu !== undefined) {
+      if (proprietaireAttendu !== undefined) {
         const existant = charger(cle)
         if (
           existant !== null &&
           existant.verrouille &&
-          existant.requestId !== requestIdAttendu
+          existant.proprietaire !== proprietaireAttendu
         ) {
           return
         }

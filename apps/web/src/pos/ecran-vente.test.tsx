@@ -430,6 +430,7 @@ describe("EcranVente — persistance du panier", () => {
           },
         ],
         requestId: "req-restaure",
+        proprietaire: "onglet-1",
         verrouille: false,
         majA: "2026-07-19T10:00:00.000Z",
       })
@@ -464,9 +465,9 @@ describe("EcranVente — persistance du panier", () => {
     const tuile = await screen.findByRole("button", { name: /Coca 50cl/ })
     fireEvent.click(tuile)
     await waitFor(() => expect(localStorage.getItem(CLE)).not.toBeNull())
-    // Libellés exacts du composant Panier : le déclencheur porte
-    // aria-label="Vider le panier", le bouton de validation de l'AlertDialog
-    // s'appelle exactement "Vider" (voir pos/panier.test.tsx).
+    // Exact labels from the Panier component: the trigger carries
+    // aria-label="Vider le panier", and the AlertDialog's confirm button is
+    // named exactly "Vider" (see pos/panier.test.tsx).
     fireEvent.click(screen.getByRole("button", { name: "Vider le panier" }))
     fireEvent.click(await screen.findByRole("button", { name: "Vider" }))
     await waitFor(() => {
@@ -495,19 +496,20 @@ describe("EcranVente — persistance du panier", () => {
           },
         ],
         requestId: "req-ambigu",
+        proprietaire: "onglet-1",
         verrouille: true,
         majA: "2026-07-19T10:00:00.000Z",
       })
     )
     renderEcran()
-    // Regex ancrée en début de nom : le panier restauré contient déjà une
-    // ligne « Coca 50cl », dont le bouton « Retirer Coca 50cl » matcherait
-    // aussi /Coca 50cl/ sans l'ancre — ambiguïté propre à ce test (cart
-    // pré-rempli au montage), absente des autres tests du fichier qui
-    // interrogent la tuile avant tout ajout.
+    // Regex anchored at the start of the name: the restored cart already holds
+    // a "Coca 50cl" line, whose "Retirer Coca 50cl" button would also match
+    // /Coca 50cl/ without the anchor — an ambiguity specific to this test
+    // (cart pre-filled at mount), absent from the other tests in this file
+    // which query the tile before any addition.
     const tuile = await screen.findByRole("button", { name: /^Coca 50cl/ })
     fireEvent.click(tuile)
-    // Panier verrouillé : le clic ne doit RIEN ajouter (quantité reste 1).
+    // Locked cart: the click must add NOTHING (quantity stays 1).
     await waitFor(() => {
       const stocke = JSON.parse(localStorage.getItem(CLE) ?? "{}") as {
         lignes: Array<{ quantite: number }>
@@ -519,7 +521,8 @@ describe("EcranVente — persistance du panier", () => {
   function panierStocke(
     quantite: number,
     prixCatalogue: number,
-    requestId = "req-1"
+    requestId = "req-1",
+    verrouille = false
   ) {
     return JSON.stringify({
       v: 1,
@@ -539,7 +542,8 @@ describe("EcranVente — persistance du panier", () => {
         },
       ],
       requestId,
-      verrouille: false,
+      proprietaire: "onglet-1",
+      verrouille,
       majA: "2026-07-19T10:00:00.000Z",
     })
   }
@@ -591,6 +595,35 @@ describe("EcranVente — persistance du panier", () => {
     })
   })
 
+  it("purge le stockage après une vente réussie sur un panier VERROUILLÉ", async () => {
+    // Regression: after the sale `requestId` rotates while the stored entry
+    // still carries the old id and `verrouille: true`. When the guard keyed on
+    // `requestId`, the tab failed its OWN guard and stranded a stale locked
+    // entry, restored on the next reload. The ownership token does not rotate.
+    localStorage.setItem(CLE, panierStocke(1, 500, "req-ambigu", true))
+    vi.spyOn(posApi, "envoyerVente").mockResolvedValue({
+      sale: venteMinimale,
+      dejaEnregistree: true,
+    })
+    vi.spyOn(posApi, "fetchReglagesTicket").mockResolvedValue({
+      name: "Org",
+      currency: "XOF",
+      receiptHeader: "",
+      receiptFooter: "",
+    })
+    vi.spyOn(window, "print").mockImplementation(() => undefined)
+    renderEcran()
+    await screen.findByRole("button", { name: "Retirer Coca 50cl" })
+    fireEvent.click(screen.getByRole("button", { name: /ENCAISSER/ }))
+    fireEvent.click(screen.getByRole("button", { name: "Montant exact" }))
+    fireEvent.click(screen.getByRole("button", { name: "Valider la vente" }))
+
+    await screen.findByText("Vente n° 1 enregistrée")
+    await waitFor(() => {
+      expect(localStorage.getItem(CLE)).toBeNull()
+    })
+  })
+
   it("purge le stockage après un encaissement réussi (pas seulement Vider)", async () => {
     localStorage.setItem(CLE, panierStocke(1, 500))
     vi.spyOn(posApi, "envoyerVente").mockResolvedValue({
@@ -635,6 +668,7 @@ describe("EcranVente — persistance du panier", () => {
           },
         ],
         requestId: "req-ambigu",
+        proprietaire: "onglet-1",
         verrouille: true,
         majA: "2026-07-19T10:00:00.000Z",
       })
@@ -646,7 +680,7 @@ describe("EcranVente — persistance du panier", () => {
   })
 
   it("signale un prix catalogue modifié depuis la mise au panier", async () => {
-    // Stocké à 450, catalogue à 500 → 1 prix modifié, 0 retrait.
+    // Stored at 450, catalogue at 500 -> 1 price changed, 0 removal.
     localStorage.setItem(CLE, panierStocke(1, 450))
     renderEcran()
     expect(await screen.findByText(/Panier restauré/)).toBeTruthy()
@@ -662,7 +696,7 @@ describe("EcranVente — persistance du panier", () => {
     renderEcran()
     expect(await screen.findByText(/Panier restauré/)).toBeTruthy()
     expect(screen.getByText(/1 article\(s\) retiré/)).toBeTruthy()
-    // Discriminant : plus aucune LIGNE de panier pour cet article.
+    // Discriminating: no CART LINE left for this article.
     expect(
       screen.queryByRole("button", { name: "Retirer Coca 50cl" })
     ).toBeNull()
