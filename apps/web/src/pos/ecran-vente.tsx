@@ -28,6 +28,7 @@ import {
   envoyerVente,
   fetchCataloguePos,
   fetchReglagesTicket,
+  fetchVenteParCleRequete,
 } from "@/lib/pos-api"
 import type { SessionCaisse, VenteDetail } from "@/lib/pos-api"
 import { GrilleArticles } from "@/pos/grille-articles"
@@ -50,6 +51,9 @@ type Props = {
 }
 
 type CleLigne = { variantId: string; source: string | null }
+
+const MESSAGE_AMBIGU =
+  "La vente est peut-être déjà enregistrée, et le serveur est injoignable pour le vérifier. Utilisez « Vérifier » avant de modifier le panier."
 
 /**
  * POS sales screen: tile catalog, cart, barcode scanning and shortcuts
@@ -255,18 +259,10 @@ export function EcranVente({ me, boutique, session, onSessionFermee }: Props) {
     return () => window.removeEventListener("keydown", handler)
   }, [scanner, panierNonVide, modaleOuverte, panierVerrouille])
 
-  const vente = useMutation({
-    mutationFn: (paiements: SalePaymentInput[]) =>
-      envoyerVente(
-        preparerVente(boutique.id, requestId.current, lignes, paiements)
-      ),
-    onSuccess: ({ sale }) => {
-      // Revue — impression et `dejaEnregistree` : on n'inspecte pas ce flag
-      // ici volontairement. La clé d'idempotence est régénérée après CHAQUE
-      // vente réussie (ligne ci-dessous), donc le seul cas où le serveur
-      // répond `dejaEnregistree: true` est un retry après une réponse
-      // réseau perdue côté client — qui n'a donc jamais imprimé. Imprimer
-      // systématiquement ici est le comportement voulu, pas un oubli.
+  // Extracted from the mutation's onSuccess so the ambiguity resolution can
+  // replay the exact same completion path when it finds the sale server-side.
+  const finaliserVente = useCallback(
+    (sale: VenteDetail) => {
       setPaiementOuvert(false)
       setLignes([])
       setErreurVente(null)
@@ -279,6 +275,51 @@ export function EcranVente({ me, boutique, session, onSessionFermee }: Props) {
       void queryClient.invalidateQueries({
         queryKey: ["pos-catalogue", boutique.id],
       })
+    },
+    [boutique.id, queryClient]
+  )
+
+  const [verificationEnCours, setVerificationEnCours] = useState(false)
+
+  /**
+   * Resolves an AMBIGUOUS submission by asking the server whether a sale
+   * already exists for our idempotency key. Found -> complete as a success.
+   * 404 -> nothing was committed, so unlock AND rotate the key. Lookup itself
+   * failing -> conclude nothing and keep the lock.
+   */
+  const resoudreAmbiguite = useCallback(async () => {
+    setVerificationEnCours(true)
+    try {
+      const { sale } = await fetchVenteParCleRequete(requestId.current)
+      finaliserVente(sale)
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 404) {
+        setPanierVerrouille(false)
+        requestId.current = crypto.randomUUID()
+        setErreurVente(
+          "La vente n'a pas été enregistrée — le panier est de nouveau modifiable."
+        )
+        return
+      }
+      setErreurVente(MESSAGE_AMBIGU)
+    } finally {
+      setVerificationEnCours(false)
+    }
+  }, [finaliserVente])
+
+  const vente = useMutation({
+    mutationFn: (paiements: SalePaymentInput[]) =>
+      envoyerVente(
+        preparerVente(boutique.id, requestId.current, lignes, paiements)
+      ),
+    onSuccess: ({ sale }) => {
+      // Revue — impression et `dejaEnregistree` : on n'inspecte pas ce flag
+      // ici volontairement. La clé d'idempotence est régénérée après CHAQUE
+      // vente réussie, donc le seul cas où le serveur répond
+      // `dejaEnregistree: true` est un retry après une réponse réseau perdue
+      // côté client — qui n'a donc jamais imprimé. Imprimer systématiquement
+      // ici est le comportement voulu, pas un oubli.
+      finaliserVente(sale)
     },
     onError: (err) => {
       // Spec §5, étape 5 : sur STOCK_INSUFFISANT (caisse concurrente),
@@ -308,14 +349,12 @@ export function EcranVente({ me, boutique, session, onSessionFermee }: Props) {
         setErreurVente(err.message)
         return
       }
-      // Erreur réseau/timeout AMBIGUË : pas de réponse reçue, le batch a
-      // pu être commité côté serveur. On verrouille le panier (voir
-      // commentaire sur panierVerrouille) jusqu'à retry ou abandon.
+      // Erreur réseau/timeout AMBIGUË : pas de réponse reçue, le batch a pu
+      // être commité côté serveur. On verrouille, puis on DEMANDE au serveur
+      // si la vente existe au lieu de deviner (issue #21).
       setPanierVerrouille(true)
-      setErreurVente(
-        (err instanceof Error ? err.message : "Erreur réseau") +
-          " — la vente est peut-être déjà enregistrée : réessayez, ou fermez pour vérifier les tickets du jour avant de modifier le panier."
-      )
+      setErreurVente(MESSAGE_AMBIGU)
+      void resoudreAmbiguite()
     },
   })
 

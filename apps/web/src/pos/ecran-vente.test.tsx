@@ -709,3 +709,124 @@ describe("EcranVente — persistance du panier", () => {
     expect(screen.queryByText(/Panier restauré/)).toBeNull()
   })
 })
+
+describe("EcranVente — levée de l'ambiguïté après réponse perdue", () => {
+  const venteResolue: VenteDetail = {
+    id: "sale-resolue",
+    ticketNumber: 7,
+    total: 500,
+    currency: "XOF",
+    status: "completed",
+    createdAt: new Date().toISOString(),
+    storeId: "store1",
+    storeName: "Boutique",
+    cashierName: "Caissier",
+    items: [],
+    payments: [
+      {
+        method: "cash",
+        amount: 500,
+        reference: null,
+        receivedAmount: 500,
+        changeGiven: 0,
+      },
+    ],
+  }
+
+  beforeEach(() => {
+    vi.spyOn(window, "print").mockImplementation(() => undefined)
+    vi.spyOn(posApi, "fetchCataloguePos").mockResolvedValue({
+      categories: [],
+      articles: [article],
+    })
+    vi.spyOn(posApi, "fetchReglagesTicket").mockResolvedValue({
+      name: "Org",
+      currency: "XOF",
+      receiptHeader: "",
+      receiptFooter: "",
+    })
+    vi.spyOn(posApi, "envoyerVente").mockRejectedValue(
+      new Error("Failed to fetch")
+    )
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  async function soumettreEtEchouer() {
+    renderEcran()
+    const tuile = await screen.findByRole("button", { name: /^Coca 50cl/ })
+    fireEvent.click(tuile)
+    fireEvent.click(screen.getByRole("button", { name: /ENCAISSER/ }))
+    fireEvent.click(screen.getByRole("button", { name: "Montant exact" }))
+    fireEvent.click(screen.getByRole("button", { name: "Valider la vente" }))
+  }
+
+  it("vente retrouvée : imprime, confirme et vide le panier", async () => {
+    vi.spyOn(posApi, "fetchVenteParCleRequete").mockResolvedValue({
+      sale: venteResolue,
+    })
+    await soumettreEtEchouer()
+
+    expect(await screen.findByText("Vente n° 7 enregistrée")).toBeTruthy()
+    // Panier vidé : plus aucune ligne.
+    expect(
+      screen.queryByRole("button", { name: "Retirer Coca 50cl" })
+    ).toBeNull()
+  })
+
+  it("404 : déverrouille le panier ET régénère la clé d'idempotence", async () => {
+    const { ApiError } = await import("@/lib/api")
+    vi.spyOn(posApi, "fetchVenteParCleRequete").mockRejectedValue(
+      new ApiError("Vente introuvable", 404, "INTROUVABLE", null)
+    )
+    const envoyer = vi.spyOn(posApi, "envoyerVente")
+    await soumettreEtEchouer()
+
+    await waitFor(() => expect(envoyer).toHaveBeenCalledTimes(1))
+    const premiereCle = (
+      envoyer.mock.calls[0][0] as { clientRequestId: string }
+    ).clientRequestId
+
+    // Panier déverrouillé : la tuile ajoute de nouveau une unité.
+    const tuile = screen.getByRole("button", { name: /^Coca 50cl/ })
+    fireEvent.click(tuile)
+    await waitFor(() =>
+      expect(
+        screen.getByRole<HTMLButtonElement>("button", {
+          name: "Diminuer la quantité de Coca 50cl",
+        }).disabled
+      ).toBe(false)
+    )
+
+    // Assertion DISCRIMINANTE : le prochain encaissement doit porter une clé
+    // DIFFÉRENTE — rejouer l'ancienne renverrait l'ancienne vente.
+    fireEvent.click(screen.getByRole("button", { name: /ENCAISSER/ }))
+    fireEvent.click(screen.getByRole("button", { name: "Montant exact" }))
+    fireEvent.click(screen.getByRole("button", { name: "Valider la vente" }))
+    await waitFor(() => expect(envoyer).toHaveBeenCalledTimes(2))
+    const secondeCle = (envoyer.mock.calls[1][0] as { clientRequestId: string })
+      .clientRequestId
+    expect(secondeCle).not.toBe(premiereCle)
+  })
+
+  it("consultation en échec : le verrou reste posé", async () => {
+    vi.spyOn(posApi, "fetchVenteParCleRequete").mockRejectedValue(
+      new Error("Failed to fetch")
+    )
+    await soumettreEtEchouer()
+
+    await waitFor(() =>
+      expect(screen.getAllByRole("alert").length).toBeGreaterThan(0)
+    )
+    // Verrou maintenu : la tuile n'ajoute RIEN (le stepper reste désactivé
+    // à la quantité 1).
+    fireEvent.click(screen.getByRole("button", { name: /^Coca 50cl/ }))
+    expect(
+      screen.getByRole<HTMLButtonElement>("button", {
+        name: "Diminuer la quantité de Coca 50cl",
+      }).disabled
+    ).toBe(true)
+  })
+})
