@@ -123,6 +123,10 @@ function PagePos() {
   }
   return (
     <EcranVente
+      // Structural session invariant: a session change (register closed then
+      // reopened) must REMOUNT the screen, not merely swap a prop — otherwise
+      // a cart restored for the previous session could outlive its scope.
+      key={ouverte.id}
       me={me}
       boutique={boutique}
       session={ouverte}

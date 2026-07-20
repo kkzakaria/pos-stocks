@@ -18,6 +18,13 @@ import {
 } from "@/lib/pos"
 import type { ArticlePos, LignePanier } from "@/lib/pos"
 import {
+  clePanier,
+  charger,
+  enregistrer,
+  purger,
+  revaliderPanier,
+} from "@/lib/panier-persistance"
+import {
   envoyerVente,
   fetchCataloguePos,
   fetchReglagesTicket,
@@ -63,7 +70,14 @@ export function EcranVente({ me, boutique, session, onSessionFermee }: Props) {
   const articles = catalogue.data?.articles ?? []
   const categories = catalogue.data?.categories ?? []
 
-  const [lignes, setLignes] = useState<LignePanier[]>([])
+  // Restored once, at first render, so a refresh or an accidental tab close
+  // never loses the cart. Scoped to the till session: closing the register
+  // drops it.
+  const cle = clePanier(boutique.id, session.id)
+  const [etatRestaure] = useState(() => charger(cle))
+  const [lignes, setLignes] = useState<LignePanier[]>(
+    () => etatRestaure?.lignes ?? []
+  )
   const [recherche, setRecherche] = useState("")
   const [categorieId, setCategorieId] = useState<string | null>(null)
   const [erreurPrix, setErreurPrix] = useState<{
@@ -83,7 +97,9 @@ export function EcranVente({ me, boutique, session, onSessionFermee }: Props) {
   // et les modifications manuelles jusqu'à résolution (succès) ou abandon
   // explicite (fermeture de la modale de paiement) ; requestId.current
   // n'est PAS régénéré tant que ce n'est pas résolu.
-  const [panierVerrouille, setPanierVerrouille] = useState(false)
+  const [panierVerrouille, setPanierVerrouille] = useState(
+    etatRestaure?.verrouille ?? false
+  )
   const [confirmation, setConfirmation] = useState<VenteDetail | null>(null)
   const [vue, setVue] = useState<"vente" | "tickets" | "fermeture">("vente")
   const [reimpression, setReimpression] = useState<VenteDetail | null>(null)
@@ -93,14 +109,69 @@ export function EcranVente({ me, boutique, session, onSessionFermee }: Props) {
   })
   // Identifiant d'idempotence (décision 5) : UN par panier encaissé,
   // conservé tel quel sur retry, régénéré après chaque vente réussie.
-  const requestId = useRef(crypto.randomUUID())
+  const requestId = useRef(etatRestaure?.requestId ?? crypto.randomUUID())
+  // Ownership token for the stored entry, stable for this mount and restored
+  // with the cart. It must NOT be `requestId`, which rotates after every
+  // successful sale — a rotated key made this tab fail its own guard and left
+  // a stale locked entry behind.
+  const proprietaire = useRef(etatRestaure?.proprietaire ?? crypto.randomUUID())
   const rechercheRef = useRef<HTMLInputElement>(null)
 
-  const ligneDe = (cle: CleLigne | null): LignePanier | null =>
-    cle
+  // Persist on every cart-affecting change. An empty cart purges the entry,
+  // which covers both exits for free: successful checkout and "vider le
+  // panier" both end on setLignes([]).
+  useEffect(() => {
+    if (lignes.length === 0) {
+      // Pass our own key: an empty cart here must not wipe another tab's
+      // locked (ambiguous) entry, which guards against a duplicate sale.
+      // Fire-and-forget: the write runs under a cross-tab lock (async), and
+      // nothing in this render path depends on its completion.
+      void purger(cle, proprietaire.current)
+      return
+    }
+    void enregistrer(cle, {
+      v: 1,
+      lignes,
+      requestId: requestId.current,
+      proprietaire: proprietaire.current,
+      verrouille: panierVerrouille,
+      majA: new Date().toISOString(),
+    })
+  }, [cle, lignes, panierVerrouille])
+
+  // One-shot revalidation of a RESTORED cart, run when the catalogue first
+  // arrives. The ref guard means a cart typed normally is never revalidated
+  // and later catalogue refetches never replay it. A LOCKED restored cart is
+  // excluded too (C1, revue finale) : the sale may already be committed, so
+  // mutating lines here then retrying would replay the same requestId
+  // against a cart that no longer matches what the server recorded.
+  const aRevalider = useRef(
+    etatRestaure !== null &&
+      etatRestaure.lignes.length > 0 &&
+      !etatRestaure.verrouille
+  )
+  const [resumeRestauration, setResumeRestauration] = useState<{
+    retirees: number
+    prixModifies: number
+  } | null>(null)
+  useEffect(() => {
+    if (!aRevalider.current || !catalogue.isSuccess) return
+    aRevalider.current = false
+    const resultat = revaliderPanier(lignes, articles)
+    if (resultat.retirees === 0 && resultat.prixModifies === 0) return
+    setLignes(resultat.lignes)
+    setResumeRestauration({
+      retirees: resultat.retirees,
+      prixModifies: resultat.prixModifies,
+    })
+  }, [catalogue.isSuccess, articles, lignes])
+
+  const ligneDe = (refLigne: CleLigne | null): LignePanier | null =>
+    refLigne
       ? (lignes.find(
           (l) =>
-            l.variantId === cle.variantId && l.sourceWarehouseId === cle.source
+            l.variantId === refLigne.variantId &&
+            l.sourceWarehouseId === refLigne.source
         ) ?? null)
       : null
   const ligneDepannage = ligneDe(depannagePour)
@@ -340,7 +411,28 @@ export function EcranVente({ me, boutique, session, onSessionFermee }: Props) {
             <GrilleArticles articles={filtres} onChoisir={ajouterAuPanier} />
           )}
         </section>
-        <div className="flex w-96 shrink-0">
+        <div className="flex min-h-0 w-96 shrink-0 flex-col">
+          {resumeRestauration && (
+            <div
+              role="status"
+              className="mb-2 flex items-start justify-between gap-2 rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-xs"
+            >
+              <p>
+                Panier restauré
+                {resumeRestauration.retirees > 0 &&
+                  ` — ${resumeRestauration.retirees} article(s) retiré(s)`}
+                {resumeRestauration.prixModifies > 0 &&
+                  ` — ${resumeRestauration.prixModifies} prix modifié(s)`}
+              </p>
+              <button
+                type="button"
+                className="shrink-0 font-medium underline"
+                onClick={() => setResumeRestauration(null)}
+              >
+                Fermer
+              </button>
+            </div>
+          )}
           <Panier
             lignes={lignes}
             verrouille={panierVerrouille}

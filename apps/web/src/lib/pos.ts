@@ -39,6 +39,9 @@ export type LignePanier = {
   sourceNom: string | null
   // posée au retour d'un 409 STOCK_INSUFFISANT (spec §5, étape 5)
   enAlerte: boolean
+  // set by the revalidation of a restored cart: the catalogue price changed
+  // since the line was added (prixUnitaire itself is preserved)
+  prixModifie?: boolean
 }
 
 function memeLigne(
