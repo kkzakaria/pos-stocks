@@ -586,15 +586,17 @@ describe("EcranVente — persistance du panier", () => {
     })
   })
 
-  it("purge le stockage après une vente réussie sur un panier VERROUILLÉ", async () => {
-    // Regression: after the sale `requestId` rotates while the stored entry
+  it("purge le stockage quand « Vérifier » résout un panier VERROUILLÉ", async () => {
+    // Regression: on completion `requestId` rotates while the stored entry
     // still carries the old id and `verrouille: true`. When the guard keyed on
     // `requestId`, the tab failed its OWN guard and stranded a stale locked
     // entry, restored on the next reload. The ownership token does not rotate.
+    //
+    // Reached through "Vérifier", not ENCAISSER: a locked cart can no longer be
+    // checked out (issue #21) — settling the ambiguity is the only way out.
     localStorage.setItem(CLE, panierStocke(1, 500, "req-ambigu", true))
-    vi.spyOn(posApi, "envoyerVente").mockResolvedValue({
+    vi.spyOn(posApi, "fetchVenteParCleRequete").mockResolvedValue({
       sale: venteMinimale,
-      dejaEnregistree: true,
     })
     vi.spyOn(posApi, "fetchReglagesTicket").mockResolvedValue({
       name: "Org",
@@ -604,10 +606,8 @@ describe("EcranVente — persistance du panier", () => {
     })
     vi.spyOn(window, "print").mockImplementation(() => undefined)
     renderEcran()
-    await screen.findByRole("button", { name: "Retirer Coca 50cl" })
-    fireEvent.click(screen.getByRole("button", { name: /ENCAISSER/ }))
-    fireEvent.click(screen.getByRole("button", { name: "Montant exact" }))
-    fireEvent.click(screen.getByRole("button", { name: "Valider la vente" }))
+
+    fireEvent.click(await screen.findByRole("button", { name: /Vérifier/ }))
 
     await screen.findByText("Vente n° 1 enregistrée")
     await waitFor(() => {
@@ -842,6 +842,29 @@ describe("EcranVente — levée de l'ambiguïté après réponse perdue", () => 
     )
     // The button is gone, AND no second POST went out: the checkout stays at
     // exactly one attempt while the ambiguity is unresolved.
+    expect(envoyer).toHaveBeenCalledTimes(1)
+  })
+
+  it("ENCAISSER est inerte tant que l'ambiguïté persiste", async () => {
+    // Auto-closing the payment modal is not enough on its own: ENCAISSER would
+    // simply reopen it, letting a second POST race the in-flight lookup under
+    // the same key — the duplicate-sale vector this path exists to close.
+    vi.spyOn(posApi, "fetchVenteParCleRequete").mockRejectedValue(
+      new Error("Failed to fetch")
+    )
+    const envoyer = vi.spyOn(posApi, "envoyerVente")
+    await soumettreEtEchouer()
+    await screen.findByRole("button", { name: /Vérifier/ })
+
+    const encaisser = screen.getByRole<HTMLButtonElement>("button", {
+      name: /ENCAISSER/,
+    })
+    expect(encaisser.disabled).toBe(true)
+    fireEvent.click(encaisser)
+    // The modal does not reopen and no second POST goes out.
+    expect(
+      screen.queryByRole("button", { name: "Valider la vente" })
+    ).toBeNull()
     expect(envoyer).toHaveBeenCalledTimes(1)
   })
 

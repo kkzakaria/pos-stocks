@@ -17,7 +17,9 @@
 > 3. Le bandeau (et son bouton « Vérifier ») s'affiche aussi sur
 >    `panierVerrouille` **seul**, sans `erreurVente` — cas d'un panier restauré
 >    depuis le stockage.
-> 4. La « contrainte d'ordre de route » énoncée plus bas était **infondée** :
+> 4. **ENCAISSER est désactivé** tant que le panier est verrouillé : fermer la
+>    modale ne suffisait pas, ce bouton la rouvrait.
+> 5. La « contrainte d'ordre de route » énoncée plus bas était **infondée** :
 >    `/:id` ne matche qu'un seul segment et ne peut pas capter
 >    `par-cle-requete/:clé`, qui en compte deux. Vérifié empiriquement.
 >

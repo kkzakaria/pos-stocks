@@ -355,9 +355,14 @@ export function Panier({
             {formaterMontant(total)}
           </span>
         </p>
+        {/* Disabled while locked: with an unresolved ambiguity, checking out
+            again would send a second POST under the same idempotency key and
+            race the in-flight lookup. Closing the payment modal is not enough
+            on its own — this button would simply reopen it. "Vérifier" is the
+            way out. */}
         <Button
           className="min-h-14 w-full text-lg"
-          disabled={lignes.length === 0}
+          disabled={lignes.length === 0 || verrouille}
           onClick={onEncaisser}
         >
           ENCAISSER
