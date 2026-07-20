@@ -91,13 +91,18 @@ describe("EcranVente — verrouillage panier après échec ambigu", () => {
     vi.restoreAllMocks()
   })
 
-  it("bloque les tuiles après une erreur réseau ambiguë, puis débloque à la fermeture explicite", async () => {
+  it("bloque les tuiles après une erreur réseau ambiguë, et la fermeture ne déverrouille pas", async () => {
     const envoyerVente = vi
       .spyOn(posApi, "envoyerVente")
       .mockRejectedValue(new Error("Failed to fetch"))
+    // La consultation échoue aussi : l'ambiguïté n'est pas levée, donc le
+    // verrou doit tenir — y compris après fermeture de la modale (issue #21).
+    vi.spyOn(posApi, "fetchVenteParCleRequete").mockRejectedValue(
+      new Error("Failed to fetch")
+    )
     renderEcran()
 
-    const tuile = await screen.findByRole("button", { name: /Coca 50cl/ })
+    const tuile = await screen.findByRole("button", { name: /^Coca 50cl/ })
     fireEvent.click(tuile)
 
     fireEvent.click(screen.getByRole("button", { name: /ENCAISSER/ }))
@@ -118,18 +123,14 @@ describe("EcranVente — verrouillage panier après échec ambigu", () => {
       screen.getByText("Total à encaisser").nextSibling?.textContent
     expect(totalApres).toBe(totalAvant)
 
-    // Abandon explicite : fermer la modale de paiement déverrouille.
+    // Fermer la modale ne lève plus le verrou : le stepper reste désactivé.
     fireEvent.click(screen.getByLabelText("Fermer"))
     fireEvent.click(tuile)
-    // 2nd unit added: the "Diminuer la quantité" stepper (disabled at 1)
-    // becomes enabled.
-    await waitFor(() =>
-      expect(
-        screen.getByRole<HTMLButtonElement>("button", {
-          name: "Diminuer la quantité de Coca 50cl",
-        }).disabled
-      ).toBe(false)
-    )
+    expect(
+      screen.getByRole<HTMLButtonElement>("button", {
+        name: "Diminuer la quantité de Coca 50cl",
+      }).disabled
+    ).toBe(true)
   })
 
   it("n'active PAS le verrou sur une erreur API structurée (le serveur a répondu)", async () => {
@@ -822,6 +823,41 @@ describe("EcranVente — levée de l'ambiguïté après réponse perdue", () => 
     )
     // Verrou maintenu : la tuile n'ajoute RIEN (le stepper reste désactivé
     // à la quantité 1).
+    fireEvent.click(screen.getByRole("button", { name: /^Coca 50cl/ }))
+    expect(
+      screen.getByRole<HTMLButtonElement>("button", {
+        name: "Diminuer la quantité de Coca 50cl",
+      }).disabled
+    ).toBe(true)
+  })
+
+  it("consultation en échec : propose « Vérifier », qui relance la consultation", async () => {
+    const consultation = vi
+      .spyOn(posApi, "fetchVenteParCleRequete")
+      .mockRejectedValue(new Error("Failed to fetch"))
+    await soumettreEtEchouer()
+
+    const bouton = await screen.findByRole("button", { name: /Vérifier/ })
+    await waitFor(() => expect(consultation).toHaveBeenCalledTimes(1))
+
+    // Le réseau revient : la seconde consultation trouve la vente.
+    consultation.mockResolvedValue({ sale: venteResolue })
+    fireEvent.click(bouton)
+
+    expect(await screen.findByText("Vente n° 7 enregistrée")).toBeTruthy()
+    expect(consultation).toHaveBeenCalledTimes(2)
+  })
+
+  it("fermer la modale ne lève PAS le verrou tant que l'ambiguïté persiste", async () => {
+    vi.spyOn(posApi, "fetchVenteParCleRequete").mockRejectedValue(
+      new Error("Failed to fetch")
+    )
+    await soumettreEtEchouer()
+    await screen.findByRole("button", { name: /Vérifier/ })
+
+    fireEvent.click(screen.getByLabelText("Fermer"))
+
+    // Verrou maintenu : la tuile n'ajoute rien (stepper toujours désactivé).
     fireEvent.click(screen.getByRole("button", { name: /^Coca 50cl/ }))
     expect(
       screen.getByRole<HTMLButtonElement>("button", {

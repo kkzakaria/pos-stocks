@@ -421,12 +421,23 @@ export function EcranVente({ me, boutique, session, onSessionFermee }: Props) {
         ))}
       </div>
       {erreurVente && (
-        <p
+        <div
           role="alert"
-          className="bg-destructive/10 px-4 py-2 text-sm text-destructive"
+          className="flex items-center justify-between gap-3 bg-destructive/10 px-4 py-2 text-sm text-destructive"
         >
-          {erreurVente}
-        </p>
+          <p>{erreurVente}</p>
+          {panierVerrouille && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="shrink-0"
+              disabled={verificationEnCours}
+              onClick={() => void resoudreAmbiguite()}
+            >
+              {verificationEnCours ? "Vérification…" : "Vérifier"}
+            </Button>
+          )}
+        </div>
       )}
       <div className="flex min-h-0 flex-1">
         <section className="min-w-0 flex-1 overflow-y-auto">
@@ -564,11 +575,11 @@ export function EcranVente({ me, boutique, session, onSessionFermee }: Props) {
           erreur={erreurVente}
           onValider={(paiements) => vente.mutate(paiements)}
           onFermer={() => {
-            // Fermer la modale après une tentative ambiguë vaut abandon
-            // explicite (décision : déverrouille le panier, cf.
-            // panierVerrouille) — requestId.current n'est pas régénéré,
-            // un futur encaissement rejouera donc la même tentative.
-            setPanierVerrouille(false)
+            // Closing no longer lifts the lock (issue #21). While the ambiguity
+            // stands we do not know whether the sale landed: unlocking here let
+            // the cashier edit the cart, and the next checkout replayed the same
+            // idempotency key — returning the OLD sale and silently discarding
+            // those edits. "Vérifier" is the only way out, and it settles it.
             setPaiementOuvert(false)
           }}
         />
