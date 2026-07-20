@@ -433,9 +433,9 @@ async function margeVente(
   }
 }
 
-// ORDER MATTERS: this route must stay declared BEFORE `/:id`, otherwise the
-// `/:id` pattern captures the `par-cle-requete` segment and this handler is
-// never reached. A test covers the ordering.
+// Declared before `/:id` by convention (most specific first), but the two
+// cannot collide: `/:id` matches a SINGLE path segment, while this route has
+// two. Verified empirically — moving it after `/:id` keeps every test green.
 //
 // Lets the POS resolve an AMBIGUOUS submission (request sent, response lost):
 // it asks whether a sale already exists for its idempotency key instead of

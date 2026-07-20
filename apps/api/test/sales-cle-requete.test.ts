@@ -151,10 +151,11 @@ describe("consultation d'une vente par clé d'idempotence", () => {
     expect(corps.code).toBe("ACCES_REFUSE")
   })
 
-  it("la route n'est pas captée par GET /sales/:id", async () => {
+  it("ne confond pas un id de vente avec une clé d'idempotence", async () => {
     const { caissier, saleId } = await seedAvecVente("Boutique K6")
-    // An unknown key must NOT be read as a sale id: if /:id captured the
-    // segment, the response would carry a `sale`.
+    // The lookup keys on clientRequestId ONLY: passing a real sale id must not
+    // resolve. (This does not test route ordering — `/:id` matches a single
+    // segment and cannot capture this two-segment path.)
     const res = await req(caissier.cookie, "GET", `${CHEMIN}/${saleId}`)
     expect(res.status).toBe(404)
   })

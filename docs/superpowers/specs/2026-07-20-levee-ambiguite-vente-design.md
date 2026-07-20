@@ -37,7 +37,7 @@ En donnant cette vue au client, l'ambiguïté se lève de façon déterministe e
 - Même mécanique d'accès que `GET /sales/:id` : recherche **scopée à l'organisation**, puis `verifierLectureVentes` sur la boutique de la vente.
 - **Garde de portée organisation AVANT tout** (invariant #7) : la recherche filtrant déjà sur `organizationId`, une vente d'une autre organisation est simplement introuvable → `404 INTROUVABLE`, jamais `403`. Un refus de portée boutique/rôle donne `403 ACCES_REFUSE`.
 - Enveloppe réduite : **`{ sale }` seul**. `GET /sales/:id` renvoie aussi `marge`, mais la résolution POS n'en a aucun usage — l'inclure coûterait une requête et un contrôle de permission supplémentaires pour rien.
-- **Contrainte d'ordre d'enregistrement** : la route doit être déclarée **avant** `salesRoute.get("/:id")`, sinon `/:id` capte le segment `par-cle-requete`. Un commentaire dans le code doit énoncer cette contrainte, faute de quoi un réordonnancement ultérieur casserait la route silencieusement.
+- **Pas de conflit avec `/:id`** : ce motif ne matche qu'un **seul** segment, alors que `par-cle-requete/:clé` en compte deux. La route est déclarée avant `/:id` par convention (du plus spécifique au plus général), mais l'ordre n'a aucune incidence — vérifié empiriquement.
 - `GET` pur : aucune écriture, rejouable sans effet.
 
 Une seule requête suffit : le client obtient directement le détail nécessaire à l'impression du ticket, sans second aller-retour sur un réseau déjà fragile.
