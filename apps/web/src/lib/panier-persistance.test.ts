@@ -85,8 +85,8 @@ describe("panier-persistance", () => {
       proprietaire: "onglet-a",
     }
     await enregistrer("k", verrouilleAutreOnglet)
-    // Tab B has a DIFFERENT requestId: the write is refused so tab A's lock
-    // (and its idempotency key) survives intact.
+    // Tab B has a DIFFERENT owner: the write is refused so tab A's lock (and
+    // the idempotency key it carries) survives intact.
     await enregistrer("k", {
       ...etat,
       verrouille: false,

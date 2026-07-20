@@ -66,7 +66,7 @@ interface PanierPersiste {
 
 ## Cycle de vie
 
-- **Lecture** : au montage, initialisation paresseuse de `lignes`, `requestId` et `panierVerrouille` depuis le stockage. Le panier réapparaît **immédiatement**, sans attendre le réseau (restauration silencieuse — aucune modale de confirmation).
+- **Lecture** : au montage, initialisation paresseuse de `lignes`, `requestId`, `proprietaire` et `panierVerrouille` depuis le stockage. Le panier réapparaît **immédiatement**, sans attendre le réseau (restauration silencieuse — aucune modale de confirmation).
 - **Écriture** : un `useEffect` sérialise à chaque changement de `lignes`, `requestId` ou `panierVerrouille`.
 - **Purge** : panier vide → `removeItem`. Ça couvre les deux sorties existantes sans code supplémentaire — `onSuccess` fait déjà `setLignes([])`, et « Vider le panier » aussi.
 
@@ -96,7 +96,7 @@ C'est le choix **le plus sûr** : restaurer le panier avec une clé neuve permet
 
 **Multi-onglet** : dernier écrivain gagne, pas de synchronisation via l'événement `storage` (YAGNI). Un onglet ne génère une clé neuve **que pour un panier neuf** : au montage, `requestId` vaut la clé persistée si un panier a été restauré, et un `crypto.randomUUID()` seulement à défaut. Deux onglets qui restaurent la **même** entrée reprennent donc la **même** clé — c'est voulu, et c'est ce qui rend le doublon impossible entre eux. Le risque ne vient que de deux onglets porteurs de clés **différentes** (l'un a restauré, l'autre a démarré sur un panier vide). Sans garde, si l'onglet A verrouille son panier après une soumission ambiguë (vente peut-être déjà commitée) et que l'onglet B écrit ensuite dans le même stockage, le verrou et le `requestId` de A disparaissent ; un rechargement de A restaurerait alors l'état déverrouillé de B et pourrait committer une **seconde** vente pour le même panier. La garde s'appuie sur `proprietaire`, **et non sur `requestId`** : ce dernier est régénéré après chaque vente réussie, si bien qu'un onglet échouait sur sa PROPRE garde après avoir résolu une soumission ambiguë — l'entrée verrouillée obsolète survivait et était restaurée au rechargement suivant. `proprietaire` est stable pour toute la vie d'un écran monté et restauré avec le panier.
 
-Garde appliquée **symétriquement dans `enregistrer` et `purger`** (`panier-persistance.ts`) : ni une écriture ni une suppression n'écrase une entrée stockée qui est verrouillée et porte un `requestId` différent du sien — seul l'onglet qui détient ce verrou (même `requestId`) peut le lever. Sans la garde sur `purger`, un onglet dont le panier redevient vide effacerait le verrou d'un autre onglet : même vecteur de doublon, par un autre chemin.
+Garde appliquée **symétriquement dans `enregistrer` et `purger`** (`panier-persistance.ts`) : ni une écriture ni une suppression n'écrase une entrée stockée qui est verrouillée et porte un `proprietaire` différent du sien — seul l'onglet qui détient ce verrou (même `proprietaire`) peut le lever. Sans la garde sur `purger`, un onglet dont le panier redevient vide effacerait le verrou d'un autre onglet : même vecteur de doublon, par un autre chemin.
 
 La garde est un **lire-puis-écrire**, donc elle doit être atomique entre onglets : elle s'exécute sous l'**API Web Locks** (`navigator.locks.request`, clé `pos:panier-lock:<cle>`), faute de quoi une écriture concurrente pourrait s'intercaler entre la lecture de contrôle et l'écriture.
 
