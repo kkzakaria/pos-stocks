@@ -92,15 +92,17 @@ export function EcranVente({ me, boutique, session, onSessionFermee }: Props) {
   const [paiementOuvert, setPaiementOuvert] = useState(false)
   const [viderOuvert, setViderOuvert] = useState(false)
   const [erreurVente, setErreurVente] = useState<string | null>(null)
-  // Verrouillage panier après une soumission AMBIGUË (réponse réseau
-  // perdue, cf. onError ci-dessous) : la vente a peut-être été commitée
-  // côté serveur sans que la réponse nous parvienne. Un retry rejoue le
-  // MÊME clientRequestId (idempotence, décision 5) — si le panier a changé
-  // entre-temps, le retry renverrait l'ancienne vente et onSuccess
-  // effacerait silencieusement les modifications. On bloque donc le scan
-  // et les modifications manuelles jusqu'à résolution (succès) ou abandon
-  // explicite (fermeture de la modale de paiement) ; requestId.current
-  // n'est PAS régénéré tant que ce n'est pas résolu.
+  // Cart lock set after an AMBIGUOUS submission (response lost, see onError):
+  // the sale may have been committed server-side without us hearing back. A
+  // retry replays the SAME clientRequestId (idempotency), so if the cart had
+  // changed meanwhile the retry would return the OLD sale and onSuccess would
+  // silently discard the edits. Scans and manual edits are therefore blocked.
+  //
+  // The lock is lifted ONLY by settling the ambiguity — `resoudreAmbiguite`
+  // asks the server whether the sale exists (issue #21). Closing the payment
+  // modal does NOT lift it: that used to unlock on a guess. `requestId` is
+  // rotated exactly where it is safe — after a confirmed sale, or once the
+  // server has told us nothing was committed.
   const [panierVerrouille, setPanierVerrouille] = useState(
     etatRestaure?.verrouille ?? false
   )
