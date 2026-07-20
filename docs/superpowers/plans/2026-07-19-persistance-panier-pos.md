@@ -2,13 +2,29 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 >
-> **Note (2026-07-20) — document daté.** Ce plan reflète l'état *avant exécution*.
-> Le durcissement issu des revues a fait diverger deux points : `charger` ne
-> supprime plus l'entrée invalide (c'est la purge verrouillée suivante qui la
-> récupère), et la forme persistée porte un champ `proprietaire` sur lequel
-> s'appuie la garde multi-onglets. Le comportement livré fait foi : voir
-> `docs/superpowers/specs/2026-07-19-persistance-panier-pos-design.md` et
-> `apps/web/src/lib/panier-persistance.test.ts`.
+> ## ⚠️ DOCUMENT DATÉ — NE PAS EXÉCUTER TEL QUEL
+>
+> Ce plan consigne l'état **avant exécution**. Il est conservé comme trace
+> historique ; **le comportement livré fait foi**, pas ce document.
+>
+> Les revues de code ont fait diverger les points suivants. **Tout extrait de
+> code, interface, fixture ou assertion de test ci-dessous qui les contredit
+> est périmé :**
+>
+> 1. **`charger` ne supprime plus** l'entrée invalide (ce serait une écriture
+>    hors verrou) — c'est la purge verrouillée suivante qui la récupère. Les
+>    tests « purge et renvoie null… » du plan ne valent plus.
+> 2. **La forme persistée porte un champ `proprietaire`**, jeton de propriété
+>    stable sur lequel s'appuie la garde multi-onglets — et **non `requestId`**,
+>    qui tourne après chaque vente. Toute interface `PanierPersiste` et toute
+>    fixture ci-dessous omettant ce champ est périmée.
+> 3. **`enregistrer` et `purger` sont asynchrones** et s'exécutent sous l'API
+>    Web Locks ; sans elle, la persistance est désactivée.
+> 4. **`ligneValide` valide tous les champs**, requis et optionnels présents.
+>
+> Références faisant foi :
+> `docs/superpowers/specs/2026-07-19-persistance-panier-pos-design.md`
+> et `apps/web/src/lib/panier-persistance.test.ts`.
 
 **Goal:** Persister localement le panier de l'écran de vente pour qu'il survive à un rafraîchissement ou à une fermeture d'onglet, sans compromettre les garanties d'idempotence existantes.
 
@@ -825,7 +841,7 @@ git commit -m "feat(pos): revalidation catalogue et bandeau de panier restauré"
 
 - [ ] Suite web complète verte : `bun run --cwd apps/web test`
 - [ ] `bun run typecheck` et `bun run lint` propres
-- [ ] **E2E navigateur** sur l'app locale (`http://localhost:3000`, compte `owner@exemple.com` / `OwnerLocal!2026`) :
+- [ ] **E2E navigateur** sur l'app locale (`http://localhost:3000`, compte owner de dev local (identifiants dans `CLAUDE.md`)) :
   1. ouvrir une session de caisse, ajouter 2-3 articles au panier ;
   2. **rafraîchir la page** → le panier réapparaît à l'identique, sans modale ;
   3. encaisser → le panier se vide et l'entrée `localStorage` disparaît (vérifier dans les DevTools : clé `pos:panier:<boutique>:<session>`) ;
