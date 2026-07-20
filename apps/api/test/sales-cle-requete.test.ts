@@ -83,7 +83,7 @@ describe("consultation d'une vente par clé d'idempotence", () => {
     expect(res.status).toBe(200)
     const corps = await res.json<{ sale: { id: string; total: number } }>()
     expect(corps.sale.id).toBe(saleId)
-    // 2 × 300 = 600 : valeur recalculée à la main.
+    // 2 × 300 = 600: hand-computed value.
     expect(corps.sale.total).toBe(600)
   })
 
@@ -101,13 +101,13 @@ describe("consultation d'une vente par clé d'idempotence", () => {
 
   it("404 INTROUVABLE sur une vente d'une AUTRE organisation", async () => {
     const a = await seedAvecVente("Boutique K3")
-    // Seconde organisation, insérée directement en base : /api/v1/setup
-    // n'autorise qu'une seule initialisation globale (voir setup.ts), donc
-    // `seedAvecVente`/`bootstrapOwner` ne peuvent pas être rappelés une
-    // deuxième fois dans le même test (409 DEJA_INITIALISE). `requireMembership`
-    // ne résout la portée que depuis `member` (organizationId, role), donc un
-    // simple membre "owner" rattaché à cette organisation suffit à authentifier
-    // la requête, sans store ni vente réels côté B.
+    // Second organization inserted directly: /api/v1/setup
+    // allows a single global initialization (see setup.ts), so
+    // `seedAvecVente`/`bootstrapOwner` cannot be called a second time within
+    // the same test (409 DEJA_INITIALISE). `requireMembership` resolves scope
+    // only from `member` (organizationId, role), so a plain "owner" member
+    // attached to that organization is enough to authenticate the request,
+    // with no real store or sale on B's side.
     const db = drizzle(env.DB, { schema })
     const autreOrgId = crypto.randomUUID()
     await db.insert(schema.organization).values({
@@ -117,9 +117,9 @@ describe("consultation d'une vente par clé d'idempotence", () => {
       createdAt: new Date(),
     })
     const autreOwner = await createUserWithRole(autreOrgId, "owner")
-    // L'owner de B interroge la clé de A : la recherche étant scopée à son
-    // organisation, la vente est introuvable — jamais 403, qui divulguerait
-    // son existence.
+    // B's owner queries A's key: the lookup being scoped to its own
+    // organization, the sale is not found — never 403, which would leak
+    // its existence.
     const res = await req(
       autreOwner.cookie,
       "GET",
@@ -153,8 +153,8 @@ describe("consultation d'une vente par clé d'idempotence", () => {
 
   it("la route n'est pas captée par GET /sales/:id", async () => {
     const { caissier, saleId } = await seedAvecVente("Boutique K6")
-    // Une clé inconnue ne doit PAS être interprétée comme un id de vente :
-    // si /:id captait le segment, la réponse porterait un `sale`.
+    // An unknown key must NOT be read as a sale id: if /:id captured the
+    // segment, the response would carry a `sale`.
     const res = await req(caissier.cookie, "GET", `${CHEMIN}/${saleId}`)
     expect(res.status).toBe(404)
   })

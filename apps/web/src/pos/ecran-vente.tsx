@@ -295,7 +295,17 @@ export function EcranVente({ me, boutique, session, onSessionFermee }: Props) {
       const { sale } = await fetchVenteParCleRequete(requestId.current)
       finaliserVente(sale)
     } catch (err) {
-      if (err instanceof ApiError && err.status === 404) {
+      // Both the status AND our structured code are required. `apiFetch` turns
+      // any 404 into an ApiError with `code: null` when the body carries no
+      // envelope — a stale deployment where this route does not exist yet would
+      // answer exactly that. Treating it as "nothing was committed" would
+      // unlock and rotate the key while the sale may well have landed, opening
+      // the duplicate sale this whole path exists to prevent.
+      if (
+        err instanceof ApiError &&
+        err.status === 404 &&
+        err.code === "INTROUVABLE"
+      ) {
         setPanierVerrouille(false)
         requestId.current = crypto.randomUUID()
         setErreurVente(

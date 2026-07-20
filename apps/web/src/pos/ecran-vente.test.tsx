@@ -771,7 +771,7 @@ describe("EcranVente — levée de l'ambiguïté après réponse perdue", () => 
     await soumettreEtEchouer()
 
     expect(await screen.findByText("Vente n° 7 enregistrée")).toBeTruthy()
-    // Panier vidé : plus aucune ligne.
+    // Cart cleared: no line left.
     expect(
       screen.queryByRole("button", { name: "Retirer Coca 50cl" })
     ).toBeNull()
@@ -790,7 +790,7 @@ describe("EcranVente — levée de l'ambiguïté après réponse perdue", () => 
       envoyer.mock.calls[0][0] as { clientRequestId: string }
     ).clientRequestId
 
-    // Panier déverrouillé : la tuile ajoute de nouveau une unité.
+    // Cart unlocked: the tile adds a unit again.
     const tuile = screen.getByRole("button", { name: /^Coca 50cl/ })
     fireEvent.click(tuile)
     await waitFor(() =>
@@ -801,8 +801,8 @@ describe("EcranVente — levée de l'ambiguïté après réponse perdue", () => 
       ).toBe(false)
     )
 
-    // Assertion DISCRIMINANTE : le prochain encaissement doit porter une clé
-    // DIFFÉRENTE — rejouer l'ancienne renverrait l'ancienne vente.
+    // DISCRIMINATING assertion: the next checkout must carry a DIFFERENT key
+    // — replaying the old one would return the old sale.
     fireEvent.click(screen.getByRole("button", { name: /ENCAISSER/ }))
     fireEvent.click(screen.getByRole("button", { name: "Montant exact" }))
     fireEvent.click(screen.getByRole("button", { name: "Valider la vente" }))
@@ -810,6 +810,29 @@ describe("EcranVente — levée de l'ambiguïté après réponse perdue", () => 
     const secondeCle = (envoyer.mock.calls[1][0] as { clientRequestId: string })
       .clientRequestId
     expect(secondeCle).not.toBe(premiereCle)
+  })
+
+  it("404 SANS code INTROUVABLE : le verrou reste posé", async () => {
+    // A stale deployment (web ahead of API) answers 404 with no envelope, so
+    // `apiFetch` yields code: null. Concluding "nothing was committed" there
+    // would unlock and rotate the key while the sale may have landed — the
+    // duplicate sale this path exists to prevent.
+    const { ApiError } = await import("@/lib/api")
+    vi.spyOn(posApi, "fetchVenteParCleRequete").mockRejectedValue(
+      new ApiError("Not Found", 404, null, null)
+    )
+    await soumettreEtEchouer()
+
+    await waitFor(() =>
+      expect(screen.getAllByRole("alert").length).toBeGreaterThan(0)
+    )
+    // Lock held: clicking the tile adds nothing (stepper stays disabled at 1).
+    fireEvent.click(screen.getByRole("button", { name: /^Coca 50cl/ }))
+    expect(
+      screen.getByRole<HTMLButtonElement>("button", {
+        name: "Diminuer la quantité de Coca 50cl",
+      }).disabled
+    ).toBe(true)
   })
 
   it("consultation en échec : le verrou reste posé", async () => {
@@ -821,8 +844,7 @@ describe("EcranVente — levée de l'ambiguïté après réponse perdue", () => 
     await waitFor(() =>
       expect(screen.getAllByRole("alert").length).toBeGreaterThan(0)
     )
-    // Verrou maintenu : la tuile n'ajoute RIEN (le stepper reste désactivé
-    // à la quantité 1).
+    // Lock held: the tile adds NOTHING (the stepper stays disabled at 1).
     fireEvent.click(screen.getByRole("button", { name: /^Coca 50cl/ }))
     expect(
       screen.getByRole<HTMLButtonElement>("button", {
@@ -840,7 +862,7 @@ describe("EcranVente — levée de l'ambiguïté après réponse perdue", () => 
     const bouton = await screen.findByRole("button", { name: /Vérifier/ })
     await waitFor(() => expect(consultation).toHaveBeenCalledTimes(1))
 
-    // Le réseau revient : la seconde consultation trouve la vente.
+    // Network is back: the second lookup finds the sale.
     consultation.mockResolvedValue({ sale: venteResolue })
     fireEvent.click(bouton)
 
@@ -857,7 +879,7 @@ describe("EcranVente — levée de l'ambiguïté après réponse perdue", () => 
 
     fireEvent.click(screen.getByLabelText("Fermer"))
 
-    // Verrou maintenu : la tuile n'ajoute rien (stepper toujours désactivé).
+    // Lock held: the tile adds nothing (stepper still disabled).
     fireEvent.click(screen.getByRole("button", { name: /^Coca 50cl/ }))
     expect(
       screen.getByRole<HTMLButtonElement>("button", {

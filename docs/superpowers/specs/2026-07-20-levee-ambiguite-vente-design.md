@@ -47,7 +47,7 @@ Une seule requête suffit : le client obtient directement le détail nécessaire
 Sur erreur réseau **ambiguë** (branche `onError` sans `ApiError`), avant de se contenter de verrouiller, le client interroge le point de consultation avec `requestId.current`. Quatre issues :
 
 1. **La vente existe** → l'ambiguïté est levée en faveur du succès. On rejoue le chemin `onSuccess` : impression, confirmation, panier vidé, clé régénérée, verrou levé. Le caissier ne perçoit qu'un délai.
-2. **`404`** → rien n'a été commité. On déverrouille **et** on régénère la clé : le panier redevient pleinement modifiable, sans risque de doublon puisqu'il n'y a rien à dupliquer.
+2. **`404` portant le code `INTROUVABLE`** → rien n'a été commité. On déverrouille **et** on régénère la clé : le panier redevient pleinement modifiable, sans risque de doublon puisqu'il n'y a rien à dupliquer. Le **code** est exigé en plus du statut : `apiFetch` produit aussi une `ApiError` à `code: null` pour un 404 sans enveloppe — typiquement un déploiement désynchronisé où la route n'existe pas encore côté API. Conclure « rien commité » dans ce cas déverrouillerait et régénérerait la clé alors que la vente a peut-être atterri, ouvrant précisément le doublon que ce chemin existe pour empêcher. Un tel 404 est donc traité comme non concluant (cas 3).
 3. **La consultation échoue** (réseau toujours coupé — le cas le plus probable) → comportement actuel conservé : verrou et message inchangés, plus un bouton **« Vérifier si la vente est passée »** qui rejoue la consultation.
 4. **La consultation renvoie une erreur API structurée** (403, 500…) → traitée comme le cas 3 : on ne conclut rien, le verrou reste.
 

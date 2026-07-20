@@ -1,6 +1,6 @@
 # Lever l'ambiguïté d'une vente — Plan d'implémentation
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **Pour les agents :** SOUS-SKILL REQUIS — utiliser superpowers:subagent-driven-development (recommandé) ou superpowers:executing-plans pour exécuter ce plan tâche par tâche. Les étapes utilisent des cases à cocher (`- [ ]`) pour le suivi.
 
 **Goal:** Permettre au client POS de demander au serveur si une vente a été enregistrée sous une clé d'idempotence donnée, pour lever de façon déterministe l'ambiguïté d'une soumission dont la réponse s'est perdue.
 
@@ -485,7 +485,11 @@ Dans `apps/web/src/pos/ecran-vente.tsx` :
       const { sale } = await fetchVenteParCleRequete(requestId.current)
       finaliserVente(sale)
     } catch (err) {
-      if (err instanceof ApiError && err.status === 404) {
+      if (
+        err instanceof ApiError &&
+        err.status === 404 &&
+        err.code === "INTROUVABLE"
+      ) {
         setPanierVerrouille(false)
         requestId.current = crypto.randomUUID()
         setErreurVente(
