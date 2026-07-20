@@ -147,6 +147,16 @@ export function fetchVente(saleId: string) {
   return apiFetch<{ sale: VenteDetail }>(`/api/v1/sales/${saleId}`)
 }
 
+/**
+ * Asks whether a sale already exists for an idempotency key. Used to resolve an
+ * AMBIGUOUS submission (request sent, response lost) instead of guessing.
+ */
+export function fetchVenteParCleRequete(clientRequestId: string) {
+  return apiFetch<{ sale: VenteDetail }>(
+    `/api/v1/sales/par-cle-requete/${encodeURIComponent(clientRequestId)}`
+  )
+}
+
 export function fetchReglagesTicket() {
   return apiFetch<ReglagesTicket>("/api/v1/organization")
 }

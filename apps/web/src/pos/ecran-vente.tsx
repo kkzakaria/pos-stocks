@@ -28,6 +28,7 @@ import {
   envoyerVente,
   fetchCataloguePos,
   fetchReglagesTicket,
+  fetchVenteParCleRequete,
 } from "@/lib/pos-api"
 import type { SessionCaisse, VenteDetail } from "@/lib/pos-api"
 import { GrilleArticles } from "@/pos/grille-articles"
@@ -50,6 +51,9 @@ type Props = {
 }
 
 type CleLigne = { variantId: string; source: string | null }
+
+const MESSAGE_AMBIGU =
+  "La vente est peut-être déjà enregistrée, et le serveur est injoignable pour le vérifier. Utilisez « Vérifier » avant de modifier le panier."
 
 /**
  * POS sales screen: tile catalog, cart, barcode scanning and shortcuts
@@ -88,15 +92,17 @@ export function EcranVente({ me, boutique, session, onSessionFermee }: Props) {
   const [paiementOuvert, setPaiementOuvert] = useState(false)
   const [viderOuvert, setViderOuvert] = useState(false)
   const [erreurVente, setErreurVente] = useState<string | null>(null)
-  // Verrouillage panier après une soumission AMBIGUË (réponse réseau
-  // perdue, cf. onError ci-dessous) : la vente a peut-être été commitée
-  // côté serveur sans que la réponse nous parvienne. Un retry rejoue le
-  // MÊME clientRequestId (idempotence, décision 5) — si le panier a changé
-  // entre-temps, le retry renverrait l'ancienne vente et onSuccess
-  // effacerait silencieusement les modifications. On bloque donc le scan
-  // et les modifications manuelles jusqu'à résolution (succès) ou abandon
-  // explicite (fermeture de la modale de paiement) ; requestId.current
-  // n'est PAS régénéré tant que ce n'est pas résolu.
+  // Cart lock set after an AMBIGUOUS submission (response lost, see onError):
+  // the sale may have been committed server-side without us hearing back. A
+  // retry replays the SAME clientRequestId (idempotency), so if the cart had
+  // changed meanwhile the retry would return the OLD sale and onSuccess would
+  // silently discard the edits. Scans and manual edits are therefore blocked.
+  //
+  // The lock is lifted ONLY by settling the ambiguity — `resoudreAmbiguite`
+  // asks the server whether the sale exists (issue #21). Closing the payment
+  // modal does NOT lift it: that used to unlock on a guess. `requestId` is
+  // rotated exactly where it is safe — after a confirmed sale, or once the
+  // server has told us nothing was committed.
   const [panierVerrouille, setPanierVerrouille] = useState(
     etatRestaure?.verrouille ?? false
   )
@@ -224,9 +230,13 @@ export function EcranVente({ me, boutique, session, onSessionFermee }: Props) {
         (actif.tagName === "INPUT" ||
           actif.tagName === "TEXTAREA" ||
           actif.isContentEditable)
+      // F2 opens checkout — inert while the cart is locked, like the ENCAISSER
+      // button. Guarding only the button would leave this shortcut as a third
+      // door onto the same state: reopening the modal during an unresolved
+      // ambiguity allows a second POST under the same idempotency key.
       if (e.key === "F2") {
         e.preventDefault()
-        if (panierNonVide) setPaiementOuvert(true)
+        if (panierNonVide && !panierVerrouille) setPaiementOuvert(true)
         return
       }
       // Suppr/Delete: opens the clear-cart confirmation — inert while typing
@@ -255,18 +265,10 @@ export function EcranVente({ me, boutique, session, onSessionFermee }: Props) {
     return () => window.removeEventListener("keydown", handler)
   }, [scanner, panierNonVide, modaleOuverte, panierVerrouille])
 
-  const vente = useMutation({
-    mutationFn: (paiements: SalePaymentInput[]) =>
-      envoyerVente(
-        preparerVente(boutique.id, requestId.current, lignes, paiements)
-      ),
-    onSuccess: ({ sale }) => {
-      // Revue — impression et `dejaEnregistree` : on n'inspecte pas ce flag
-      // ici volontairement. La clé d'idempotence est régénérée après CHAQUE
-      // vente réussie (ligne ci-dessous), donc le seul cas où le serveur
-      // répond `dejaEnregistree: true` est un retry après une réponse
-      // réseau perdue côté client — qui n'a donc jamais imprimé. Imprimer
-      // systématiquement ici est le comportement voulu, pas un oubli.
+  // Extracted from the mutation's onSuccess so the ambiguity resolution can
+  // replay the exact same completion path when it finds the sale server-side.
+  const finaliserVente = useCallback(
+    (sale: VenteDetail) => {
       setPaiementOuvert(false)
       setLignes([])
       setErreurVente(null)
@@ -279,6 +281,61 @@ export function EcranVente({ me, boutique, session, onSessionFermee }: Props) {
       void queryClient.invalidateQueries({
         queryKey: ["pos-catalogue", boutique.id],
       })
+    },
+    [boutique.id, queryClient]
+  )
+
+  const [verificationEnCours, setVerificationEnCours] = useState(false)
+
+  /**
+   * Resolves an AMBIGUOUS submission by asking the server whether a sale
+   * already exists for our idempotency key. Found -> complete as a success.
+   * 404 -> nothing was committed, so unlock AND rotate the key. Lookup itself
+   * failing -> conclude nothing and keep the lock.
+   */
+  const resoudreAmbiguite = useCallback(async () => {
+    setVerificationEnCours(true)
+    try {
+      const { sale } = await fetchVenteParCleRequete(requestId.current)
+      finaliserVente(sale)
+    } catch (err) {
+      // Both the status AND our structured code are required. `apiFetch` turns
+      // any 404 into an ApiError with `code: null` when the body carries no
+      // envelope — a stale deployment where this route does not exist yet would
+      // answer exactly that. Treating it as "nothing was committed" would
+      // unlock and rotate the key while the sale may well have landed, opening
+      // the duplicate sale this whole path exists to prevent.
+      if (
+        err instanceof ApiError &&
+        err.status === 404 &&
+        err.code === "INTROUVABLE"
+      ) {
+        setPanierVerrouille(false)
+        requestId.current = crypto.randomUUID()
+        setErreurVente(
+          "La vente n'a pas été enregistrée — le panier est de nouveau modifiable."
+        )
+        return
+      }
+      setErreurVente(MESSAGE_AMBIGU)
+    } finally {
+      setVerificationEnCours(false)
+    }
+  }, [finaliserVente])
+
+  const vente = useMutation({
+    mutationFn: (paiements: SalePaymentInput[]) =>
+      envoyerVente(
+        preparerVente(boutique.id, requestId.current, lignes, paiements)
+      ),
+    onSuccess: ({ sale }) => {
+      // Revue — impression et `dejaEnregistree` : on n'inspecte pas ce flag
+      // ici volontairement. La clé d'idempotence est régénérée après CHAQUE
+      // vente réussie, donc le seul cas où le serveur répond
+      // `dejaEnregistree: true` est un retry après une réponse réseau perdue
+      // côté client — qui n'a donc jamais imprimé. Imprimer systématiquement
+      // ici est le comportement voulu, pas un oubli.
+      finaliserVente(sale)
     },
     onError: (err) => {
       // Spec §5, étape 5 : sur STOCK_INSUFFISANT (caisse concurrente),
@@ -308,14 +365,19 @@ export function EcranVente({ me, boutique, session, onSessionFermee }: Props) {
         setErreurVente(err.message)
         return
       }
-      // Erreur réseau/timeout AMBIGUË : pas de réponse reçue, le batch a
-      // pu être commité côté serveur. On verrouille le panier (voir
-      // commentaire sur panierVerrouille) jusqu'à retry ou abandon.
+      // Erreur réseau/timeout AMBIGUË : pas de réponse reçue, le batch a pu
+      // être commité côté serveur. On verrouille, puis on DEMANDE au serveur
+      // si la vente existe au lieu de deviner (issue #21).
       setPanierVerrouille(true)
-      setErreurVente(
-        (err instanceof Error ? err.message : "Erreur réseau") +
-          " — la vente est peut-être déjà enregistrée : réessayez, ou fermez pour vérifier les tickets du jour avant de modifier le panier."
-      )
+      setErreurVente(MESSAGE_AMBIGU)
+      // Close the payment modal: while the ambiguity stands, re-submitting is
+      // no longer the way out — "Vérifier" is. Leaving it open let a second
+      // POST race the in-flight lookup: if the lookup answered 404 and rotated
+      // the key first, a retry committed afterwards (and losing ITS response
+      // too) would be looked up under the NEW key, wrongly unlock, and allow a
+      // duplicate sale.
+      setPaiementOuvert(false)
+      void resoudreAmbiguite()
     },
   })
 
@@ -381,13 +443,28 @@ export function EcranVente({ me, boutique, session, onSessionFermee }: Props) {
           </Button>
         ))}
       </div>
-      {erreurVente && (
-        <p
+      {/* Shown on `panierVerrouille` too, not just `erreurVente`: a cart
+          restored from storage carries the lock but no message (it is not
+          persisted), and without this the only button able to settle the
+          ambiguity would be missing after a reload. */}
+      {(erreurVente ?? (panierVerrouille ? MESSAGE_AMBIGU : null)) !== null && (
+        <div
           role="alert"
-          className="bg-destructive/10 px-4 py-2 text-sm text-destructive"
+          className="flex items-center justify-between gap-3 bg-destructive/10 px-4 py-2 text-sm text-destructive"
         >
-          {erreurVente}
-        </p>
+          <p>{erreurVente ?? MESSAGE_AMBIGU}</p>
+          {panierVerrouille && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="shrink-0"
+              disabled={verificationEnCours}
+              onClick={() => void resoudreAmbiguite()}
+            >
+              {verificationEnCours ? "Vérification…" : "Vérifier"}
+            </Button>
+          )}
+        </div>
       )}
       <div className="flex min-h-0 flex-1">
         <section className="min-w-0 flex-1 overflow-y-auto">
@@ -525,11 +602,11 @@ export function EcranVente({ me, boutique, session, onSessionFermee }: Props) {
           erreur={erreurVente}
           onValider={(paiements) => vente.mutate(paiements)}
           onFermer={() => {
-            // Fermer la modale après une tentative ambiguë vaut abandon
-            // explicite (décision : déverrouille le panier, cf.
-            // panierVerrouille) — requestId.current n'est pas régénéré,
-            // un futur encaissement rejouera donc la même tentative.
-            setPanierVerrouille(false)
+            // Closing no longer lifts the lock (issue #21). While the ambiguity
+            // stands we do not know whether the sale landed: unlocking here let
+            // the cashier edit the cart, and the next checkout replayed the same
+            // idempotency key — returning the OLD sale and silently discarding
+            // those edits. "Vérifier" is the only way out, and it settles it.
             setPaiementOuvert(false)
           }}
         />

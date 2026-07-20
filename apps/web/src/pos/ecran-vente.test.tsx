@@ -91,13 +91,17 @@ describe("EcranVente — verrouillage panier après échec ambigu", () => {
     vi.restoreAllMocks()
   })
 
-  it("bloque les tuiles après une erreur réseau ambiguë, puis débloque à la fermeture explicite", async () => {
+  it("verrouille le panier après une erreur réseau ambiguë non résolue", async () => {
     const envoyerVente = vi
       .spyOn(posApi, "envoyerVente")
       .mockRejectedValue(new Error("Failed to fetch"))
+    // The lookup fails too, so the ambiguity stands and the lock must hold.
+    vi.spyOn(posApi, "fetchVenteParCleRequete").mockRejectedValue(
+      new Error("Failed to fetch")
+    )
     renderEcran()
 
-    const tuile = await screen.findByRole("button", { name: /Coca 50cl/ })
+    const tuile = await screen.findByRole("button", { name: /^Coca 50cl/ })
     fireEvent.click(tuile)
 
     fireEvent.click(screen.getByRole("button", { name: /ENCAISSER/ }))
@@ -108,28 +112,15 @@ describe("EcranVente — verrouillage panier après échec ambigu", () => {
     await waitFor(() =>
       expect(screen.getAllByRole("alert").length).toBeGreaterThan(0)
     )
-    const totalAvant =
-      screen.getByText("Total à encaisser").nextSibling?.textContent
 
-    // Panier verrouillé : re-cliquer la tuile ne doit PAS ajouter une
-    // 2e unité — le total affiché en tête de modale ne bouge pas.
+    // Locked cart: clicking the tile adds nothing — the stepper stays disabled
+    // at quantity 1.
     fireEvent.click(tuile)
-    const totalApres =
-      screen.getByText("Total à encaisser").nextSibling?.textContent
-    expect(totalApres).toBe(totalAvant)
-
-    // Abandon explicite : fermer la modale de paiement déverrouille.
-    fireEvent.click(screen.getByLabelText("Fermer"))
-    fireEvent.click(tuile)
-    // 2nd unit added: the "Diminuer la quantité" stepper (disabled at 1)
-    // becomes enabled.
-    await waitFor(() =>
-      expect(
-        screen.getByRole<HTMLButtonElement>("button", {
-          name: "Diminuer la quantité de Coca 50cl",
-        }).disabled
-      ).toBe(false)
-    )
+    expect(
+      screen.getByRole<HTMLButtonElement>("button", {
+        name: "Diminuer la quantité de Coca 50cl",
+      }).disabled
+    ).toBe(true)
   })
 
   it("n'active PAS le verrou sur une erreur API structurée (le serveur a répondu)", async () => {
@@ -595,15 +586,17 @@ describe("EcranVente — persistance du panier", () => {
     })
   })
 
-  it("purge le stockage après une vente réussie sur un panier VERROUILLÉ", async () => {
-    // Regression: after the sale `requestId` rotates while the stored entry
+  it("purge le stockage quand « Vérifier » résout un panier VERROUILLÉ", async () => {
+    // Regression: on completion `requestId` rotates while the stored entry
     // still carries the old id and `verrouille: true`. When the guard keyed on
     // `requestId`, the tab failed its OWN guard and stranded a stale locked
     // entry, restored on the next reload. The ownership token does not rotate.
+    //
+    // Reached through "Vérifier", not ENCAISSER: a locked cart can no longer be
+    // checked out (issue #21) — settling the ambiguity is the only way out.
     localStorage.setItem(CLE, panierStocke(1, 500, "req-ambigu", true))
-    vi.spyOn(posApi, "envoyerVente").mockResolvedValue({
+    vi.spyOn(posApi, "fetchVenteParCleRequete").mockResolvedValue({
       sale: venteMinimale,
-      dejaEnregistree: true,
     })
     vi.spyOn(posApi, "fetchReglagesTicket").mockResolvedValue({
       name: "Org",
@@ -613,10 +606,8 @@ describe("EcranVente — persistance du panier", () => {
     })
     vi.spyOn(window, "print").mockImplementation(() => undefined)
     renderEcran()
-    await screen.findByRole("button", { name: "Retirer Coca 50cl" })
-    fireEvent.click(screen.getByRole("button", { name: /ENCAISSER/ }))
-    fireEvent.click(screen.getByRole("button", { name: "Montant exact" }))
-    fireEvent.click(screen.getByRole("button", { name: "Valider la vente" }))
+
+    fireEvent.click(await screen.findByRole("button", { name: /Vérifier/ }))
 
     await screen.findByText("Vente n° 1 enregistrée")
     await waitFor(() => {
@@ -707,5 +698,261 @@ describe("EcranVente — persistance du panier", () => {
     renderEcran()
     await screen.findByRole("button", { name: /^Coca 50cl/ })
     expect(screen.queryByText(/Panier restauré/)).toBeNull()
+  })
+})
+
+describe("EcranVente — levée de l'ambiguïté après réponse perdue", () => {
+  const venteResolue: VenteDetail = {
+    id: "sale-resolue",
+    ticketNumber: 7,
+    total: 500,
+    currency: "XOF",
+    status: "completed",
+    createdAt: new Date().toISOString(),
+    storeId: "store1",
+    storeName: "Boutique",
+    cashierName: "Caissier",
+    items: [],
+    payments: [
+      {
+        method: "cash",
+        amount: 500,
+        reference: null,
+        receivedAmount: 500,
+        changeGiven: 0,
+      },
+    ],
+  }
+
+  beforeEach(() => {
+    vi.spyOn(window, "print").mockImplementation(() => undefined)
+    vi.spyOn(posApi, "fetchCataloguePos").mockResolvedValue({
+      categories: [],
+      articles: [article],
+    })
+    vi.spyOn(posApi, "fetchReglagesTicket").mockResolvedValue({
+      name: "Org",
+      currency: "XOF",
+      receiptHeader: "",
+      receiptFooter: "",
+    })
+    vi.spyOn(posApi, "envoyerVente").mockRejectedValue(
+      new Error("Failed to fetch")
+    )
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  async function soumettreEtEchouer() {
+    renderEcran()
+    const tuile = await screen.findByRole("button", { name: /^Coca 50cl/ })
+    fireEvent.click(tuile)
+    fireEvent.click(screen.getByRole("button", { name: /ENCAISSER/ }))
+    fireEvent.click(screen.getByRole("button", { name: "Montant exact" }))
+    fireEvent.click(screen.getByRole("button", { name: "Valider la vente" }))
+  }
+
+  it("vente retrouvée : imprime, confirme et vide le panier", async () => {
+    vi.spyOn(posApi, "fetchVenteParCleRequete").mockResolvedValue({
+      sale: venteResolue,
+    })
+    await soumettreEtEchouer()
+
+    expect(await screen.findByText("Vente n° 7 enregistrée")).toBeTruthy()
+    // Cart cleared: no line left.
+    expect(
+      screen.queryByRole("button", { name: "Retirer Coca 50cl" })
+    ).toBeNull()
+  })
+
+  it("404 : déverrouille le panier ET régénère la clé d'idempotence", async () => {
+    const { ApiError } = await import("@/lib/api")
+    vi.spyOn(posApi, "fetchVenteParCleRequete").mockRejectedValue(
+      new ApiError("Vente introuvable", 404, "INTROUVABLE", null)
+    )
+    const envoyer = vi.spyOn(posApi, "envoyerVente")
+    await soumettreEtEchouer()
+
+    await waitFor(() => expect(envoyer).toHaveBeenCalledTimes(1))
+    const premiereCle = (
+      envoyer.mock.calls[0][0] as { clientRequestId: string }
+    ).clientRequestId
+
+    // Cart unlocked: the tile adds a unit again.
+    const tuile = screen.getByRole("button", { name: /^Coca 50cl/ })
+    fireEvent.click(tuile)
+    await waitFor(() =>
+      expect(
+        screen.getByRole<HTMLButtonElement>("button", {
+          name: "Diminuer la quantité de Coca 50cl",
+        }).disabled
+      ).toBe(false)
+    )
+
+    // DISCRIMINATING assertion: the next checkout must carry a DIFFERENT key
+    // — replaying the old one would return the old sale.
+    fireEvent.click(screen.getByRole("button", { name: /ENCAISSER/ }))
+    fireEvent.click(screen.getByRole("button", { name: "Montant exact" }))
+    fireEvent.click(screen.getByRole("button", { name: "Valider la vente" }))
+    await waitFor(() => expect(envoyer).toHaveBeenCalledTimes(2))
+    const secondeCle = (envoyer.mock.calls[1][0] as { clientRequestId: string })
+      .clientRequestId
+    expect(secondeCle).not.toBe(premiereCle)
+  })
+
+  it("404 SANS code INTROUVABLE : le verrou reste posé", async () => {
+    // A stale deployment (web ahead of API) answers 404 with no envelope, so
+    // `apiFetch` yields code: null. Concluding "nothing was committed" there
+    // would unlock and rotate the key while the sale may have landed — the
+    // duplicate sale this path exists to prevent.
+    const { ApiError } = await import("@/lib/api")
+    vi.spyOn(posApi, "fetchVenteParCleRequete").mockRejectedValue(
+      new ApiError("Not Found", 404, null, null)
+    )
+    await soumettreEtEchouer()
+
+    await waitFor(() =>
+      expect(screen.getAllByRole("alert").length).toBeGreaterThan(0)
+    )
+    // Lock held: clicking the tile adds nothing (stepper stays disabled at 1).
+    fireEvent.click(screen.getByRole("button", { name: /^Coca 50cl/ }))
+    expect(
+      screen.getByRole<HTMLButtonElement>("button", {
+        name: "Diminuer la quantité de Coca 50cl",
+      }).disabled
+    ).toBe(true)
+  })
+
+  it("ferme la modale de paiement : aucune re-soumission pendant la résolution", async () => {
+    // A second POST racing the in-flight lookup could get committed AFTER the
+    // lookup answered 404 and rotated the key — the next resolution would then
+    // look up the NEW key, wrongly unlock, and allow a duplicate sale.
+    vi.spyOn(posApi, "fetchVenteParCleRequete").mockRejectedValue(
+      new Error("Failed to fetch")
+    )
+    const envoyer = vi.spyOn(posApi, "envoyerVente")
+    await soumettreEtEchouer()
+
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("button", { name: "Valider la vente" })
+      ).toBeNull()
+    )
+    // The button is gone, AND no second POST went out: the checkout stays at
+    // exactly one attempt while the ambiguity is unresolved.
+    expect(envoyer).toHaveBeenCalledTimes(1)
+  })
+
+  it("ENCAISSER est inerte tant que l'ambiguïté persiste", async () => {
+    // Auto-closing the payment modal is not enough on its own: ENCAISSER would
+    // simply reopen it, letting a second POST race the in-flight lookup under
+    // the same key — the duplicate-sale vector this path exists to close.
+    vi.spyOn(posApi, "fetchVenteParCleRequete").mockRejectedValue(
+      new Error("Failed to fetch")
+    )
+    const envoyer = vi.spyOn(posApi, "envoyerVente")
+    await soumettreEtEchouer()
+    await screen.findByRole("button", { name: /Vérifier/ })
+
+    const encaisser = screen.getByRole<HTMLButtonElement>("button", {
+      name: /ENCAISSER/,
+    })
+    expect(encaisser.disabled).toBe(true)
+    fireEvent.click(encaisser)
+    // F2 is the other door onto checkout: guarding only the button would leave
+    // the shortcut able to reopen the modal and send a second POST.
+    fireEvent.keyDown(window, { key: "F2" })
+    // The modal does not reopen and no second POST goes out.
+    expect(
+      screen.queryByRole("button", { name: "Valider la vente" })
+    ).toBeNull()
+    expect(envoyer).toHaveBeenCalledTimes(1)
+  })
+
+  it("panier verrouillé RESTAURÉ : « Vérifier » reste accessible", async () => {
+    // A restored cart carries the lock but no message (erreurVente is not
+    // persisted). Without a fallback the only button able to settle the
+    // ambiguity would vanish after a reload, stranding the cashier.
+    localStorage.setItem(
+      "pos:panier:store1:sess1",
+      JSON.stringify({
+        v: 1,
+        lignes: [
+          {
+            variantId: "v1",
+            nom: "Coca 50cl",
+            sku: "SKU1",
+            imageKey: null,
+            quantite: 1,
+            prixUnitaire: 500,
+            prixCatalogue: 500,
+            prixPlancher: null,
+            sourceWarehouseId: null,
+            sourceNom: null,
+            enAlerte: false,
+          },
+        ],
+        requestId: "req-ambigu",
+        proprietaire: "onglet-1",
+        verrouille: true,
+        majA: "2026-07-20T10:00:00.000Z",
+      })
+    )
+    renderEcran()
+
+    expect(await screen.findByRole("button", { name: /Vérifier/ })).toBeTruthy()
+  })
+
+  it("consultation en échec : le verrou reste posé", async () => {
+    vi.spyOn(posApi, "fetchVenteParCleRequete").mockRejectedValue(
+      new Error("Failed to fetch")
+    )
+    await soumettreEtEchouer()
+
+    await waitFor(() =>
+      expect(screen.getAllByRole("alert").length).toBeGreaterThan(0)
+    )
+    // Lock held: the tile adds NOTHING (the stepper stays disabled at 1).
+    fireEvent.click(screen.getByRole("button", { name: /^Coca 50cl/ }))
+    expect(
+      screen.getByRole<HTMLButtonElement>("button", {
+        name: "Diminuer la quantité de Coca 50cl",
+      }).disabled
+    ).toBe(true)
+  })
+
+  it("consultation en échec : propose « Vérifier », qui relance la consultation", async () => {
+    const consultation = vi
+      .spyOn(posApi, "fetchVenteParCleRequete")
+      .mockRejectedValue(new Error("Failed to fetch"))
+    await soumettreEtEchouer()
+
+    const bouton = await screen.findByRole("button", { name: /Vérifier/ })
+    await waitFor(() => expect(consultation).toHaveBeenCalledTimes(1))
+
+    // Network is back: the second lookup finds the sale.
+    consultation.mockResolvedValue({ sale: venteResolue })
+    fireEvent.click(bouton)
+
+    expect(await screen.findByText("Vente n° 7 enregistrée")).toBeTruthy()
+    expect(consultation).toHaveBeenCalledTimes(2)
+  })
+
+  it("le verrou tient tant que l'ambiguïté persiste", async () => {
+    vi.spyOn(posApi, "fetchVenteParCleRequete").mockRejectedValue(
+      new Error("Failed to fetch")
+    )
+    await soumettreEtEchouer()
+    await screen.findByRole("button", { name: /Vérifier/ })
+
+    // The payment modal auto-closes, and the lock survives on the main screen.
+    fireEvent.click(screen.getByRole("button", { name: /^Coca 50cl/ }))
+    expect(
+      screen.getByRole<HTMLButtonElement>("button", {
+        name: "Diminuer la quantité de Coca 50cl",
+      }).disabled
+    ).toBe(true)
   })
 })

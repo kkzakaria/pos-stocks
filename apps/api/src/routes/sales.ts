@@ -349,6 +349,29 @@ async function venteBoutique(
   return rows[0] ?? null
 }
 
+/**
+ * Looks a sale up by its idempotency key, scoped to the organization. Mirrors
+ * `venteBoutique`: an entry belonging to another organization is simply not
+ * found, so callers answer 404 rather than leaking its existence with a 403.
+ */
+async function venteParCleRequete(
+  db: Db,
+  organizationId: string,
+  clientRequestId: string
+): Promise<{ id: string; storeId: string } | null> {
+  const rows = await db
+    .select({ id: schema.sales.id, storeId: schema.sales.storeId })
+    .from(schema.sales)
+    .where(
+      and(
+        eq(schema.sales.clientRequestId, clientRequestId),
+        eq(schema.sales.organizationId, organizationId)
+      )
+    )
+    .limit(1)
+  return rows[0] ?? null
+}
+
 // Marge du détail de vente (Phase 7, décision 9 du plan) : réservée à qui a
 // droit aux marges sur la boutique — org owner/admin/auditor OU rôle local
 // manager/auditor. JAMAIS cashier ni stock_manager : la réponse porte
@@ -409,6 +432,30 @@ async function margeVente(
     estime: agregat.lignesEstimees > 0,
   }
 }
+
+// Declared before `/:id` by convention (most specific first), but the two
+// cannot collide: `/:id` matches a SINGLE path segment, while this route has
+// two. Verified empirically — moving it after `/:id` keeps every test green.
+//
+// Lets the POS resolve an AMBIGUOUS submission (request sent, response lost):
+// it asks whether a sale already exists for its idempotency key instead of
+// guessing — which would mean either a duplicate sale or silently discarded
+// cart edits.
+salesRoute.get("/par-cle-requete/:clientRequestId", async (c) => {
+  const { organizationId } = c.get("membership")
+  const db = drizzle(c.env.DB, { schema })
+  const vente = await venteParCleRequete(
+    db,
+    organizationId,
+    c.req.param("clientRequestId")
+  )
+  if (!vente) {
+    return c.json({ code: "INTROUVABLE", message: "Vente introuvable" }, 404)
+  }
+  const refus = await verifierLectureVentes(c, vente.storeId)
+  if (refus) return refus
+  return c.json({ sale: await chargerVente(db, organizationId, vente.id) })
+})
 
 salesRoute.get("/:id", async (c) => {
   const { organizationId } = c.get("membership")

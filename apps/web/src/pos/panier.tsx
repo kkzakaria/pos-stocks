@@ -345,8 +345,8 @@ export function Panier({
       <div className="border-t p-4">
         {verrouille && (
           <p role="alert" className="mb-2 text-xs font-semibold text-warning">
-            Vente peut-être déjà enregistrée : réessayez l'encaissement, ou
-            vérifiez les tickets du jour avant de modifier le panier.
+            Vente peut-être déjà enregistrée : utilisez « Vérifier » pour
+            trancher avant de modifier le panier.
           </p>
         )}
         <p className="mb-3 flex items-baseline justify-between">
@@ -355,9 +355,14 @@ export function Panier({
             {formaterMontant(total)}
           </span>
         </p>
+        {/* Disabled while locked: with an unresolved ambiguity, checking out
+            again would send a second POST under the same idempotency key and
+            race the in-flight lookup. Closing the payment modal is not enough
+            on its own — this button would simply reopen it. "Vérifier" is the
+            way out. */}
         <Button
           className="min-h-14 w-full text-lg"
-          disabled={lignes.length === 0}
+          disabled={lignes.length === 0 || verrouille}
           onClick={onEncaisser}
         >
           ENCAISSER

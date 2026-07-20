@@ -9,34 +9,33 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as PosRouteImport } from './routes/pos'
-import { Route as LoginRouteImport } from './routes/login'
 import { Route as AppRouteImport } from './routes/_app'
+import { Route as LoginRouteImport } from './routes/login'
+import { Route as PosRouteImport } from './routes/pos'
 import { Route as AppIndexRouteImport } from './routes/_app/index'
-import { Route as AppStockRouteImport } from './routes/_app/stock'
 import { Route as AppMonCompteRouteImport } from './routes/_app/mon-compte'
-import { Route as AppVentesIndexRouteImport } from './routes/_app/ventes/index'
-import { Route as AppStockIndexRouteImport } from './routes/_app/stock/index'
-import { Route as AppVentesRapportsRouteImport } from './routes/_app/ventes/rapports'
-import { Route as AppVentesSaleIdRouteImport } from './routes/_app/ventes/$saleId'
-import { Route as AppStockMouvementsRouteImport } from './routes/_app/stock/mouvements'
-import { Route as AppCatalogueFournisseursRouteImport } from './routes/_app/catalogue/fournisseurs'
-import { Route as AppCatalogueCategoriesRouteImport } from './routes/_app/catalogue/categories'
-import { Route as AppAdministrationUtilisateursRouteImport } from './routes/_app/administration/utilisateurs'
-import { Route as AppAdministrationParametresRouteImport } from './routes/_app/administration/parametres'
+import { Route as AppStockRouteImport } from './routes/_app/stock'
 import { Route as AppAdministrationEntrepotsRouteImport } from './routes/_app/administration/entrepots'
-import { Route as AppStockTransfertsIndexRouteImport } from './routes/_app/stock/transferts/index'
-import { Route as AppStockReceptionsIndexRouteImport } from './routes/_app/stock/receptions/index'
-import { Route as AppStockInventairesIndexRouteImport } from './routes/_app/stock/inventaires/index'
+import { Route as AppAdministrationParametresRouteImport } from './routes/_app/administration/parametres'
+import { Route as AppAdministrationUtilisateursRouteImport } from './routes/_app/administration/utilisateurs'
+import { Route as AppCatalogueCategoriesRouteImport } from './routes/_app/catalogue/categories'
+import { Route as AppCatalogueFournisseursRouteImport } from './routes/_app/catalogue/fournisseurs'
+import { Route as AppStockIndexRouteImport } from './routes/_app/stock/index'
+import { Route as AppStockMouvementsRouteImport } from './routes/_app/stock/mouvements'
+import { Route as AppVentesIndexRouteImport } from './routes/_app/ventes/index'
+import { Route as AppVentesSaleIdRouteImport } from './routes/_app/ventes/$saleId'
+import { Route as AppVentesRapportsRouteImport } from './routes/_app/ventes/rapports'
 import { Route as AppCatalogueProduitsIndexRouteImport } from './routes/_app/catalogue/produits/index'
-import { Route as AppStockTransfertsTransferIdRouteImport } from './routes/_app/stock/transferts/$transferId'
-import { Route as AppStockReceptionsPurchaseIdRouteImport } from './routes/_app/stock/receptions/$purchaseId'
-import { Route as AppStockInventairesCountIdRouteImport } from './routes/_app/stock/inventaires/$countId'
 import { Route as AppCatalogueProduitsProductIdRouteImport } from './routes/_app/catalogue/produits/$productId'
+import { Route as AppStockInventairesIndexRouteImport } from './routes/_app/stock/inventaires/index'
+import { Route as AppStockInventairesCountIdRouteImport } from './routes/_app/stock/inventaires/$countId'
+import { Route as AppStockReceptionsIndexRouteImport } from './routes/_app/stock/receptions/index'
+import { Route as AppStockReceptionsPurchaseIdRouteImport } from './routes/_app/stock/receptions/$purchaseId'
+import { Route as AppStockTransfertsIndexRouteImport } from './routes/_app/stock/transferts/index'
+import { Route as AppStockTransfertsTransferIdRouteImport } from './routes/_app/stock/transferts/$transferId'
 
-const PosRoute = PosRouteImport.update({
-  id: '/pos',
-  path: '/pos',
+const AppRoute = AppRouteImport.update({
+  id: '/_app',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LoginRoute = LoginRouteImport.update({
@@ -44,8 +43,9 @@ const LoginRoute = LoginRouteImport.update({
   path: '/login',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AppRoute = AppRouteImport.update({
-  id: '/_app',
+const PosRoute = PosRouteImport.update({
+  id: '/pos',
+  path: '/pos',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AppIndexRoute = AppIndexRouteImport.update({
@@ -53,56 +53,20 @@ const AppIndexRoute = AppIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AppRoute,
 } as any)
-const AppStockRoute = AppStockRouteImport.update({
-  id: '/stock',
-  path: '/stock',
-  getParentRoute: () => AppRoute,
-} as any)
 const AppMonCompteRoute = AppMonCompteRouteImport.update({
   id: '/mon-compte',
   path: '/mon-compte',
   getParentRoute: () => AppRoute,
 } as any)
-const AppVentesIndexRoute = AppVentesIndexRouteImport.update({
-  id: '/ventes/',
-  path: '/ventes/',
+const AppStockRoute = AppStockRouteImport.update({
+  id: '/stock',
+  path: '/stock',
   getParentRoute: () => AppRoute,
 } as any)
-const AppStockIndexRoute = AppStockIndexRouteImport.update({
-  id: '/',
-  path: '/',
-  getParentRoute: () => AppStockRoute,
-} as any)
-const AppVentesRapportsRoute = AppVentesRapportsRouteImport.update({
-  id: '/ventes/rapports',
-  path: '/ventes/rapports',
-  getParentRoute: () => AppRoute,
-} as any)
-const AppVentesSaleIdRoute = AppVentesSaleIdRouteImport.update({
-  id: '/ventes/$saleId',
-  path: '/ventes/$saleId',
-  getParentRoute: () => AppRoute,
-} as any)
-const AppStockMouvementsRoute = AppStockMouvementsRouteImport.update({
-  id: '/mouvements',
-  path: '/mouvements',
-  getParentRoute: () => AppStockRoute,
-} as any)
-const AppCatalogueFournisseursRoute =
-  AppCatalogueFournisseursRouteImport.update({
-    id: '/catalogue/fournisseurs',
-    path: '/catalogue/fournisseurs',
-    getParentRoute: () => AppRoute,
-  } as any)
-const AppCatalogueCategoriesRoute = AppCatalogueCategoriesRouteImport.update({
-  id: '/catalogue/categories',
-  path: '/catalogue/categories',
-  getParentRoute: () => AppRoute,
-} as any)
-const AppAdministrationUtilisateursRoute =
-  AppAdministrationUtilisateursRouteImport.update({
-    id: '/administration/utilisateurs',
-    path: '/administration/utilisateurs',
+const AppAdministrationEntrepotsRoute =
+  AppAdministrationEntrepotsRouteImport.update({
+    id: '/administration/entrepots',
+    path: '/administration/entrepots',
     getParentRoute: () => AppRoute,
   } as any)
 const AppAdministrationParametresRoute =
@@ -111,44 +75,64 @@ const AppAdministrationParametresRoute =
     path: '/administration/parametres',
     getParentRoute: () => AppRoute,
   } as any)
-const AppAdministrationEntrepotsRoute =
-  AppAdministrationEntrepotsRouteImport.update({
-    id: '/administration/entrepots',
-    path: '/administration/entrepots',
+const AppAdministrationUtilisateursRoute =
+  AppAdministrationUtilisateursRouteImport.update({
+    id: '/administration/utilisateurs',
+    path: '/administration/utilisateurs',
     getParentRoute: () => AppRoute,
   } as any)
-const AppStockTransfertsIndexRoute = AppStockTransfertsIndexRouteImport.update({
-  id: '/transferts/',
-  path: '/transferts/',
-  getParentRoute: () => AppStockRoute,
+const AppCatalogueCategoriesRoute = AppCatalogueCategoriesRouteImport.update({
+  id: '/catalogue/categories',
+  path: '/catalogue/categories',
+  getParentRoute: () => AppRoute,
 } as any)
-const AppStockReceptionsIndexRoute = AppStockReceptionsIndexRouteImport.update({
-  id: '/receptions/',
-  path: '/receptions/',
-  getParentRoute: () => AppStockRoute,
-} as any)
-const AppStockInventairesIndexRoute =
-  AppStockInventairesIndexRouteImport.update({
-    id: '/inventaires/',
-    path: '/inventaires/',
-    getParentRoute: () => AppStockRoute,
+const AppCatalogueFournisseursRoute =
+  AppCatalogueFournisseursRouteImport.update({
+    id: '/catalogue/fournisseurs',
+    path: '/catalogue/fournisseurs',
+    getParentRoute: () => AppRoute,
   } as any)
+const AppStockIndexRoute = AppStockIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AppStockRoute,
+} as any)
+const AppStockMouvementsRoute = AppStockMouvementsRouteImport.update({
+  id: '/mouvements',
+  path: '/mouvements',
+  getParentRoute: () => AppStockRoute,
+} as any)
+const AppVentesIndexRoute = AppVentesIndexRouteImport.update({
+  id: '/ventes/',
+  path: '/ventes/',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppVentesSaleIdRoute = AppVentesSaleIdRouteImport.update({
+  id: '/ventes/$saleId',
+  path: '/ventes/$saleId',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppVentesRapportsRoute = AppVentesRapportsRouteImport.update({
+  id: '/ventes/rapports',
+  path: '/ventes/rapports',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppCatalogueProduitsIndexRoute =
   AppCatalogueProduitsIndexRouteImport.update({
     id: '/catalogue/produits/',
     path: '/catalogue/produits/',
     getParentRoute: () => AppRoute,
   } as any)
-const AppStockTransfertsTransferIdRoute =
-  AppStockTransfertsTransferIdRouteImport.update({
-    id: '/transferts/$transferId',
-    path: '/transferts/$transferId',
-    getParentRoute: () => AppStockRoute,
+const AppCatalogueProduitsProductIdRoute =
+  AppCatalogueProduitsProductIdRouteImport.update({
+    id: '/catalogue/produits/$productId',
+    path: '/catalogue/produits/$productId',
+    getParentRoute: () => AppRoute,
   } as any)
-const AppStockReceptionsPurchaseIdRoute =
-  AppStockReceptionsPurchaseIdRouteImport.update({
-    id: '/receptions/$purchaseId',
-    path: '/receptions/$purchaseId',
+const AppStockInventairesIndexRoute =
+  AppStockInventairesIndexRouteImport.update({
+    id: '/inventaires/',
+    path: '/inventaires/',
     getParentRoute: () => AppStockRoute,
   } as any)
 const AppStockInventairesCountIdRoute =
@@ -157,11 +141,27 @@ const AppStockInventairesCountIdRoute =
     path: '/inventaires/$countId',
     getParentRoute: () => AppStockRoute,
   } as any)
-const AppCatalogueProduitsProductIdRoute =
-  AppCatalogueProduitsProductIdRouteImport.update({
-    id: '/catalogue/produits/$productId',
-    path: '/catalogue/produits/$productId',
-    getParentRoute: () => AppRoute,
+const AppStockReceptionsIndexRoute = AppStockReceptionsIndexRouteImport.update({
+  id: '/receptions/',
+  path: '/receptions/',
+  getParentRoute: () => AppStockRoute,
+} as any)
+const AppStockReceptionsPurchaseIdRoute =
+  AppStockReceptionsPurchaseIdRouteImport.update({
+    id: '/receptions/$purchaseId',
+    path: '/receptions/$purchaseId',
+    getParentRoute: () => AppStockRoute,
+  } as any)
+const AppStockTransfertsIndexRoute = AppStockTransfertsIndexRouteImport.update({
+  id: '/transferts/',
+  path: '/transferts/',
+  getParentRoute: () => AppStockRoute,
+} as any)
+const AppStockTransfertsTransferIdRoute =
+  AppStockTransfertsTransferIdRouteImport.update({
+    id: '/transferts/$transferId',
+    path: '/transferts/$transferId',
+    getParentRoute: () => AppStockRoute,
   } as any)
 
 export interface FileRoutesByFullPath {
@@ -326,11 +326,11 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/pos': {
-      id: '/pos'
-      path: '/pos'
-      fullPath: '/pos'
-      preLoaderRoute: typeof PosRouteImport
+    '/_app': {
+      id: '/_app'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof AppRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/login': {
@@ -340,11 +340,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LoginRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/_app': {
-      id: '/_app'
-      path: ''
-      fullPath: '/'
-      preLoaderRoute: typeof AppRouteImport
+    '/pos': {
+      id: '/pos'
+      path: '/pos'
+      fullPath: '/pos'
+      preLoaderRoute: typeof PosRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_app/': {
@@ -354,13 +354,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppIndexRouteImport
       parentRoute: typeof AppRoute
     }
-    '/_app/stock': {
-      id: '/_app/stock'
-      path: '/stock'
-      fullPath: '/stock'
-      preLoaderRoute: typeof AppStockRouteImport
-      parentRoute: typeof AppRoute
-    }
     '/_app/mon-compte': {
       id: '/_app/mon-compte'
       path: '/mon-compte'
@@ -368,67 +361,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppMonCompteRouteImport
       parentRoute: typeof AppRoute
     }
-    '/_app/ventes/': {
-      id: '/_app/ventes/'
-      path: '/ventes'
-      fullPath: '/ventes/'
-      preLoaderRoute: typeof AppVentesIndexRouteImport
-      parentRoute: typeof AppRoute
-    }
-    '/_app/stock/': {
-      id: '/_app/stock/'
-      path: '/'
-      fullPath: '/stock/'
-      preLoaderRoute: typeof AppStockIndexRouteImport
-      parentRoute: typeof AppStockRoute
-    }
-    '/_app/ventes/rapports': {
-      id: '/_app/ventes/rapports'
-      path: '/ventes/rapports'
-      fullPath: '/ventes/rapports'
-      preLoaderRoute: typeof AppVentesRapportsRouteImport
-      parentRoute: typeof AppRoute
-    }
-    '/_app/ventes/$saleId': {
-      id: '/_app/ventes/$saleId'
-      path: '/ventes/$saleId'
-      fullPath: '/ventes/$saleId'
-      preLoaderRoute: typeof AppVentesSaleIdRouteImport
-      parentRoute: typeof AppRoute
-    }
-    '/_app/stock/mouvements': {
-      id: '/_app/stock/mouvements'
-      path: '/mouvements'
-      fullPath: '/stock/mouvements'
-      preLoaderRoute: typeof AppStockMouvementsRouteImport
-      parentRoute: typeof AppStockRoute
-    }
-    '/_app/catalogue/fournisseurs': {
-      id: '/_app/catalogue/fournisseurs'
-      path: '/catalogue/fournisseurs'
-      fullPath: '/catalogue/fournisseurs'
-      preLoaderRoute: typeof AppCatalogueFournisseursRouteImport
-      parentRoute: typeof AppRoute
-    }
-    '/_app/catalogue/categories': {
-      id: '/_app/catalogue/categories'
-      path: '/catalogue/categories'
-      fullPath: '/catalogue/categories'
-      preLoaderRoute: typeof AppCatalogueCategoriesRouteImport
-      parentRoute: typeof AppRoute
-    }
-    '/_app/administration/utilisateurs': {
-      id: '/_app/administration/utilisateurs'
-      path: '/administration/utilisateurs'
-      fullPath: '/administration/utilisateurs'
-      preLoaderRoute: typeof AppAdministrationUtilisateursRouteImport
-      parentRoute: typeof AppRoute
-    }
-    '/_app/administration/parametres': {
-      id: '/_app/administration/parametres'
-      path: '/administration/parametres'
-      fullPath: '/administration/parametres'
-      preLoaderRoute: typeof AppAdministrationParametresRouteImport
+    '/_app/stock': {
+      id: '/_app/stock'
+      path: '/stock'
+      fullPath: '/stock'
+      preLoaderRoute: typeof AppStockRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/administration/entrepots': {
@@ -438,26 +375,68 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppAdministrationEntrepotsRouteImport
       parentRoute: typeof AppRoute
     }
-    '/_app/stock/transferts/': {
-      id: '/_app/stock/transferts/'
-      path: '/transferts'
-      fullPath: '/stock/transferts/'
-      preLoaderRoute: typeof AppStockTransfertsIndexRouteImport
+    '/_app/administration/parametres': {
+      id: '/_app/administration/parametres'
+      path: '/administration/parametres'
+      fullPath: '/administration/parametres'
+      preLoaderRoute: typeof AppAdministrationParametresRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/administration/utilisateurs': {
+      id: '/_app/administration/utilisateurs'
+      path: '/administration/utilisateurs'
+      fullPath: '/administration/utilisateurs'
+      preLoaderRoute: typeof AppAdministrationUtilisateursRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/catalogue/categories': {
+      id: '/_app/catalogue/categories'
+      path: '/catalogue/categories'
+      fullPath: '/catalogue/categories'
+      preLoaderRoute: typeof AppCatalogueCategoriesRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/catalogue/fournisseurs': {
+      id: '/_app/catalogue/fournisseurs'
+      path: '/catalogue/fournisseurs'
+      fullPath: '/catalogue/fournisseurs'
+      preLoaderRoute: typeof AppCatalogueFournisseursRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/stock/': {
+      id: '/_app/stock/'
+      path: '/'
+      fullPath: '/stock/'
+      preLoaderRoute: typeof AppStockIndexRouteImport
       parentRoute: typeof AppStockRoute
     }
-    '/_app/stock/receptions/': {
-      id: '/_app/stock/receptions/'
-      path: '/receptions'
-      fullPath: '/stock/receptions/'
-      preLoaderRoute: typeof AppStockReceptionsIndexRouteImport
+    '/_app/stock/mouvements': {
+      id: '/_app/stock/mouvements'
+      path: '/mouvements'
+      fullPath: '/stock/mouvements'
+      preLoaderRoute: typeof AppStockMouvementsRouteImport
       parentRoute: typeof AppStockRoute
     }
-    '/_app/stock/inventaires/': {
-      id: '/_app/stock/inventaires/'
-      path: '/inventaires'
-      fullPath: '/stock/inventaires/'
-      preLoaderRoute: typeof AppStockInventairesIndexRouteImport
-      parentRoute: typeof AppStockRoute
+    '/_app/ventes/': {
+      id: '/_app/ventes/'
+      path: '/ventes'
+      fullPath: '/ventes/'
+      preLoaderRoute: typeof AppVentesIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/ventes/$saleId': {
+      id: '/_app/ventes/$saleId'
+      path: '/ventes/$saleId'
+      fullPath: '/ventes/$saleId'
+      preLoaderRoute: typeof AppVentesSaleIdRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/ventes/rapports': {
+      id: '/_app/ventes/rapports'
+      path: '/ventes/rapports'
+      fullPath: '/ventes/rapports'
+      preLoaderRoute: typeof AppVentesRapportsRouteImport
+      parentRoute: typeof AppRoute
     }
     '/_app/catalogue/produits/': {
       id: '/_app/catalogue/produits/'
@@ -466,18 +445,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppCatalogueProduitsIndexRouteImport
       parentRoute: typeof AppRoute
     }
-    '/_app/stock/transferts/$transferId': {
-      id: '/_app/stock/transferts/$transferId'
-      path: '/transferts/$transferId'
-      fullPath: '/stock/transferts/$transferId'
-      preLoaderRoute: typeof AppStockTransfertsTransferIdRouteImport
-      parentRoute: typeof AppStockRoute
+    '/_app/catalogue/produits/$productId': {
+      id: '/_app/catalogue/produits/$productId'
+      path: '/catalogue/produits/$productId'
+      fullPath: '/catalogue/produits/$productId'
+      preLoaderRoute: typeof AppCatalogueProduitsProductIdRouteImport
+      parentRoute: typeof AppRoute
     }
-    '/_app/stock/receptions/$purchaseId': {
-      id: '/_app/stock/receptions/$purchaseId'
-      path: '/receptions/$purchaseId'
-      fullPath: '/stock/receptions/$purchaseId'
-      preLoaderRoute: typeof AppStockReceptionsPurchaseIdRouteImport
+    '/_app/stock/inventaires/': {
+      id: '/_app/stock/inventaires/'
+      path: '/inventaires'
+      fullPath: '/stock/inventaires/'
+      preLoaderRoute: typeof AppStockInventairesIndexRouteImport
       parentRoute: typeof AppStockRoute
     }
     '/_app/stock/inventaires/$countId': {
@@ -487,12 +466,33 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppStockInventairesCountIdRouteImport
       parentRoute: typeof AppStockRoute
     }
-    '/_app/catalogue/produits/$productId': {
-      id: '/_app/catalogue/produits/$productId'
-      path: '/catalogue/produits/$productId'
-      fullPath: '/catalogue/produits/$productId'
-      preLoaderRoute: typeof AppCatalogueProduitsProductIdRouteImport
-      parentRoute: typeof AppRoute
+    '/_app/stock/receptions/': {
+      id: '/_app/stock/receptions/'
+      path: '/receptions'
+      fullPath: '/stock/receptions/'
+      preLoaderRoute: typeof AppStockReceptionsIndexRouteImport
+      parentRoute: typeof AppStockRoute
+    }
+    '/_app/stock/receptions/$purchaseId': {
+      id: '/_app/stock/receptions/$purchaseId'
+      path: '/receptions/$purchaseId'
+      fullPath: '/stock/receptions/$purchaseId'
+      preLoaderRoute: typeof AppStockReceptionsPurchaseIdRouteImport
+      parentRoute: typeof AppStockRoute
+    }
+    '/_app/stock/transferts/': {
+      id: '/_app/stock/transferts/'
+      path: '/transferts'
+      fullPath: '/stock/transferts/'
+      preLoaderRoute: typeof AppStockTransfertsIndexRouteImport
+      parentRoute: typeof AppStockRoute
+    }
+    '/_app/stock/transferts/$transferId': {
+      id: '/_app/stock/transferts/$transferId'
+      path: '/transferts/$transferId'
+      fullPath: '/stock/transferts/$transferId'
+      preLoaderRoute: typeof AppStockTransfertsTransferIdRouteImport
+      parentRoute: typeof AppStockRoute
     }
   }
 }
