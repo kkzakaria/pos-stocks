@@ -53,6 +53,12 @@ Sur erreur réseau **ambiguë** (branche `onError` sans `ApiError`), avant de se
 
 Le résultat est strictement meilleur que l'existant dans chaque branche, et jamais pire.
 
+### Pas de re-soumission pendant la résolution
+
+La modale de paiement est **fermée** dès l'erreur ambiguë. La laisser ouverte permettait à un second envoi de courir contre la consultation en vol : si celle-ci répondait `404` et régénérait la clé avant que ce second envoi ne soit commité — et que lui aussi perde sa réponse — la résolution suivante chercherait la **nouvelle** clé, conclurait à tort « rien commité », déverrouillerait, et ouvrirait le doublon. La sortie n'est plus le retry mais « Vérifier ».
+
+Corollaire : le bandeau et son bouton s'affichent aussi lorsque `panierVerrouille` est vrai **sans** message — cas d'un panier restauré depuis le stockage, où `erreurVente` n'est pas persisté. Sans ce repli, un rechargement pendant l'ambiguïté laisserait un panier verrouillé sans aucun moyen de le résoudre.
+
 ### Ce que devient l'abandon explicite
 
 La fermeture de la modale ne devine plus rien :

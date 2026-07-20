@@ -2,16 +2,16 @@
 
 > **Pour les agents :** SOUS-SKILL REQUIS — utiliser superpowers:subagent-driven-development (recommandé) ou superpowers:executing-plans pour exécuter ce plan tâche par tâche. Les étapes utilisent des cases à cocher (`- [ ]`) pour le suivi.
 
-**Goal:** Permettre au client POS de demander au serveur si une vente a été enregistrée sous une clé d'idempotence donnée, pour lever de façon déterministe l'ambiguïté d'une soumission dont la réponse s'est perdue.
+**Objectif :** Permettre au client POS de demander au serveur si une vente a été enregistrée sous une clé d'idempotence donnée, pour lever de façon déterministe l'ambiguïté d'une soumission dont la réponse s'est perdue.
 
-**Architecture:** Une route de consultation `GET /sales/par-cle-requete/:clientRequestId` (scopée organisation, même mécanique d'accès que `GET /sales/:id`). Le front interroge cette route dès l'erreur réseau ambiguë et résout selon la réponse ; en cas d'échec de la consultation, il conserve le verrou et propose un bouton « Vérifier ».
+**Architecture :** Une route de consultation `GET /sales/par-cle-requete/:clientRequestId` (scopée organisation, même mécanique d'accès que `GET /sales/:id`). Le front interroge cette route dès l'erreur réseau ambiguë et résout selon la réponse ; en cas d'échec de la consultation, il conserve le verrou et propose un bouton « Vérifier ».
 
-**Tech Stack:** Hono 4 + Drizzle + D1 (API, tests sur D1 réelle via `@cloudflare/vitest-pool-workers`), React 19 + TanStack Query (front, tests Testing Library + jsdom).
+**Stack technique :** Hono 4 + Drizzle + D1 (API, tests sur D1 réelle via `@cloudflare/vitest-pool-workers`), React 19 + TanStack Query (front, tests Testing Library + jsdom).
 
 **Spec :** `docs/superpowers/specs/2026-07-20-levee-ambiguite-vente-design.md`
 **Issue :** #21 — **Branche :** `fix/ambiguite-vente-issue-21`
 
-## Global Constraints
+## Contraintes globales
 
 - **Garde cross-tenant AVANT tout** (invariant #7) : la recherche filtre sur `organizationId`, donc une vente d'une autre organisation est **introuvable** → `404 INTROUVABLE`. Un refus de portée boutique/rôle donne `403 ACCES_REFUSE`.
 - Enveloppe de réponse : **`{ sale }` seul** — pas de `marge`, la résolution POS n'en a aucun usage.
@@ -31,7 +31,7 @@ bun run --cwd apps/web test -- src/pos/ecran-vente.test.tsx             # ciblé
 bun run typecheck && bun run lint
 ```
 
-## File Structure
+## Structure des fichiers
 
 - **Modify** `apps/api/src/routes/sales.ts` — helper `venteParCleRequete` + route de consultation.
 - **Create** `apps/api/test/sales-cle-requete.test.ts` — tests d'accès et de résolution de la route.
@@ -43,11 +43,11 @@ bun run typecheck && bun run lint
 
 ### Task 1 : API — consultation d'une vente par sa clé d'idempotence
 
-**Files:**
+**Fichiers :**
 - Modify: `apps/api/src/routes/sales.ts`
 - Create: `apps/api/test/sales-cle-requete.test.ts`
 
-**Interfaces:**
+**Interfaces :**
 - Consumes (existants dans `sales.ts`) : `verifierLectureVentes(c, storeId): Promise<Response | null>`, `chargerVente(db, organizationId, saleId)`, type `Db`.
 - Produces :
   - `venteParCleRequete(db: Db, organizationId: string, clientRequestId: string): Promise<{ id: string; storeId: string } | null>`
@@ -280,12 +280,12 @@ git commit -m "feat(api): consultation d'une vente par clé d'idempotence"
 
 ### Task 2 : Front — résolution automatique de l'ambiguïté
 
-**Files:**
+**Fichiers :**
 - Modify: `apps/web/src/lib/pos-api.ts`
 - Modify: `apps/web/src/pos/ecran-vente.tsx`
 - Modify: `apps/web/src/pos/ecran-vente.test.tsx`
 
-**Interfaces:**
+**Interfaces :**
 - Consumes : route `GET /api/v1/sales/par-cle-requete/:clientRequestId` → `{ sale: VenteDetail }` | 404 (Task 1) ; `ApiError` (`@/lib/api`) qui porte `status: number` et `code: string | null`.
 - Produces (dans `ecran-vente.tsx`) :
   - `finaliserVente(sale: VenteDetail): void` — le corps actuel de `onSuccess`, extrait pour être rejoué par la résolution.
@@ -554,11 +554,11 @@ git commit -m "feat(pos): résolution automatique d'une soumission ambiguë"
 
 ### Task 3 : Front — bouton « Vérifier » et abandon qui ne devine plus
 
-**Files:**
+**Fichiers :**
 - Modify: `apps/web/src/pos/ecran-vente.tsx`
 - Modify: `apps/web/src/pos/ecran-vente.test.tsx`
 
-**Interfaces:**
+**Interfaces :**
 - Consumes : `resoudreAmbiguite`, `verificationEnCours`, `panierVerrouille` (Task 2).
 
 - [ ] **Step 1 : Écrire les tests qui échouent**

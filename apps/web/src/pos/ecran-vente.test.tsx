@@ -91,12 +91,11 @@ describe("EcranVente — verrouillage panier après échec ambigu", () => {
     vi.restoreAllMocks()
   })
 
-  it("bloque les tuiles après une erreur réseau ambiguë, et la fermeture ne déverrouille pas", async () => {
+  it("verrouille le panier après une erreur réseau ambiguë non résolue", async () => {
     const envoyerVente = vi
       .spyOn(posApi, "envoyerVente")
       .mockRejectedValue(new Error("Failed to fetch"))
-    // La consultation échoue aussi : l'ambiguïté n'est pas levée, donc le
-    // verrou doit tenir — y compris après fermeture de la modale (issue #21).
+    // The lookup fails too, so the ambiguity stands and the lock must hold.
     vi.spyOn(posApi, "fetchVenteParCleRequete").mockRejectedValue(
       new Error("Failed to fetch")
     )
@@ -113,18 +112,9 @@ describe("EcranVente — verrouillage panier après échec ambigu", () => {
     await waitFor(() =>
       expect(screen.getAllByRole("alert").length).toBeGreaterThan(0)
     )
-    const totalAvant =
-      screen.getByText("Total à encaisser").nextSibling?.textContent
 
-    // Panier verrouillé : re-cliquer la tuile ne doit PAS ajouter une
-    // 2e unité — le total affiché en tête de modale ne bouge pas.
-    fireEvent.click(tuile)
-    const totalApres =
-      screen.getByText("Total à encaisser").nextSibling?.textContent
-    expect(totalApres).toBe(totalAvant)
-
-    // Fermer la modale ne lève plus le verrou : le stepper reste désactivé.
-    fireEvent.click(screen.getByLabelText("Fermer"))
+    // Locked cart: clicking the tile adds nothing — the stepper stays disabled
+    // at quantity 1.
     fireEvent.click(tuile)
     expect(
       screen.getByRole<HTMLButtonElement>("button", {
@@ -835,6 +825,56 @@ describe("EcranVente — levée de l'ambiguïté après réponse perdue", () => 
     ).toBe(true)
   })
 
+  it("ferme la modale de paiement : aucune re-soumission pendant la résolution", async () => {
+    // A second POST racing the in-flight lookup could get committed AFTER the
+    // lookup answered 404 and rotated the key — the next resolution would then
+    // look up the NEW key, wrongly unlock, and allow a duplicate sale.
+    vi.spyOn(posApi, "fetchVenteParCleRequete").mockRejectedValue(
+      new Error("Failed to fetch")
+    )
+    await soumettreEtEchouer()
+
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("button", { name: "Valider la vente" })
+      ).toBeNull()
+    )
+  })
+
+  it("panier verrouillé RESTAURÉ : « Vérifier » reste accessible", async () => {
+    // A restored cart carries the lock but no message (erreurVente is not
+    // persisted). Without a fallback the only button able to settle the
+    // ambiguity would vanish after a reload, stranding the cashier.
+    localStorage.setItem(
+      "pos:panier:store1:sess1",
+      JSON.stringify({
+        v: 1,
+        lignes: [
+          {
+            variantId: "v1",
+            nom: "Coca 50cl",
+            sku: "SKU1",
+            imageKey: null,
+            quantite: 1,
+            prixUnitaire: 500,
+            prixCatalogue: 500,
+            prixPlancher: null,
+            sourceWarehouseId: null,
+            sourceNom: null,
+            enAlerte: false,
+          },
+        ],
+        requestId: "req-ambigu",
+        proprietaire: "onglet-1",
+        verrouille: true,
+        majA: "2026-07-20T10:00:00.000Z",
+      })
+    )
+    renderEcran()
+
+    expect(await screen.findByRole("button", { name: /Vérifier/ })).toBeTruthy()
+  })
+
   it("consultation en échec : le verrou reste posé", async () => {
     vi.spyOn(posApi, "fetchVenteParCleRequete").mockRejectedValue(
       new Error("Failed to fetch")
@@ -870,16 +910,14 @@ describe("EcranVente — levée de l'ambiguïté après réponse perdue", () => 
     expect(consultation).toHaveBeenCalledTimes(2)
   })
 
-  it("fermer la modale ne lève PAS le verrou tant que l'ambiguïté persiste", async () => {
+  it("le verrou tient tant que l'ambiguïté persiste", async () => {
     vi.spyOn(posApi, "fetchVenteParCleRequete").mockRejectedValue(
       new Error("Failed to fetch")
     )
     await soumettreEtEchouer()
     await screen.findByRole("button", { name: /Vérifier/ })
 
-    fireEvent.click(screen.getByLabelText("Fermer"))
-
-    // Lock held: the tile adds nothing (stepper still disabled).
+    // The payment modal auto-closes, and the lock survives on the main screen.
     fireEvent.click(screen.getByRole("button", { name: /^Coca 50cl/ }))
     expect(
       screen.getByRole<HTMLButtonElement>("button", {

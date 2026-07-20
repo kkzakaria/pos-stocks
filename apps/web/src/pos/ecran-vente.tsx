@@ -366,6 +366,13 @@ export function EcranVente({ me, boutique, session, onSessionFermee }: Props) {
       // si la vente existe au lieu de deviner (issue #21).
       setPanierVerrouille(true)
       setErreurVente(MESSAGE_AMBIGU)
+      // Close the payment modal: while the ambiguity stands, re-submitting is
+      // no longer the way out — "Vérifier" is. Leaving it open let a second
+      // POST race the in-flight lookup: if the lookup answered 404 and rotated
+      // the key first, a retry committed afterwards (and losing ITS response
+      // too) would be looked up under the NEW key, wrongly unlock, and allow a
+      // duplicate sale.
+      setPaiementOuvert(false)
       void resoudreAmbiguite()
     },
   })
@@ -432,12 +439,16 @@ export function EcranVente({ me, boutique, session, onSessionFermee }: Props) {
           </Button>
         ))}
       </div>
-      {erreurVente && (
+      {/* Shown on `panierVerrouille` too, not just `erreurVente`: a cart
+          restored from storage carries the lock but no message (it is not
+          persisted), and without this the only button able to settle the
+          ambiguity would be missing after a reload. */}
+      {(erreurVente ?? (panierVerrouille ? MESSAGE_AMBIGU : null)) !== null && (
         <div
           role="alert"
           className="flex items-center justify-between gap-3 bg-destructive/10 px-4 py-2 text-sm text-destructive"
         >
-          <p>{erreurVente}</p>
+          <p>{erreurVente ?? MESSAGE_AMBIGU}</p>
           {panierVerrouille && (
             <Button
               variant="outline"

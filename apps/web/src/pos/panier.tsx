@@ -345,8 +345,8 @@ export function Panier({
       <div className="border-t p-4">
         {verrouille && (
           <p role="alert" className="mb-2 text-xs font-semibold text-warning">
-            Vente peut-être déjà enregistrée : réessayez l'encaissement, ou
-            vérifiez les tickets du jour avant de modifier le panier.
+            Vente peut-être déjà enregistrée : utilisez « Vérifier » pour
+            trancher avant de modifier le panier.
           </p>
         )}
         <p className="mb-3 flex items-baseline justify-between">
