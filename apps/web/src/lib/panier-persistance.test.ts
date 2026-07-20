@@ -78,7 +78,7 @@ describe("panier-persistance", () => {
     expect(localStorage.getItem("k")).toBeNull()
   })
 
-  it("n'écrase pas un panier verrouillé d'un AUTRE onglet/requestId", async () => {
+  it("n'écrase pas un panier verrouillé d'un AUTRE propriétaire", async () => {
     const verrouilleAutreOnglet: PanierPersiste = {
       ...etat,
       verrouille: true,
@@ -95,7 +95,7 @@ describe("panier-persistance", () => {
     expect(charger("k")).toEqual(verrouilleAutreOnglet)
   })
 
-  it("purger ne supprime pas un panier verrouillé d'un AUTRE requestId", async () => {
+  it("purger ne supprime pas un panier verrouillé d'un AUTRE propriétaire", async () => {
     const verrouilleAutreOnglet: PanierPersiste = {
       ...etat,
       verrouille: true,
@@ -108,7 +108,7 @@ describe("panier-persistance", () => {
     expect(charger("k")).toEqual(verrouilleAutreOnglet)
   })
 
-  it("purger supprime un panier verrouillé du MÊME requestId", async () => {
+  it("purger supprime un panier verrouillé du MÊME propriétaire", async () => {
     await enregistrer("k", {
       ...etat,
       verrouille: true,
@@ -211,7 +211,7 @@ describe("panier-persistance", () => {
     expect(localStorage.getItem("k")).not.toBeNull()
   })
 
-  it("autorise l'écrasement d'un panier verrouillé par le MÊME requestId (le même onglet résout son propre verrou)", async () => {
+  it("autorise l'écrasement d'un panier verrouillé par le MÊME propriétaire (le même onglet résout son propre verrou)", async () => {
     const verrouille: PanierPersiste = {
       ...etat,
       verrouille: true,
