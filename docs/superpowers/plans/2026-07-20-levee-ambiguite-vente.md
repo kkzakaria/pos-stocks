@@ -2,6 +2,26 @@
 
 > **Pour les agents :** SOUS-SKILL REQUIS — utiliser superpowers:subagent-driven-development (recommandé) ou superpowers:executing-plans pour exécuter ce plan tâche par tâche. Les étapes utilisent des cases à cocher (`- [ ]`) pour le suivi.
 
+> ## ⚠️ DOCUMENT DATÉ — NE PAS EXÉCUTER TEL QUEL
+>
+> Ce plan consigne l'état **avant exécution**. Il est conservé comme trace
+> historique ; **le comportement livré fait foi**, pas ce document.
+>
+> Les revues de code ont fait diverger les points suivants. **Tout extrait de
+> code ci-dessous qui les contredit est périmé :**
+>
+> 1. Un `404` n'est concluant que s'il porte **aussi** le code `INTROUVABLE` —
+>    un 404 sans enveloppe (déploiement désynchronisé) ne doit rien conclure.
+> 2. La **modale de paiement se ferme** dès l'erreur ambiguë : plus aucune
+>    re-soumission ne peut courir contre la consultation en vol.
+> 3. Le bandeau (et son bouton « Vérifier ») s'affiche aussi sur
+>    `panierVerrouille` **seul**, sans `erreurVente` — cas d'un panier restauré
+>    depuis le stockage.
+>
+> Références faisant foi :
+> `docs/superpowers/specs/2026-07-20-levee-ambiguite-vente-design.md`
+> et `apps/web/src/pos/ecran-vente.test.tsx`.
+
 **Objectif :** Permettre au client POS de demander au serveur si une vente a été enregistrée sous une clé d'idempotence donnée, pour lever de façon déterministe l'ambiguïté d'une soumission dont la réponse s'est perdue.
 
 **Architecture :** Une route de consultation `GET /sales/par-cle-requete/:clientRequestId` (scopée organisation, même mécanique d'accès que `GET /sales/:id`). Le front interroge cette route dès l'erreur réseau ambiguë et résout selon la réponse ; en cas d'échec de la consultation, il conserve le verrou et propose un bouton « Vérifier ».

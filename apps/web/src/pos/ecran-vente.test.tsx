@@ -832,6 +832,7 @@ describe("EcranVente — levée de l'ambiguïté après réponse perdue", () => 
     vi.spyOn(posApi, "fetchVenteParCleRequete").mockRejectedValue(
       new Error("Failed to fetch")
     )
+    const envoyer = vi.spyOn(posApi, "envoyerVente")
     await soumettreEtEchouer()
 
     await waitFor(() =>
@@ -839,6 +840,9 @@ describe("EcranVente — levée de l'ambiguïté après réponse perdue", () => 
         screen.queryByRole("button", { name: "Valider la vente" })
       ).toBeNull()
     )
+    // The button is gone, AND no second POST went out: the checkout stays at
+    // exactly one attempt while the ambiguity is unresolved.
+    expect(envoyer).toHaveBeenCalledTimes(1)
   })
 
   it("panier verrouillé RESTAURÉ : « Vérifier » reste accessible", async () => {
