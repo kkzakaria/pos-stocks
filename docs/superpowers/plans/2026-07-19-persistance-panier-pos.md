@@ -1,7 +1,7 @@
 # Persistance du panier POS — Plan d'implémentation
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
-
+>
 > **Note (2026-07-20) — document daté.** Ce plan reflète l'état *avant exécution*.
 > Le durcissement issu des revues a fait diverger deux points : `charger` ne
 > supprime plus l'entrée invalide (c'est la purge verrouillée suivante qui la

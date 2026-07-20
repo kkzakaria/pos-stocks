@@ -228,6 +228,21 @@ describe("panier-persistance", () => {
     expect(charger("k")).toEqual(resolu)
   })
 
+  it("renvoie null si un champ OPTIONNEL présent est mal typé", async () => {
+    // Absent is fine; present-but-wrong must be rejected, otherwise it reaches
+    // the cart render.
+    for (const ligneCassee of [
+      { ...ligne, imageKey: 42 },
+      { ...ligne, prixModifie: "oui" },
+    ]) {
+      localStorage.setItem(
+        "k",
+        JSON.stringify({ ...etat, lignes: [ligneCassee] })
+      )
+      expect(charger("k")).toBeNull()
+    }
+  })
+
   it("renvoie null si une ligne est corrompue (variantId non-string)", async () => {
     localStorage.setItem(
       "k",

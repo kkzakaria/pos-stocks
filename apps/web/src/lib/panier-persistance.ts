@@ -98,7 +98,12 @@ function ligneValide(ligne: unknown): boolean {
   const nombreOuNul = (v: unknown): boolean => v === null || nombre(v)
   const texteOuNul = (v: unknown): boolean =>
     v === null || typeof v === "string"
-  // `imageKey` is optional on LignePanier, so it is deliberately not required.
+  // Optional fields: absent is fine, but a present value must still be typed —
+  // otherwise a corrupted `imageKey` or `prixModifie` reaches the cart render.
+  const texteOptionnel = (v: unknown): boolean =>
+    v === undefined || texteOuNul(v)
+  const booleenOptionnel = (v: unknown): boolean =>
+    v === undefined || typeof v === "boolean"
   return (
     typeof l.variantId === "string" &&
     typeof l.nom === "string" &&
@@ -109,7 +114,9 @@ function ligneValide(ligne: unknown): boolean {
     nombreOuNul(l.prixPlancher) &&
     texteOuNul(l.sourceWarehouseId) &&
     texteOuNul(l.sourceNom) &&
-    typeof l.enAlerte === "boolean"
+    typeof l.enAlerte === "boolean" &&
+    texteOptionnel(l.imageKey) &&
+    booleenOptionnel(l.prixModifie)
   )
 }
 
