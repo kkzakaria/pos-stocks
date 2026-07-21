@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { apiFetch, apiUrl } from "@/lib/api"
@@ -9,17 +9,19 @@ import { EtatVide } from "@/components/etat-vide"
 import { Pagination } from "@/components/ui/pagination"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { InputRecherche } from "@/components/ui/input-recherche"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Textarea } from "@/components/ui/textarea"
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
+  Combobox,
+  ComboboxContent,
+  ComboboxEmpty,
+  ComboboxInput,
+  ComboboxItem,
+  ComboboxList,
+} from "@/components/ui/combobox"
 import {
   Dialog,
   DialogContent,
@@ -37,7 +39,23 @@ import {
 } from "@/components/ui/table"
 import { TableSkeleton } from "@/components/ui/table-skeleton"
 
+type RechercheProduits = {
+  q?: string
+  categorie?: string
+  page?: number
+}
+
 export const Route = createFileRoute("/_app/catalogue/produits/")({
+  // Filters and page live in the URL: shareable, refresh- and back-safe.
+  validateSearch: (search: Record<string, unknown>): RechercheProduits => {
+    const resultat: RechercheProduits = {}
+    if (typeof search.q === "string" && search.q) resultat.q = search.q
+    if (typeof search.categorie === "string" && search.categorie)
+      resultat.categorie = search.categorie
+    const page = Number(search.page)
+    if (Number.isInteger(page) && page > 1) resultat.page = page
+    return resultat
+  },
   component: ProduitsPage,
 })
 
@@ -58,31 +76,45 @@ type Reglages = { currency: string }
 /**
  * Catalog products list: search (name, SKU, barcode), filter by
  * category, and creation of a product leading to its detail page.
+ * Full-height column layout: heading, filters and pagination stay
+ * fixed while the table body scrolls under its sticky header.
  */
 function ProduitsPage() {
   const navigate = useNavigate()
+  const navigateFiltres = Route.useNavigate()
   const queryClient = useQueryClient()
   const peutEcrire = usePeutEcrire()
 
-  const [recherche, setRecherche] = useState("")
-  const [rechercheDebouncee, setRechercheDebouncee] = useState("")
-  const [categorie, setCategorie] = useState("")
-  const [page, setPage] = useState(1)
+  const { q = "", categorie = "", page = 1 } = Route.useSearch()
+  const [recherche, setRecherche] = useState(q)
+  const refRecherche = useRef<HTMLInputElement>(null)
 
-  // Debounce 300 ms : la requête ne part qu'une fois la saisie stabilisée
+  // Debounce 300 ms : l'URL (source de vérité de la requête) n'est mise à
+  // jour qu'une fois la saisie stabilisée ; changer de filtre revient page 1.
   useEffect(() => {
-    const timer = setTimeout(() => setRechercheDebouncee(recherche), 300)
+    const timer = setTimeout(() => {
+      void navigateFiltres({
+        search: (prec) => ({
+          ...prec,
+          q: recherche || undefined,
+          page: undefined,
+        }),
+        replace: true,
+      })
+    }, 300)
     return () => clearTimeout(timer)
-  }, [recherche])
+  }, [recherche, navigateFiltres])
 
-  // A filter change invalidates the current page: reset to page 1
-  useEffect(() => setPage(1), [rechercheDebouncee, categorie])
+  // Back/forward: realign the field with the URL, without clobbering typing
+  useEffect(() => {
+    if (document.activeElement !== refRecherche.current) setRecherche(q)
+  }, [q])
 
   const produits = useQuery({
-    queryKey: ["products", rechercheDebouncee, categorie, page],
+    queryKey: ["products", q, categorie, page],
     queryFn: () => {
       const params = new URLSearchParams()
-      if (rechercheDebouncee) params.set("recherche", rechercheDebouncee)
+      if (q) params.set("recherche", q)
       if (categorie) params.set("categorie", categorie)
       params.set("page", String(page))
       return apiFetch<{
@@ -142,9 +174,12 @@ function ProduitsPage() {
   })
 
   const listeCategories = categories.data?.categories ?? []
+  const idsCategories = listeCategories.map((c) => c.id)
+  const nomCategorie = (id: string) =>
+    listeCategories.find((c) => c.id === id)?.name ?? id
 
   return (
-    <div>
+    <div className="flex h-[calc(100dvh-3rem)] flex-col">
       <div className="mb-6 flex items-center justify-between">
         <h1 className="text-xl font-semibold">Produits</h1>
         {peutEcrire && (
@@ -167,6 +202,7 @@ function ProduitsPage() {
                   <Input
                     id="p-nom"
                     required
+                    autoComplete="off"
                     value={nom}
                     onChange={(e) => setNom(e.target.value)}
                   />
@@ -217,35 +253,39 @@ function ProduitsPage() {
                 </div>
                 <div className="flex flex-col gap-1.5">
                   <Label htmlFor="p-categorie">Catégorie</Label>
-                  <Select
-                    value={categorieProduit}
+                  <Combobox
+                    items={idsCategories}
+                    itemToStringLabel={nomCategorie}
+                    autoHighlight
+                    value={categorieProduit || null}
                     onValueChange={(valeur) =>
-                      setCategorieProduit(valeur as string)
+                      setCategorieProduit(valeur ?? "")
                     }
                   >
-                    <SelectTrigger id="p-categorie" className="w-full">
-                      <SelectValue placeholder="— aucune —">
-                        {(valeur: string) =>
-                          valeur === ""
-                            ? "— aucune —"
-                            : listeCategories.find((c) => c.id === valeur)?.name
-                        }
-                      </SelectValue>
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="">— aucune —</SelectItem>
-                      {listeCategories.map((cat) => (
-                        <SelectItem key={cat.id} value={cat.id}>
-                          {cat.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                    <ComboboxInput
+                      id="p-categorie"
+                      placeholder="— aucune —"
+                      showClear
+                      className="w-full"
+                    />
+                    <ComboboxContent>
+                      <ComboboxEmpty>Aucune catégorie trouvée</ComboboxEmpty>
+                      <ComboboxList>
+                        {(id: string) => (
+                          <ComboboxItem key={id} value={id}>
+                            {nomCategorie(id)}
+                          </ComboboxItem>
+                        )}
+                      </ComboboxList>
+                    </ComboboxContent>
+                  </Combobox>
                 </div>
                 <div className="flex flex-col gap-1.5">
                   <Label htmlFor="p-barcode">Code-barres (optionnel)</Label>
                   <Input
                     id="p-barcode"
+                    autoComplete="off"
+                    spellCheck={false}
                     value={codeBarres}
                     onChange={(e) => setCodeBarres(e.target.value)}
                   />
@@ -285,9 +325,12 @@ function ProduitsPage() {
 
       <div className="mb-4 flex flex-wrap items-end gap-3">
         <div className="flex flex-col gap-1.5">
-          <Label htmlFor="p-recherche">Recherche (nom, SKU, code-barres)</Label>
-          <Input
+          <Label htmlFor="p-recherche">Recherche</Label>
+          <InputRecherche
             id="p-recherche"
+            name="recherche"
+            ref={refRecherche}
+            placeholder="Nom, SKU ou code-barres…"
             value={recherche}
             onChange={(e) => setRecherche(e.target.value)}
             className="w-72"
@@ -295,32 +338,43 @@ function ProduitsPage() {
         </div>
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="p-filtre-categorie">Catégorie</Label>
-          <Select
-            value={categorie}
-            onValueChange={(valeur) => setCategorie(valeur as string)}
+          <Combobox
+            items={idsCategories}
+            itemToStringLabel={nomCategorie}
+            autoHighlight
+            value={categorie || null}
+            onValueChange={(valeur) =>
+              // Push (not replace): each filter step stays in history
+              void navigateFiltres({
+                search: (prec) => ({
+                  ...prec,
+                  categorie: valeur ?? undefined,
+                  page: undefined,
+                }),
+              })
+            }
           >
-            <SelectTrigger id="p-filtre-categorie" className="w-56">
-              <SelectValue placeholder="Toutes">
-                {(valeur: string) =>
-                  valeur === ""
-                    ? "Toutes"
-                    : listeCategories.find((c) => c.id === valeur)?.name
-                }
-              </SelectValue>
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="">Toutes</SelectItem>
-              {listeCategories.map((cat) => (
-                <SelectItem key={cat.id} value={cat.id}>
-                  {cat.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+            <ComboboxInput
+              id="p-filtre-categorie"
+              placeholder="Toutes"
+              showClear
+              className="w-56"
+            />
+            <ComboboxContent>
+              <ComboboxEmpty>Aucune catégorie trouvée</ComboboxEmpty>
+              <ComboboxList>
+                {(id: string) => (
+                  <ComboboxItem key={id} value={id}>
+                    {nomCategorie(id)}
+                  </ComboboxItem>
+                )}
+              </ComboboxList>
+            </ComboboxContent>
+          </Combobox>
         </div>
       </div>
 
-      <Table>
+      <Table containerClassName="min-h-0 flex-1 overflow-y-auto">
         <TableHeader sticky>
           <TableRow>
             <TableHead />
@@ -341,12 +395,12 @@ function ProduitsPage() {
                   icon={PackageSearch}
                   titre="Aucun produit trouvé"
                   message={
-                    recherche || categorie
+                    q || categorie
                       ? "Aucun produit ne correspond à ces critères. Ajustez la recherche ou le filtre."
                       : "Créez votre premier produit pour démarrer le catalogue."
                   }
                   action={
-                    peutEcrire && !recherche && !categorie ? (
+                    peutEcrire && !q && !categorie ? (
                       <Button onClick={() => setDialogOuvert(true)}>
                         Nouveau produit
                       </Button>
@@ -356,55 +410,65 @@ function ProduitsPage() {
               </TableCell>
             </TableRow>
           ) : (
-            (produits.data?.products ?? []).map((p) => (
-              <TableRow
-                key={p.id}
-                className="cursor-pointer"
-                onClick={() =>
-                  void navigate({
-                    to: "/catalogue/produits/$productId",
-                    params: { productId: p.id },
-                  })
-                }
-              >
-                <TableCell>
-                  {p.imageKey ? (
-                    <img
-                      src={`${apiUrl(`/api/v1/files/${p.imageKey}`)}?v=${encodeURIComponent(p.updatedAt)}`}
-                      alt={p.name}
-                      crossOrigin="use-credentials"
-                      className="h-10 w-10 rounded object-cover"
-                    />
-                  ) : (
-                    <div className="h-10 w-10 rounded bg-muted" />
-                  )}
-                </TableCell>
-                <TableCell className="font-medium">
-                  <Link
-                    to="/catalogue/produits/$productId"
-                    params={{ productId: p.id }}
-                    onClick={(e) => e.stopPropagation()}
-                    className="rounded-sm outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring/30"
-                  >
-                    {p.name}
-                  </Link>
-                </TableCell>
-                <TableCell className="font-mono text-xs">{p.sku}</TableCell>
-                <TableCell numeric>
-                  {formaterMontant(p.price, devise)}
-                </TableCell>
-                <TableCell numeric>
-                  <Badge variant="secondary">
-                    {p.variants.filter((v) => v.isActive).length}
-                  </Badge>
-                </TableCell>
-                <TableCell>
-                  <Badge variant={p.isActive ? "success" : "secondary"}>
-                    {p.isActive ? "Actif" : "Inactif"}
-                  </Badge>
-                </TableCell>
-              </TableRow>
-            ))
+            (produits.data?.products ?? []).map((p) => {
+              const variantesActives = p.variants.filter(
+                (v) => v.isActive
+              ).length
+              return (
+                <TableRow
+                  key={p.id}
+                  className="cursor-pointer"
+                  onClick={() =>
+                    void navigate({
+                      to: "/catalogue/produits/$productId",
+                      params: { productId: p.id },
+                    })
+                  }
+                >
+                  <TableCell>
+                    {p.imageKey ? (
+                      <img
+                        src={`${apiUrl(`/api/v1/files/${p.imageKey}`)}?v=${encodeURIComponent(p.updatedAt)}`}
+                        alt=""
+                        width={40}
+                        height={40}
+                        loading="lazy"
+                        crossOrigin="use-credentials"
+                        className="h-10 w-10 rounded object-cover"
+                      />
+                    ) : (
+                      <div className="h-10 w-10 rounded bg-muted" />
+                    )}
+                  </TableCell>
+                  <TableCell className="font-medium">
+                    <Link
+                      to="/catalogue/produits/$productId"
+                      params={{ productId: p.id }}
+                      onClick={(e) => e.stopPropagation()}
+                      className="rounded-sm outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring/30"
+                    >
+                      {p.name}
+                    </Link>
+                  </TableCell>
+                  <TableCell className="font-mono text-xs">{p.sku}</TableCell>
+                  <TableCell numeric>
+                    {formaterMontant(p.price, devise)}
+                  </TableCell>
+                  <TableCell numeric>
+                    {variantesActives > 0 ? (
+                      variantesActives
+                    ) : (
+                      <span className="text-muted-foreground">—</span>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant={p.isActive ? "success" : "secondary"}>
+                      {p.isActive ? "Actif" : "Inactif"}
+                    </Badge>
+                  </TableCell>
+                </TableRow>
+              )
+            })
           )}
         </TableBody>
       </Table>
@@ -415,7 +479,12 @@ function ProduitsPage() {
           page={page}
           total={produits.data?.total ?? 0}
           pageSize={produits.data?.limite ?? 50}
-          onPageChange={setPage}
+          onPageChange={(p) =>
+            // Push (not replace): Back returns to the previous page of results
+            void navigateFiltres({
+              search: (prec) => ({ ...prec, page: p > 1 ? p : undefined }),
+            })
+          }
           element={{ un: "produit", plusieurs: "produits" }}
         />
       )}
