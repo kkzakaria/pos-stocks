@@ -89,9 +89,12 @@ function ProduitsPage() {
   const [recherche, setRecherche] = useState(q)
   const refRecherche = useRef<HTMLInputElement>(null)
 
-  // Debounce 300 ms : l'URL (source de vérité de la requête) n'est mise à
-  // jour qu'une fois la saisie stabilisée ; changer de filtre revient page 1.
+  // 300 ms debounce: the URL (source of truth for the query) is only
+  // updated once typing has settled; changing a filter resets to page 1.
+  // The equality guard keeps mount and back/forward realignment from
+  // stripping ?page out of a shared or reloaded URL.
   useEffect(() => {
+    if (recherche === q) return
     const timer = setTimeout(() => {
       void navigateFiltres({
         search: (prec) => ({
@@ -103,7 +106,7 @@ function ProduitsPage() {
       })
     }, 300)
     return () => clearTimeout(timer)
-  }, [recherche, navigateFiltres])
+  }, [recherche, q, navigateFiltres])
 
   // Back/forward: realign the field with the URL, without clobbering typing
   useEffect(() => {
