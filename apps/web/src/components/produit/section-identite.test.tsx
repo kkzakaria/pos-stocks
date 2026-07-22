@@ -63,6 +63,17 @@ describe("SectionIdentite", () => {
     expect(screen.queryByText(/Choisir une image/)).toBeNull()
   })
 
+  it("Annuler restaure l'affichage sans PATCH", async () => {
+    rendre()
+    fireEvent.click(screen.getByRole("button", { name: "Modifier" }))
+    fireEvent.click(screen.getByRole("button", { name: "Annuler" }))
+    expect(apiFetch).not.toHaveBeenCalledWith(
+      "/api/v1/products/p1",
+      expect.objectContaining({ method: "PATCH" })
+    )
+    expect(await screen.findByRole("button", { name: "Modifier" })).toBeTruthy()
+  })
+
   it("édition : PATCH partiel avec champs vides normalisés à null", async () => {
     const onModifie = vi.fn(() => Promise.resolve())
     rendre({ onModifie })

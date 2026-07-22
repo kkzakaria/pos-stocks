@@ -46,14 +46,26 @@ vi.mock("@/lib/api", () => ({
   apiUrl: (chemin: string) => chemin,
 }))
 
-vi.mock("@/lib/permissions", () => ({ usePeutEcrire: () => true }))
+vi.mock("@/lib/permissions", () => ({
+  usePeutEcrire: () => true,
+  useAccesStock: () => ({
+    lecture: true,
+    lectureTous: true,
+    entrepotsLecture: [],
+    ecritureTous: true,
+    entrepotsEcriture: [],
+  }),
+}))
 // The route file's Link needs a router context: mock the bare minimum.
 vi.mock("@tanstack/react-router", async (importOriginal) => {
   const original = await importOriginal<typeof ReactRouter>()
   return {
     ...original,
     Link: ({ children }: { children: React.ReactNode }) => <a>{children}</a>,
-    createFileRoute: () => () => ({ useParams: () => ({ productId: "p1" }) }),
+    createFileRoute: () => () => ({
+      useParams: () => ({ productId: "p1" }),
+      useSearch: () => ({}),
+    }),
   }
 })
 

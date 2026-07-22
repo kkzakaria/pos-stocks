@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { apiFetch, apiUrl } from "@/lib/api"
 import { formaterMontant } from "@/lib/format"
 import { usePeutEcrire } from "@/lib/permissions"
+import { validerRechercheProduits } from "@/lib/recherche-produits"
 import { PackageSearch } from "lucide-react"
 import { EtatVide } from "@/components/etat-vide"
 import { Pagination } from "@/components/ui/pagination"
@@ -39,23 +40,9 @@ import {
 } from "@/components/ui/table"
 import { TableSkeleton } from "@/components/ui/table-skeleton"
 
-type RechercheProduits = {
-  q?: string
-  categorie?: string
-  page?: number
-}
-
 export const Route = createFileRoute("/_app/catalogue/produits/")({
   // Filters and page live in the URL: shareable, refresh- and back-safe.
-  validateSearch: (search: Record<string, unknown>): RechercheProduits => {
-    const resultat: RechercheProduits = {}
-    if (typeof search.q === "string" && search.q) resultat.q = search.q
-    if (typeof search.categorie === "string" && search.categorie)
-      resultat.categorie = search.categorie
-    const page = Number(search.page)
-    if (Number.isInteger(page) && page > 1) resultat.page = page
-    return resultat
-  },
+  validateSearch: validerRechercheProduits,
   component: ProduitsPage,
 })
 
@@ -425,6 +412,11 @@ function ProduitsPage() {
                     void navigate({
                       to: "/catalogue/produits/$productId",
                       params: { productId: p.id },
+                      search: {
+                        q: q || undefined,
+                        categorie: categorie || undefined,
+                        page: page > 1 ? page : undefined,
+                      },
                     })
                   }
                 >
@@ -447,6 +439,11 @@ function ProduitsPage() {
                     <Link
                       to="/catalogue/produits/$productId"
                       params={{ productId: p.id }}
+                      search={{
+                        q: q || undefined,
+                        categorie: categorie || undefined,
+                        page: page > 1 ? page : undefined,
+                      }}
                       onClick={(e) => e.stopPropagation()}
                       className="rounded-sm outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring/30"
                     >

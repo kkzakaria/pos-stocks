@@ -32,7 +32,14 @@ const lignes: LigneStockProduit[] = [
 
 describe("SectionStock", () => {
   it("liste entrepôts, quantités, CMP et total ; une seule variante → pas de colonne Variante", () => {
-    render(<SectionStock lignes={lignes} enChargement={false} devise="XOF" />)
+    render(
+      <SectionStock
+        lignes={lignes}
+        enChargement={false}
+        devise="XOF"
+        plusieursVariantes={false}
+      />
+    )
     expect(screen.getByText("Boutique S")).toBeTruthy()
     expect(screen.getByText("10")).toBeTruthy()
     expect(screen.getByText(texteMontant(200))).toBeTruthy()
@@ -57,6 +64,7 @@ describe("SectionStock", () => {
         ]}
         enChargement={false}
         devise="XOF"
+        plusieursVariantes
       />
     )
     expect(screen.getByText("Variante")).toBeTruthy()
@@ -64,7 +72,14 @@ describe("SectionStock", () => {
   })
 
   it("liste vide → état vide", () => {
-    render(<SectionStock lignes={[]} enChargement={false} devise="XOF" />)
+    render(
+      <SectionStock
+        lignes={[]}
+        enChargement={false}
+        devise="XOF"
+        plusieursVariantes={false}
+      />
+    )
     expect(
       screen.getByText("Aucun stock visible pour ce produit.")
     ).toBeTruthy()

@@ -15,15 +15,22 @@ type Props = {
   lignes: LigneStockProduit[]
   enChargement: boolean
   devise: string
+  plusieursVariantes: boolean
 }
 
 /**
  * "Stock par entrepôt" table: warehouse · variant (only when several
  * variants are present) · quantity · average cost, with a total row.
- * Presentational: the page owns the query.
+ * Presentational: the page owns the query, and decides `plusieursVariantes`
+ * from the product's active variants — stock rows may be an empty or
+ * partial subset and can't be trusted to reflect variant count.
  */
-export function SectionStock({ lignes, enChargement, devise }: Props) {
-  const plusieursVariantes = new Set(lignes.map((l) => l.variantId)).size > 1
+export function SectionStock({
+  lignes,
+  enChargement,
+  devise,
+  plusieursVariantes,
+}: Props) {
   const total = lignes.reduce((somme, l) => somme + l.quantity, 0)
   const colonnes = plusieursVariantes ? 4 : 3
 

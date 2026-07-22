@@ -2,7 +2,9 @@ import { createFileRoute, Link } from "@tanstack/react-router"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { ArrowLeft } from "lucide-react"
 import { apiFetch } from "@/lib/api"
-import { usePeutEcrire } from "@/lib/permissions"
+import { usePeutEcrire, useAccesStock } from "@/lib/permissions"
+import { validerRechercheProduits } from "@/lib/recherche-produits"
+import type { RechercheProduits } from "@/lib/recherche-produits"
 import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
 import { SectionSynthese } from "@/components/produit/section-synthese"
@@ -12,12 +14,15 @@ import { SectionVariantes } from "@/components/produit/section-variantes"
 import type { LigneStockProduit, Produit } from "@/components/produit/types"
 
 export const Route = createFileRoute("/_app/catalogue/produits/$productId")({
+  // Carries the list's filters so the back link can restore them.
+  validateSearch: validerRechercheProduits,
   component: FicheProduitPage,
 })
 
 function FicheProduitPage() {
   const { productId } = Route.useParams()
-  return <FicheProduit productId={productId} />
+  const rechercheListe = Route.useSearch()
+  return <FicheProduit productId={productId} rechercheListe={rechercheListe} />
 }
 
 /**
@@ -25,8 +30,15 @@ function FicheProduitPage() {
  * figures, identity column (1/3) and living data column (2/3): stock per
  * warehouse then variants with their nested lots. Sections edit in place.
  */
-export function FicheProduit({ productId }: { productId: string }) {
+export function FicheProduit({
+  productId,
+  rechercheListe = {},
+}: {
+  productId: string
+  rechercheListe?: RechercheProduits
+}) {
   const peutEcrire = usePeutEcrire()
+  const accesStock = useAccesStock()
   const queryClient = useQueryClient()
 
   const { data } = useQuery({
@@ -68,18 +80,21 @@ export function FicheProduit({ productId }: { productId: string }) {
   }
   const produit = data.product
   const lignesStock = stock.data?.stock ?? []
-  // Stock total shown only when at least one warehouse is visible: an
-  // empty list means either no scope or no stock — both hide the figure.
-  const stockTotal =
-    lignesStock.length > 0
-      ? lignesStock.reduce((somme, l) => somme + l.quantity, 0)
-      : null
+  const plusieursVariantes =
+    produit.variants.filter((v) => v.isActive).length > 1
+  // Stock total shown only for a user with stock-reading scope: a scoped
+  // user with no rows still sees 0, a user without scope sees the figure
+  // omitted entirely.
+  const stockTotal = accesStock.lecture
+    ? lignesStock.reduce((somme, l) => somme + l.quantity, 0)
+    : null
 
   return (
     <div className="flex flex-col gap-4">
       <div>
         <Link
           to="/catalogue/produits"
+          search={rechercheListe}
           className="mb-2 inline-flex items-center gap-1 rounded-sm text-xs text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/30 [&>svg]:size-3.5"
         >
           <ArrowLeft />
@@ -119,6 +134,7 @@ export function FicheProduit({ productId }: { productId: string }) {
             lignes={lignesStock}
             enChargement={stock.isPending}
             devise={devise}
+            plusieursVariantes={plusieursVariantes}
           />
           <SectionVariantes
             produit={produit}
