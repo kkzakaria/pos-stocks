@@ -36,3 +36,13 @@ export function lireAttributs(brut: string): Record<string, string> {
     return {}
   }
 }
+
+/** One row of GET /products/:id/stock — per warehouse and variant. */
+export type LigneStockProduit = {
+  warehouseId: string
+  warehouseName: string
+  variantId: string
+  variantName: string
+  quantity: number
+  avgCost: number
+}
