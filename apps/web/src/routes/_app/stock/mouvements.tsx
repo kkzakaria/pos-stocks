@@ -9,6 +9,7 @@ import { ErreurChargement } from "@/components/erreur-chargement"
 import { EtatVide } from "@/components/etat-vide"
 import { Pagination } from "@/components/ui/pagination"
 import { Input } from "@/components/ui/input"
+import { InputRecherche } from "@/components/ui/input-recherche"
 import { Label } from "@/components/ui/label"
 import {
   Select,
@@ -86,7 +87,7 @@ function MouvementsPage() {
   const liste = mouvements.data?.movements ?? []
 
   return (
-    <div>
+    <div className="flex h-[calc(100dvh-3rem)] flex-col">
       <h1 className="mb-6 text-xl font-semibold">Journal des mouvements</h1>
 
       <div className="mb-4 flex flex-wrap items-end gap-3">
@@ -141,9 +142,11 @@ function MouvementsPage() {
           </Select>
         </div>
         <div className="flex flex-col gap-1.5">
-          <Label htmlFor="m-recherche">Produit (nom ou SKU)</Label>
-          <Input
+          <Label htmlFor="m-recherche">Produit</Label>
+          <InputRecherche
             id="m-recherche"
+            name="recherche"
+            placeholder="Nom ou SKU…"
             value={recherche}
             onChange={(e) => setRecherche(e.target.value)}
             className="w-56"
@@ -176,7 +179,7 @@ function MouvementsPage() {
         />
       ) : (
         <>
-          <Table>
+          <Table containerClassName="min-h-0 flex-1 overflow-y-auto">
             <TableHeader sticky>
               <TableRow>
                 <TableHead>Date</TableHead>
@@ -240,7 +243,7 @@ function MouvementsPage() {
           </Table>
           {liste.length > 0 && (
             <Pagination
-              className="mt-4"
+              className="mt-3"
               page={page}
               total={total}
               pageSize={LIMITE}

@@ -78,7 +78,7 @@ function HistoriqueVentes() {
   const aucuneBoutique = destinations.isSuccess && boutiques.length === 0
 
   return (
-    <div>
+    <div className="flex h-[calc(100dvh-3rem)] flex-col">
       <h1 className="text-xl font-semibold">Historique des ventes</h1>
       <div className="mt-4 flex flex-wrap items-end gap-3">
         <div className="flex flex-col gap-1.5">
@@ -144,7 +144,7 @@ function HistoriqueVentes() {
         ))}
       </div>
 
-      <div className="mt-4">
+      <div className="mt-4 flex min-h-0 flex-1 flex-col">
         {aucuneBoutique ? (
           <EtatVide
             icon={Store}
@@ -162,7 +162,7 @@ function HistoriqueVentes() {
           />
         ) : (
           <>
-            <Table>
+            <Table containerClassName="min-h-0 flex-1 overflow-y-auto">
               <TableHeader sticky>
                 <TableRow>
                   <TableHead numeric>N°</TableHead>
