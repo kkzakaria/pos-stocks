@@ -112,7 +112,7 @@ function InventairesPage() {
   })
 
   return (
-    <div>
+    <div className="flex h-[calc(100dvh-3rem)] flex-col">
       <div className="mb-6 flex items-center justify-between">
         <h1 className="text-xl font-semibold">Inventaires</h1>
         {peutOuvrir && (
@@ -202,7 +202,7 @@ function InventairesPage() {
           onRetry={() => void inventaires.refetch()}
         />
       ) : (
-        <Table>
+        <Table containerClassName="min-h-0 flex-1 overflow-y-auto">
           <TableHeader sticky>
             <TableRow>
               <TableHead>Ouvert le</TableHead>

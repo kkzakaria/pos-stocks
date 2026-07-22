@@ -118,7 +118,7 @@ function TransfertsPage() {
   })
 
   return (
-    <div>
+    <div className="flex h-[calc(100dvh-3rem)] flex-col">
       <div className="mb-6 flex items-center justify-between">
         <h1 className="text-xl font-semibold">Transferts</h1>
         {peutCreer && (
@@ -248,7 +248,7 @@ function TransfertsPage() {
           onRetry={() => void transferts.refetch()}
         />
       ) : (
-        <Table>
+        <Table containerClassName="min-h-0 flex-1 overflow-y-auto">
           <TableHeader sticky>
             <TableRow>
               <TableHead>Date</TableHead>
