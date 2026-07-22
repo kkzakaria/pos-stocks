@@ -11,6 +11,7 @@ import { ErreurChargement } from "@/components/erreur-chargement"
 import { EtatVide } from "@/components/etat-vide"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { InputRecherche } from "@/components/ui/input-recherche"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -185,7 +186,7 @@ function NiveauxStockPage() {
   })
 
   return (
-    <div>
+    <div className="flex h-[calc(100dvh-3rem)] flex-col">
       <h1 className="mb-6 text-xl font-semibold">Niveaux de stock</h1>
 
       <div className="mb-4 flex flex-wrap items-end gap-3">
@@ -212,11 +213,11 @@ function NiveauxStockPage() {
           </Select>
         </div>
         <div className="flex flex-col gap-1.5">
-          <Label htmlFor="n-recherche">
-            Recherche (produit, SKU, code-barres)
-          </Label>
-          <Input
+          <Label htmlFor="n-recherche">Recherche</Label>
+          <InputRecherche
             id="n-recherche"
+            name="recherche"
+            placeholder="Produit, SKU ou code-barres…"
             value={recherche}
             onChange={(e) => setRecherche(e.target.value)}
             className="w-72"
@@ -259,7 +260,7 @@ function NiveauxStockPage() {
           onRetry={() => void niveaux.refetch()}
         />
       ) : (
-        <Table>
+        <Table containerClassName="min-h-0 flex-1 overflow-y-auto">
           <TableHeader sticky>
             <TableRow>
               <TableHead>Produit</TableHead>
