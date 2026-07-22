@@ -204,7 +204,13 @@ function AppLayout() {
           <UserMenu me={me} onSignOut={handleSignOut} />
         </div>
       </aside>
-      <main id="contenu" tabIndex={-1} className="flex-1 p-6 outline-none">
+      {/* min-w-0: without it, a wide table widens the whole document
+          instead of scrolling inside its overflow-x-auto container. */}
+      <main
+        id="contenu"
+        tabIndex={-1}
+        className="min-w-0 flex-1 p-6 outline-none"
+      >
         <Outlet />
       </main>
     </div>
