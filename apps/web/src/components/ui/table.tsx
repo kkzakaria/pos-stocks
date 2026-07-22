@@ -4,12 +4,22 @@ import * as React from "react"
 
 import { cn } from "@/lib/utils"
 
-/** DS table; wrapped in a container that scrolls horizontally on wide data. */
-function Table({ className, ...props }: React.ComponentProps<"table">) {
+/**
+ * DS table; wrapped in a container that scrolls horizontally on wide data.
+ * `containerClassName` styles that wrapper — a sticky header only engages
+ * when the wrapper itself is the vertical scroll box (e.g. `flex-1 min-h-0
+ * overflow-y-auto` in a full-height column), because its `overflow-x-auto`
+ * makes it the nearest scroll container.
+ */
+function Table({
+  className,
+  containerClassName,
+  ...props
+}: React.ComponentProps<"table"> & { containerClassName?: string }) {
   return (
     <div
       data-slot="table-container"
-      className="relative w-full overflow-x-auto"
+      className={cn("relative w-full overflow-x-auto", containerClassName)}
     >
       <table
         data-slot="table"
