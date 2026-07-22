@@ -338,18 +338,18 @@ function rendre(
 describe("SectionSynthese", () => {
   it("affiche prix, plancher, seuil et stock total", () => {
     rendre()
-    expect(screen.getByText(texteMontant(5000))).toBeInTheDocument()
-    expect(screen.getByText(texteMontant(4000))).toBeInTheDocument()
-    expect(screen.getByText("10")).toBeInTheDocument()
-    expect(screen.getByText("14")).toBeInTheDocument()
+    expect(screen.getByText(texteMontant(5000))).toBeTruthy()
+    expect(screen.getByText(texteMontant(4000))).toBeTruthy()
+    expect(screen.getByText("10")).toBeTruthy()
+    expect(screen.getByText("14")).toBeTruthy()
   })
 
   it("omet le stock total sans portée (null) et masque Modifier sans écriture", () => {
     rendre({ stockTotal: null, peutEcrire: false })
-    expect(screen.queryByText("Stock total")).not.toBeInTheDocument()
+    expect(screen.queryByText("Stock total")).toBeNull()
     expect(
       screen.queryByRole("button", { name: "Modifier" })
-    ).not.toBeInTheDocument()
+    ).toBeNull()
   })
 
   it("édition en place : Modifier → PATCH partiel → onModifie", async () => {
@@ -375,7 +375,7 @@ describe("SectionSynthese", () => {
     fireEvent.click(screen.getByRole("button", { name: "Modifier" }))
     fireEvent.click(screen.getByRole("button", { name: "Annuler" }))
     expect(apiFetch).not.toHaveBeenCalled()
-    expect(screen.getByText(texteMontant(5000))).toBeInTheDocument()
+    expect(screen.getByText(texteMontant(5000))).toBeTruthy()
   })
 })
 ```
@@ -661,17 +661,17 @@ function rendre(
 describe("SectionIdentite", () => {
   it("affiche catégorie, code-barres et description en lecture", async () => {
     rendre()
-    expect(await screen.findByText("Outillage")).toBeInTheDocument()
-    expect(screen.getByText("123456")).toBeInTheDocument()
-    expect(screen.getByText("Une description")).toBeInTheDocument()
+    expect(await screen.findByText("Outillage")).toBeTruthy()
+    expect(screen.getByText("123456")).toBeTruthy()
+    expect(screen.getByText("Une description")).toBeTruthy()
   })
 
   it("sans écriture : ni Modifier ni upload d'image", () => {
     rendre({ peutEcrire: false })
     expect(
       screen.queryByRole("button", { name: "Modifier" })
-    ).not.toBeInTheDocument()
-    expect(screen.queryByText(/Choisir une image/)).not.toBeInTheDocument()
+    ).toBeNull()
+    expect(screen.queryByText(/Choisir une image/)).toBeNull()
   })
 
   it("édition : PATCH partiel avec champs vides normalisés à null", async () => {
@@ -1092,12 +1092,12 @@ const lignes: LigneStockProduit[] = [
 describe("SectionStock", () => {
   it("liste entrepôts, quantités, CMP et total ; une seule variante → pas de colonne Variante", () => {
     render(<SectionStock lignes={lignes} enChargement={false} devise="XOF" />)
-    expect(screen.getByText("Boutique S")).toBeInTheDocument()
-    expect(screen.getByText("10")).toBeInTheDocument()
-    expect(screen.getByText(texteMontant(200))).toBeInTheDocument()
+    expect(screen.getByText("Boutique S")).toBeTruthy()
+    expect(screen.getByText("10")).toBeTruthy()
+    expect(screen.getByText(texteMontant(200))).toBeTruthy()
     // Total : 14
-    expect(screen.getByText("14")).toBeInTheDocument()
-    expect(screen.queryByText("Variante")).not.toBeInTheDocument()
+    expect(screen.getByText("14")).toBeTruthy()
+    expect(screen.queryByText("Variante")).toBeNull()
   })
 
   it("plusieurs variantes → colonne Variante visible", () => {
@@ -1118,15 +1118,15 @@ describe("SectionStock", () => {
         devise="XOF"
       />
     )
-    expect(screen.getByText("Variante")).toBeInTheDocument()
-    expect(screen.getByText("Grand")).toBeInTheDocument()
+    expect(screen.getByText("Variante")).toBeTruthy()
+    expect(screen.getByText("Grand")).toBeTruthy()
   })
 
   it("liste vide → état vide", () => {
     render(<SectionStock lignes={[]} enChargement={false} devise="XOF" />)
     expect(
       screen.getByText("Aucun stock visible pour ce produit.")
-    ).toBeInTheDocument()
+    ).toBeTruthy()
   })
 })
 ```
@@ -1316,21 +1316,21 @@ function rendre(produit: Produit) {
 describe("SectionVariantes — lots imbriqués", () => {
   it("trackLots : les lots s'affichent sous leur variante, avec badge Expiré", () => {
     rendre(produitAvec(true))
-    expect(screen.getByText("LOT-A")).toBeInTheDocument()
-    expect(screen.getByText("LOT-B")).toBeInTheDocument()
-    expect(screen.getByText("Expiré")).toBeInTheDocument()
-    expect(screen.getByText("sans péremption")).toBeInTheDocument()
+    expect(screen.getByText("LOT-A")).toBeTruthy()
+    expect(screen.getByText("LOT-B")).toBeTruthy()
+    expect(screen.getByText("Expiré")).toBeTruthy()
+    expect(screen.getByText("sans péremption")).toBeTruthy()
     expect(
       screen.getByRole("button", { name: "Ajouter un lot" })
-    ).toBeInTheDocument()
+    ).toBeTruthy()
   })
 
   it("sans trackLots : aucune ligne de lots", () => {
     rendre(produitAvec(false))
-    expect(screen.queryByText("LOT-A")).not.toBeInTheDocument()
+    expect(screen.queryByText("LOT-A")).toBeNull()
     expect(
       screen.queryByRole("button", { name: "Ajouter un lot" })
-    ).not.toBeInTheDocument()
+    ).toBeNull()
   })
 })
 ```
@@ -1529,11 +1529,11 @@ describe("FicheProduit", () => {
         <FicheProduit productId="p1" />
       </QueryClientProvider>
     )
-    expect(await screen.findByText("Article Fiche")).toBeInTheDocument()
-    expect(screen.getByText("PRD-1")).toBeInTheDocument()
-    expect(await screen.findByText("Stock par entrepôt")).toBeInTheDocument()
-    expect(await screen.findByText("14")).toBeInTheDocument()
-    expect(screen.getByText("Variantes")).toBeInTheDocument()
+    expect(await screen.findByText("Article Fiche")).toBeTruthy()
+    expect(screen.getByText("PRD-1")).toBeTruthy()
+    expect(await screen.findByText("Stock par entrepôt")).toBeTruthy()
+    expect(await screen.findByText("14")).toBeTruthy()
+    expect(screen.getByText("Variantes")).toBeTruthy()
   })
 })
 ```
