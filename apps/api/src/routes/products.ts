@@ -13,6 +13,7 @@ import { requeterParLots } from "../lib/db-batch"
 import { barcodeDejaUtilise } from "../lib/barcode"
 import { genererSkuProduit, genererSkuVariante } from "../lib/sku"
 import { categorieExiste, produitScope } from "../lib/org-scope"
+import { filtrePortee, porteeLectureStock } from "../lib/stock-acces"
 import { likeEchappe } from "../lib/recherche"
 import { lirePagination } from "../lib/pagination"
 import { requireAuth } from "../middleware/require-auth"
@@ -141,6 +142,56 @@ productsRoute.get("/:id", async (c) => {
       })),
     },
   })
+})
+
+// Product stock by warehouse, read-only, filtered by the caller's stock
+// reading scope (spec §4). Out-of-scope users get an empty list (200), so
+// the product page stays viewable; cross-tenant products stay 404.
+productsRoute.get("/:id/stock", async (c) => {
+  const { organizationId, role } = c.get("membership")
+  const db = drizzle(c.env.DB, { schema })
+  const produit = await produitScope(db, organizationId, c.req.param("id"))
+  if (!produit) {
+    return c.json({ code: "INTROUVABLE", message: "Produit introuvable" }, 404)
+  }
+  const portee = await porteeLectureStock(
+    db,
+    organizationId,
+    c.get("user").id,
+    role
+  )
+  const filtre = filtrePortee(portee, schema.stockLevels.warehouseId)
+  if (filtre.vide) {
+    return c.json({ stock: [] })
+  }
+  const conditions = [
+    eq(schema.stockLevels.organizationId, organizationId),
+    eq(schema.productVariants.productId, produit.id),
+  ]
+  if (filtre.condition) {
+    conditions.push(filtre.condition)
+  }
+  const stock = await db
+    .select({
+      warehouseId: schema.stockLevels.warehouseId,
+      warehouseName: schema.warehouses.name,
+      variantId: schema.stockLevels.variantId,
+      variantName: schema.productVariants.name,
+      quantity: schema.stockLevels.quantity,
+      avgCost: schema.stockLevels.avgCost,
+    })
+    .from(schema.stockLevels)
+    .innerJoin(
+      schema.productVariants,
+      eq(schema.stockLevels.variantId, schema.productVariants.id)
+    )
+    .innerJoin(
+      schema.warehouses,
+      eq(schema.stockLevels.warehouseId, schema.warehouses.id)
+    )
+    .where(and(...conditions))
+    .orderBy(asc(schema.warehouses.name), asc(schema.productVariants.name))
+  return c.json({ stock })
 })
 
 productsRoute.post(
