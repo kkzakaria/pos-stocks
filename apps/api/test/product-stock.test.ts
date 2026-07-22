@@ -27,8 +27,8 @@ type LigneStock = {
 type Reponse = { stock: LigneStock[] }
 type Erreur = { code: string }
 
-// Seed : produit P en Dépôt (10 @ 200) et Boutique (4 @ 300) ; un produit
-// tiers en Dépôt pour vérifier que la réponse est bien filtrée au produit.
+// Seed: product P in Dépôt (10 @ 200) and Boutique (4 @ 300); a third-party
+// product in Dépôt proves the response is filtered to the requested product.
 async function seed() {
   const { organizationId, ownerId, ownerCookie } = await bootstrapOwner()
   const depotId = await creerEntrepot(organizationId, "Dépôt Central")
@@ -72,7 +72,7 @@ describe("GET /api/v1/products/:id/stock", () => {
     const res = await req(ownerCookie, `/api/v1/products/${p.productId}/stock`)
     expect(res.status).toBe(200)
     const body = await res.json<Reponse>()
-    // Boutique S avant Dépôt Central (tri par nom d'entrepôt)
+    // Boutique S before Dépôt Central (sorted by warehouse name)
     expect(body.stock).toEqual([
       {
         warehouseId: boutiqueId,
@@ -123,9 +123,9 @@ describe("GET /api/v1/products/:id/stock", () => {
 
   it("cross-org : produit d'une autre organisation → 404 INTROUVABLE", async () => {
     const { p } = await seed()
-    // bootstrapOwner() est mono-usage (setup public) : seconde organisation
-    // insérée directement en base, même motif que categories.test.ts et
-    // phase5-prep.test.ts.
+    // bootstrapOwner() is single-use (public setup): the second organization
+    // is inserted directly in the database, same pattern as categories.test.ts
+    // and phase5-prep.test.ts.
     const db = drizzle(env.DB, { schema })
     const autreOrgId = crypto.randomUUID()
     await db.insert(schema.organization).values({
