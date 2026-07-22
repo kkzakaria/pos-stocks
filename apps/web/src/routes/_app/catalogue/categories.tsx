@@ -98,7 +98,7 @@ function CategoriesPage() {
   })
 
   return (
-    <div>
+    <div className="flex h-[calc(100dvh-3rem)] flex-col">
       <div className="mb-6 flex items-center justify-between">
         <h1 className="text-xl font-semibold">Catégories</h1>
         {peutEcrire && (
@@ -169,8 +169,8 @@ function CategoriesPage() {
         </DialogContent>
       </Dialog>
 
-      <Table>
-        <TableHeader>
+      <Table containerClassName="min-h-0 flex-1 overflow-y-auto">
+        <TableHeader sticky>
           <TableRow>
             <TableHead>Catégorie</TableHead>
             {peutEcrire && <TableHead />}
