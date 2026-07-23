@@ -2,6 +2,8 @@ import { useState } from "react"
 import { useMutation } from "@tanstack/react-query"
 import { apiFetch } from "@/lib/api"
 import { formaterMontant } from "@/lib/format"
+import { cn } from "@/lib/utils"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -17,12 +19,35 @@ type Props = {
   onModifie: () => Promise<unknown>
 }
 
-/** One dense fact of the summary line: pale label above a tabular figure. */
-function Fait({ libelle, valeur }: { libelle: string; valeur: string }) {
+/**
+ * One dense fact of the summary line: label-scale caption above a tabular
+ * figure. `alerte` tints the figure and appends a tinted badge.
+ */
+function Fait({
+  libelle,
+  valeur,
+  alerte,
+}: {
+  libelle: string
+  valeur: string
+  alerte?: string
+}) {
   return (
-    <div className="flex flex-col">
-      <span className="text-xs text-muted-foreground">{libelle}</span>
-      <span className="text-sm font-medium tabular-nums">{valeur}</span>
+    <div className="flex flex-col gap-0.5">
+      <span className="text-[0.625rem] font-medium text-muted-foreground">
+        {libelle}
+      </span>
+      <span className="flex items-center gap-2">
+        <span
+          className={cn(
+            "text-base font-medium tabular-nums",
+            alerte !== undefined && "text-destructive"
+          )}
+        >
+          {valeur}
+        </span>
+        {alerte !== undefined && <Badge variant="destructive">{alerte}</Badge>}
+      </span>
     </div>
   )
 }
@@ -139,13 +164,21 @@ export function SectionSynthese({
           </Button>
         </div>
         {erreur && (
-          <p role="alert" className="w-full text-sm text-destructive">
+          <p role="alert" className="w-full text-xs text-destructive">
             {erreur}
           </p>
         )}
       </form>
     )
   }
+
+  // Approximation by design: compares the multi-warehouse total to the
+  // product's default per-warehouse threshold (per-line thresholds are not
+  // exposed by the API).
+  const sousLeSeuil =
+    stockTotal !== null &&
+    produit.defaultMinStock !== null &&
+    stockTotal < produit.defaultMinStock
 
   return (
     <div className="flex flex-wrap items-end gap-x-8 gap-y-2 border-y py-3">
@@ -170,7 +203,11 @@ export function SectionSynthese({
         }
       />
       {stockTotal !== null && (
-        <Fait libelle="Stock total" valeur={String(stockTotal)} />
+        <Fait
+          libelle="Stock total"
+          valeur={String(stockTotal)}
+          alerte={sousLeSeuil ? "Sous le seuil" : undefined}
+        />
       )}
       {peutEcrire && (
         <Button variant="ghost" size="sm" className="ml-auto" onClick={ouvrir}>
