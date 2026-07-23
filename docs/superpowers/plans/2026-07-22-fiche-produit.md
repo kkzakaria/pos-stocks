@@ -1,7 +1,7 @@
 # Refonte fiche produit — Plan d'implémentation
 
 > **Pour les agents :** SOUS-SKILL REQUIS — utiliser superpowers:subagent-driven-development (recommandé) ou superpowers:executing-plans pour exécuter ce plan tâche par tâche. Les étapes utilisent des cases à cocher (`- [ ]`) pour le suivi.
-
+>
 > ## ⚠️ DOCUMENT DATÉ — NE PAS EXÉCUTER TEL QUEL
 >
 > Ce plan consigne l'état **avant exécution**. Il est conservé comme trace
@@ -1247,7 +1247,7 @@ git commit -m "feat(web): la table de stock par entrepôt de la fiche produit"
 **Fichiers :**
 - Modifier : `apps/web/src/components/produit/section-variantes.tsx`
 - Test (créer) : `apps/web/src/components/produit/section-variantes.test.tsx`
-- Supprimer : `apps/web/src/components/produit/section-lots.tsx` (à cette task — plus aucun consommateur après modification de la page en Task 6 ; l'import est retiré de la page en Task 6, donc la suppression effective du fichier se fait en Task 6 si la page l'importe encore ici. Pour garder chaque task verte : cette task ajoute l'imbrication SANS supprimer le fichier ; la Task 6 supprime `section-lots.tsx`, `section-infos.tsx`, `section-image.tsx`.)
+- Aucune suppression à cette task : la page importe encore `section-lots.tsx`. Cette task ajoute l'imbrication SANS supprimer le fichier ; la Task 6 supprime `section-lots.tsx`, `section-infos.tsx` et `section-image.tsx` une fois la page basculée.
 
 **Interfaces :**
 - Consomme : `estDateExpiree`, `formatDateJour` (`@/lib/dates`) ; dialog « Nouveau lot » transplanté depuis `section-lots.tsx` (mêmes champs : numéro requis, péremption optionnelle).
