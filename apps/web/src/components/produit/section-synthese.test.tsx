@@ -67,13 +67,13 @@ describe("SectionSynthese", () => {
   })
 
   it("stock total sous le seuil → badge « Sous le seuil »", () => {
-    // 4 < defaultMinStock (10)
+    // Total of 4 is below the product's defaultMinStock of 10.
     rendre({ stockTotal: 4 })
     expect(screen.getByText("Sous le seuil")).toBeTruthy()
   })
 
   it("pas de badge au-dessus du seuil ni sans seuil défini", () => {
-    // 14 ≥ 10
+    // Default total of 14 sits at or above the threshold of 10.
     rendre()
     expect(screen.queryByText("Sous le seuil")).toBeNull()
     rendre({
