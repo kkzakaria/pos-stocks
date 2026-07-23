@@ -82,12 +82,13 @@ export function FicheProduit({
   const lignesStock = stock.data?.stock ?? []
   const plusieursVariantes =
     produit.variants.filter((v) => v.isActive).length > 1
-  // Stock total shown only for a user with stock-reading scope: a scoped
-  // user with no rows still sees 0, a user without scope sees the figure
-  // omitted entirely.
-  const stockTotal = accesStock.lecture
-    ? lignesStock.reduce((somme, l) => somme + l.quantity, 0)
-    : null
+  // Stock total shown only for a user with stock-reading scope, once the
+  // stock query resolved: a scoped user with no rows still sees 0, a user
+  // without scope (or mid-load) sees the figure omitted entirely.
+  const stockTotal =
+    accesStock.lecture && !stock.isPending
+      ? lignesStock.reduce((somme, l) => somme + l.quantity, 0)
+      : null
 
   return (
     <div className="flex flex-col gap-4">
@@ -137,6 +138,7 @@ export function FicheProduit({
             plusieursVariantes={plusieursVariantes}
           />
           <SectionVariantes
+            key={`variantes-${produit.id}`}
             produit={produit}
             productId={productId}
             peutEcrire={peutEcrire}
