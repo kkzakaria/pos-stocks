@@ -1,6 +1,7 @@
-import { useState } from "react"
+import { Fragment, useState } from "react"
 import { useMutation } from "@tanstack/react-query"
 import { apiFetch } from "@/lib/api"
+import { estDateExpiree, formatDateJour } from "@/lib/dates"
 import { formaterMontant } from "@/lib/format"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -36,7 +37,9 @@ type Props = {
  * "Variants" section: table of variants (SKU, attributes, effective price,
  * status) with creation (key/value attributes, overridable price and floor
  * price) and active/inactive toggle; the displayed price falls back to the
- * product's.
+ * product's. When the product tracks lots, each active variant's row is
+ * followed by a full-width lots row (number, expiry or "no expiry", an
+ * "Expired" badge) with an "add lot" dialog.
  */
 export function SectionVariantes({
   produit,
@@ -105,6 +108,32 @@ export function SectionVariantes({
     },
     onError: (err) =>
       setErreurBascule(err instanceof Error ? err.message : "Erreur"),
+  })
+
+  const [dialogLotPour, setDialogLotPour] = useState<string | null>(null)
+  const [numeroLot, setNumeroLot] = useState("")
+  const [datePeremption, setDatePeremption] = useState("")
+  const [erreurLot, setErreurLot] = useState<string | null>(null)
+
+  const ajouterLot = useMutation({
+    mutationFn: (variantId: string) =>
+      apiFetch(`/api/v1/variants/${variantId}/lots`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          lotNumber: numeroLot,
+          expiryDate: datePeremption || undefined,
+        }),
+      }),
+    onSuccess: async () => {
+      await onModifie()
+      setDialogLotPour(null)
+      setNumeroLot("")
+      setDatePeremption("")
+      setErreurLot(null)
+    },
+    onError: (err) =>
+      setErreurLot(err instanceof Error ? err.message : "Erreur"),
   })
 
   return (
@@ -240,34 +269,81 @@ export function SectionVariantes({
         </TableHeader>
         <TableBody>
           {produit.variants.map((v) => (
-            <TableRow key={v.id}>
-              <TableCell className="font-medium">{v.name}</TableCell>
-              <TableCell className="font-mono text-xs">{v.sku}</TableCell>
-              <TableCell className="text-sm">
-                {Object.entries(lireAttributs(v.attributes))
-                  .map(([cle, valeur]) => `${cle} : ${valeur}`)
-                  .join(", ") || "—"}
-              </TableCell>
-              <TableCell numeric>
-                {formaterMontant(v.priceOverride ?? produit.price, devise)}
-              </TableCell>
-              <TableCell>
-                <Badge variant={v.isActive ? "success" : "secondary"}>
-                  {v.isActive ? "Active" : "Inactive"}
-                </Badge>
-              </TableCell>
-              {peutEcrire && (
-                <TableCell>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => basculerVariante.mutate(v)}
-                  >
-                    {v.isActive ? "Désactiver" : "Réactiver"}
-                  </Button>
+            <Fragment key={v.id}>
+              <TableRow>
+                <TableCell className="font-medium">{v.name}</TableCell>
+                <TableCell className="font-mono text-xs">{v.sku}</TableCell>
+                <TableCell className="text-sm">
+                  {Object.entries(lireAttributs(v.attributes))
+                    .map(([cle, valeur]) => `${cle} : ${valeur}`)
+                    .join(", ") || "—"}
                 </TableCell>
+                <TableCell numeric>
+                  {formaterMontant(v.priceOverride ?? produit.price, devise)}
+                </TableCell>
+                <TableCell>
+                  <Badge variant={v.isActive ? "success" : "secondary"}>
+                    {v.isActive ? "Active" : "Inactive"}
+                  </Badge>
+                </TableCell>
+                {peutEcrire && (
+                  <TableCell>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => basculerVariante.mutate(v)}
+                    >
+                      {v.isActive ? "Désactiver" : "Réactiver"}
+                    </Button>
+                  </TableCell>
+                )}
+              </TableRow>
+              {produit.trackLots && v.isActive && (
+                <TableRow className="hover:bg-transparent">
+                  <TableCell
+                    colSpan={peutEcrire ? 6 : 5}
+                    className="py-1.5 pl-6"
+                  >
+                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+                      <span className="text-xs text-muted-foreground">
+                        Lots :
+                      </span>
+                      {v.lots.length === 0 ? (
+                        <span className="text-xs text-muted-foreground">
+                          aucun
+                        </span>
+                      ) : (
+                        v.lots.map((lot) => (
+                          <span
+                            key={lot.id}
+                            className="flex items-center gap-1.5 text-xs"
+                          >
+                            <span className="font-mono">{lot.lotNumber}</span>
+                            <span className="text-muted-foreground">
+                              {lot.expiryDate
+                                ? formatDateJour(lot.expiryDate)
+                                : "sans péremption"}
+                            </span>
+                            {estDateExpiree(lot.expiryDate) && (
+                              <Badge variant="destructive">Expiré</Badge>
+                            )}
+                          </span>
+                        ))
+                      )}
+                      {peutEcrire && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setDialogLotPour(v.id)}
+                        >
+                          Ajouter un lot
+                        </Button>
+                      )}
+                    </div>
+                  </TableCell>
+                </TableRow>
               )}
-            </TableRow>
+            </Fragment>
           ))}
         </TableBody>
       </Table>
@@ -275,6 +351,57 @@ export function SectionVariantes({
         <p role="alert" className="mt-2 text-sm text-destructive">
           {erreurBascule}
         </p>
+      )}
+      {dialogLotPour !== null && (
+        <Dialog
+          open
+          onOpenChange={(ouvert) => {
+            if (!ouvert) setDialogLotPour(null)
+          }}
+        >
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Nouveau lot</DialogTitle>
+            </DialogHeader>
+            <form
+              className="flex flex-col gap-4"
+              onSubmit={(e) => {
+                e.preventDefault()
+                setErreurLot(null)
+                ajouterLot.mutate(dialogLotPour)
+              }}
+            >
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="l-numero">Numéro de lot</Label>
+                <Input
+                  id="l-numero"
+                  required
+                  value={numeroLot}
+                  onChange={(e) => setNumeroLot(e.target.value)}
+                />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="l-peremption">
+                  Date de péremption (optionnel)
+                </Label>
+                <Input
+                  id="l-peremption"
+                  type="date"
+                  value={datePeremption}
+                  onChange={(e) => setDatePeremption(e.target.value)}
+                />
+              </div>
+              {erreurLot && (
+                <p role="alert" className="text-sm text-destructive">
+                  {erreurLot}
+                </p>
+              )}
+              <Button type="submit" disabled={ajouterLot.isPending}>
+                {ajouterLot.isPending ? "Ajout…" : "Ajouter le lot"}
+              </Button>
+            </form>
+          </DialogContent>
+        </Dialog>
       )}
     </section>
   )
