@@ -348,9 +348,12 @@ async function creerProduit(
   // Auto SKU: regenerated on a race over the unique (org, sku) index, three
   // attempts then 409.
   for (let tentative = 0; tentative < 3; tentative++) {
-    const sku = skuFourni ?? (await genererSkuProduit(db, organizationId))
     const now = new Date()
     try {
+      // The SKU generation (a MAX+1 read) lives inside the try: it runs after
+      // the R2 put, so any exception here — a transient D1 error, not just a
+      // batch conflict — must still trigger oublierImage() in the catch below.
+      const sku = skuFourni ?? (await genererSkuProduit(db, organizationId))
       // Trap: a heterogeneous batch must be built as a direct array literal —
       // no push + cast.
       await db.batch([
@@ -380,6 +383,7 @@ async function creerProduit(
           createdAt: now,
         }),
       ])
+      return c.json({ id, sku }, 201)
     } catch (err) {
       if (estViolationUnicite(err, "barcode")) {
         await oublierImage()
@@ -411,7 +415,6 @@ async function creerProduit(
       await oublierImage()
       throw err
     }
-    return c.json({ id, sku }, 201)
   }
   await oublierImage()
   return c.json(

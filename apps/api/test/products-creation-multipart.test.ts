@@ -173,6 +173,33 @@ describe("POST /api/v1/products — création multipart", () => {
 
     const db = drizzle(env.DB, { schema })
     expect(await db.select().from(schema.products)).toHaveLength(0)
+    // The category check runs before the R2 put, so nothing should ever land
+    // in the bucket on this path.
+    expect(await env.IMAGES.list()).toMatchObject({ objects: [] })
+  })
+
+  it("purge l'image R2 déjà envoyée quand le batch échoue après coup (nom déjà utilisé)", async () => {
+    const { ownerCookie } = await bootstrapOwner()
+    const premier = await creerMultipart(ownerCookie, {
+      name: "Marteau rivet",
+      price: 7000,
+    })
+    expect(premier.status).toBe(201)
+
+    // This is the only case in the suite where the R2 put has already
+    // happened (unlike the size/format/category rejections above, which all
+    // fail before ever touching R2) and the batch still fails afterwards: the
+    // unique constraint on products.name rejects the insert. oublierImage()
+    // must run, or this image would stay orphaned in the bucket.
+    const doublon = await creerMultipart(
+      ownerCookie,
+      { name: "Marteau rivet", price: 7500 },
+      petiteImage()
+    )
+    expect(doublon.status).toBe(409)
+    expect((await doublon.json<{ code: string }>()).code).toBe("NOM_EXISTANT")
+
+    expect(await env.IMAGES.list()).toMatchObject({ objects: [] })
   })
 
   it("refuse un corps multipart dont la partie donnees est absente", async () => {
