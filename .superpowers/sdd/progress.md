@@ -413,3 +413,75 @@ Revue CodeRabbit CLI (v0.7.0) sur PR #27 : 7 constats (1 major, 6 minor) -> vagu
 Suites vertes : 329 API (D1 réelle) / 181 web ; typecheck + lint verts.
 Différé (non traité, hors périmètre) : apps/web/src/styles.css signalé par Prettier, défaut pré-existant hors diff.
 BRANCHE PRÊTE POUR MERGE.
+
+
+---
+
+# Ledger — création de produit : page dédiée, image et variantes (branche feat/creation-produit, PR à venir)
+Spec: docs/superpowers/specs/2026-07-25-creation-produit-design.md
+Plan: docs/superpowers/plans/2026-07-25-creation-produit.md
+Base commit: f9213da
+Exécution en subagent-driven development, 6 tâches, 15 commits.
+
+Cadrage — 4 arbitrages utilisateur : variantes traitées comme l'exception (le chemin du
+produit simple ne s'allonge pas) ; abandon = rien, obtenu en rendant l'API atomique plutôt
+qu'en créant le produit par étapes ; image embarquée dans le même appel multipart ; colonne
+unique. Puis : bloc « Stock » séparé des prix, et variante implicite IDENTIQUE dans les deux
+chemins (l'utilisateur a renversé mon choix initial « pas de ligne morte »).
+
+Contrainte externe relevée au cadrage : la branche worktree-import-produits-supabase appelle
+POST /api/v1/products en application/json puis téléverse l'image en second appel, avec un
+journal de reprise bâti sur ce découpage. Le contrat JSON reste donc intact, verrouillé par un
+test de non-régression. L'import est prioritaire au merge ; il ne touche aucun fichier de
+apps/api, apps/web ni packages/shared, donc développement mené en parallèle sans conflit.
+
+Task 1 (9df27ff..ee0608d) : voie multipart + image atomique. Revue : spec ✅, 3 Important.
+  Fuite R2 si la génération du SKU levait (hors du try) ; oublierImage non couvert par aucun
+  test (les 4 cas d'erreur précédaient tous le put) ; titre de test mensonger.
+Task 2 (1631333..b11e288) : variantes dans le même batch. Revue : spec ✅, 3 Important.
+  minPriceOverride non validé (variante invendable à son propre prix via PRIX_SOUS_PLANCHER) ;
+  un sku de variante fourni explicitement échappait à l'index unique → 3 tentatives à vide puis
+  409 trompeur ; purge R2 non couverte sur collision de SKU.
+Task 3 (0b545a0..502dce3) : champ-image. Revue : spec ✅, 1 Important (focus clavier invisible).
+Task 4 (01f55c1..379ba39) : formulaire-variantes. Revue : spec ✅, 2 Important (Number() sans
+  garde d'entier positif, trous de couverture).
+Task 5 (ea5fb16) : page /catalogue/produits/nouveau + retrait du modal. Revue : spec ✅, RAS.
+Task 6 : E2E navigateur + revue finale de branche.
+
+⚠️ La revue finale de branche a trouvé un BLOQUANT que les revues par tâche ne pouvaient pas
+voir : le correctif d'accessibilité de la Task 3 était INERTE. peer-focus-visible compile en
+« .peer:focus-visible ~ .cible » (frère général) ; l'input peer était frère du <div> et le
+<label> ENFANT de ce div — jamais frère. Le test le certifiait vert car jsdom ne calcule pas
+Tailwind : du vert qui ment, enregistré au ledger comme « addressed ». Le re-relecteur de la
+Task 3 s'était trompé sur ce point précis ; vérifié directement au contrôleur avant de trancher.
+Leçon : un test qui n'assère que des chaînes de classes ne prouve rien sur une règle CSS
+structurelle. Le test vérifie désormais input.nextElementSibling.
+
+Vague de correction finale (2de9f5f), 6/6 re-vérifiés : structure DOM du peer + test réel ;
+timeoutMs explicite à 60 s sur l'appel de création (apiFetch impose 15 s, et un abandon client
+après commit serveur rend le retry NON idempotent) ; MARGE_ENTETES_MULTIPART portée de 4 Ko à
+64 Ko (dimensionnée en T1 pour l'image seule, la T2 y a ajouté 50 variantes → une image valide
+de 2,09 Mo se faisait rejeter) ; DonneesCreation remplacé par ProductCreateMultipartInput ;
+commentaire sur le strip délibéré de `variants` côté JSON ; WCAG 2.5.3 — suppression des
+aria-label divergents des libellés visibles, contre le texte verbatim du plan (défaut de mon
+propre plan : ces aria-label n'existaient que pour donner des sélecteurs uniques aux tests).
+
+E2E navigateur owner : filtres transmis à la page et « Annuler » ramène à la liste filtrée ;
+création avec image + 2 variantes en un appel, état vérifié EN BASE (has_variants=1, implicite
+« Standard » présente et is_active=0, PRD-0004-1-5 et PRD-0004-2-5 actives) — la convergence
+des chemins tient en réel ; échec avec image jointe → erreur affichée, saisie conservée, et
+720 blobs R2 avant comme après : AUCUN ORPHELIN.
+Suites : 347 API (CI=1) / 199 web ; typecheck + lint verts.
+
+⚠️ Revue CodeRabbit locale IMPOSSIBLE sur cette branche : le CLI boucle sur « WebSocket
+connection error » vers wss://ide.coderabbit.ai/ws sans jamais démarrer (36 min sans sortie).
+Réseau et hôtes joignables (HTTP 200), auth valide (revue réussie 30 min plus tôt) — le service
+ferme la connexion sur un diff de 14 commits / 4 356 insertions. Revue déportée sur la PR.
+Piège de méthode : ne jamais piper une commande longue dans grep, qui bufferise et masque tout.
+
+Différés (triés par la revue finale, à reprendre) : SELECT séquentiels de barcodeDejaUtilise et
+du pré-check SKU (issue #10) ; borne MAX_VARIANTES_CREATION sans test ni plafonnement côté
+formulaire ; id "p-image" codé en dur ; deux attributs de même clé s'écrasent ; pas de retrait
+d'une paire d'attributs ; description/codeBarres non trimés ; parseBody non gardé (500 au lieu
+de 400, identique à /:id/image préexistant).
+BRANCHE PRÊTE POUR PR.
