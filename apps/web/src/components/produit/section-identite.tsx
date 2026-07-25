@@ -40,10 +40,10 @@ function Definition({ libelle, valeur }: { libelle: string; valeur: string }) {
 // Mounted with key={produit.id} by the page: edit state re-seeds when
 // navigating to another product.
 /**
- * Identity column: product image (upload preserved from the former image
- * section: input reset after each attempt, URL versioning) above a dense
- * definition list; "Modifier" switches name/category/barcode/description
- * and the active toggle to inline editing (partial PATCH).
+ * Identity column: product image above a dense definition list; "Modifier"
+ * switches name/category/barcode/description and the active toggle to
+ * inline editing (partial PATCH). The image upload (input reset after each
+ * attempt, URL versioning) only shows in edit mode — read mode stays quiet.
  */
 export function SectionIdentite({
   produit,
@@ -121,6 +121,7 @@ export function SectionIdentite({
 
   return (
     <section className="flex flex-col gap-4">
+      <h2 className="text-base font-medium">Identité</h2>
       {produit.imageKey ? (
         <img
           src={`${apiUrl(`/api/v1/files/${produit.imageKey}`)}?v=${versionImage}`}
@@ -135,7 +136,8 @@ export function SectionIdentite({
           Aucune image
         </div>
       )}
-      {peutEcrire && (
+      {/* edit-only (edition implies peutEcrire): read mode shows the image alone */}
+      {edition && (
         <div className="flex flex-col gap-2">
           <label
             htmlFor="p-image"
@@ -173,7 +175,7 @@ export function SectionIdentite({
             className="sr-only"
           />
           {erreurImage && (
-            <p role="alert" className="text-sm text-destructive">
+            <p role="alert" className="text-xs text-destructive">
               {erreurImage}
             </p>
           )}
@@ -254,7 +256,7 @@ export function SectionIdentite({
             <Label htmlFor="id-actif">Produit actif</Label>
           </div>
           {erreur && (
-            <p role="alert" className="text-sm text-destructive">
+            <p role="alert" className="text-xs text-destructive">
               {erreur}
             </p>
           )}

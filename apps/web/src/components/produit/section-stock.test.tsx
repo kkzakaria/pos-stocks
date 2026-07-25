@@ -43,8 +43,12 @@ describe("SectionStock", () => {
     expect(screen.getByText("Boutique S")).toBeTruthy()
     expect(screen.getByText("10")).toBeTruthy()
     expect(screen.getByText(texteMontant(200))).toBeTruthy()
-    // Total : 14
+    // Line values: 4 × 300 = 1 200 and 10 × 200 = 2 000
+    expect(screen.getByText(texteMontant(1200))).toBeTruthy()
+    expect(screen.getByText(texteMontant(2000))).toBeTruthy()
+    // Totals: 14 units, value 1 200 + 2 000 = 3 200
     expect(screen.getByText("14")).toBeTruthy()
+    expect(screen.getByText(texteMontant(3200))).toBeTruthy()
     expect(screen.queryByText("Variante")).toBeNull()
   })
 
@@ -81,7 +85,7 @@ describe("SectionStock", () => {
       />
     )
     expect(
-      screen.getByText("Aucun stock visible pour ce produit.")
+      screen.getByText(/Aucun stock visible pour ce produit\./)
     ).toBeTruthy()
   })
 })

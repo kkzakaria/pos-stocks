@@ -66,6 +66,23 @@ describe("SectionSynthese", () => {
     expect(screen.getByText("14")).toBeTruthy()
   })
 
+  it("stock total sous le seuil → badge « Sous le seuil »", () => {
+    // Total of 4 is below the product's defaultMinStock of 10.
+    rendre({ stockTotal: 4 })
+    expect(screen.getByText("Sous le seuil")).toBeTruthy()
+  })
+
+  it("pas de badge au-dessus du seuil ni sans seuil défini", () => {
+    // Default total of 14 sits at or above the threshold of 10.
+    rendre()
+    expect(screen.queryByText("Sous le seuil")).toBeNull()
+    rendre({
+      produit: { ...produit, defaultMinStock: null },
+      stockTotal: 4,
+    })
+    expect(screen.queryByText("Sous le seuil")).toBeNull()
+  })
+
   it("omet le stock total sans portée (null) et masque Modifier sans écriture", () => {
     rendre({ stockTotal: null, peutEcrire: false })
     expect(screen.queryByText("Stock total")).toBeNull()

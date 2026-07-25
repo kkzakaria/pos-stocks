@@ -137,9 +137,9 @@ export function SectionVariantes({
   })
 
   return (
-    <section className="mb-8">
+    <section>
       <div className="mb-3 flex items-center justify-between">
-        <h2 className="text-base font-semibold">Variantes</h2>
+        <h2 className="text-base font-medium">Variantes</h2>
         {peutEcrire && (
           <Dialog open={dialogVariante} onOpenChange={setDialogVariante}>
             <DialogTrigger render={<Button variant="outline" size="sm" />}>
@@ -244,7 +244,7 @@ export function SectionVariantes({
                   />
                 </div>
                 {erreurVariante && (
-                  <p role="alert" className="text-sm text-destructive">
+                  <p role="alert" className="text-xs text-destructive">
                     {erreurVariante}
                   </p>
                 )}
@@ -299,13 +299,13 @@ export function SectionVariantes({
                 )}
               </TableRow>
               {produit.trackLots && v.isActive && (
-                <TableRow className="hover:bg-transparent">
+                <TableRow className="bg-muted/30 hover:bg-muted/30">
                   <TableCell
                     colSpan={peutEcrire ? 6 : 5}
                     className="py-1.5 pl-6"
                   >
                     <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
-                      <span className="text-xs text-muted-foreground">
+                      <span className="text-[0.625rem] font-medium text-muted-foreground">
                         Lots :
                       </span>
                       {v.lots.length === 0 ? (
@@ -348,7 +348,7 @@ export function SectionVariantes({
         </TableBody>
       </Table>
       {erreurBascule && (
-        <p role="alert" className="mt-2 text-sm text-destructive">
+        <p role="alert" className="mt-2 text-xs text-destructive">
           {erreurBascule}
         </p>
       )}
@@ -392,7 +392,7 @@ export function SectionVariantes({
                 />
               </div>
               {erreurLot && (
-                <p role="alert" className="text-sm text-destructive">
+                <p role="alert" className="text-xs text-destructive">
                   {erreurLot}
                 </p>
               )}

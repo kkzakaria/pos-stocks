@@ -73,7 +73,7 @@ export function FicheProduit({
           <Skeleton className="h-4 w-24" />
           <Skeleton className="h-5 w-14 rounded-full" />
         </div>
-        <Skeleton className="mb-6 h-12 w-full" />
+        <Skeleton className="mb-6 h-14 w-full" />
         <Skeleton className="h-64 w-full" />
       </div>
     )

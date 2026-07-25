@@ -20,7 +20,8 @@ type Props = {
 
 /**
  * "Stock par entrepôt" table: warehouse · variant (only when several
- * variants are present) · quantity · average cost, with a total row.
+ * variants are present) · quantity · average cost · value (qty × avg cost),
+ * with a total row summing quantities and values.
  * Presentational: the page owns the query, and decides `plusieursVariantes`
  * from the product's active variants — stock rows may be an empty or
  * partial subset and can't be trusted to reflect variant count.
@@ -32,11 +33,15 @@ export function SectionStock({
   plusieursVariantes,
 }: Props) {
   const total = lignes.reduce((somme, l) => somme + l.quantity, 0)
-  const colonnes = plusieursVariantes ? 4 : 3
+  const totalValeur = lignes.reduce(
+    (somme, l) => somme + l.quantity * l.avgCost,
+    0
+  )
+  const colonnes = plusieursVariantes ? 5 : 4
 
   return (
     <section>
-      <h2 className="mb-3 text-base font-semibold">Stock par entrepôt</h2>
+      <h2 className="mb-3 text-base font-medium">Stock par entrepôt</h2>
       <Table>
         <TableHeader>
           <TableRow>
@@ -44,6 +49,7 @@ export function SectionStock({
             {plusieursVariantes && <TableHead>Variante</TableHead>}
             <TableHead numeric>Quantité</TableHead>
             <TableHead numeric>CMP</TableHead>
+            <TableHead numeric>Valeur</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -52,7 +58,8 @@ export function SectionStock({
           ) : lignes.length === 0 ? (
             <TableRow>
               <TableCell colSpan={colonnes} className="text-muted-foreground">
-                Aucun stock visible pour ce produit.
+                Aucun stock visible pour ce produit. Les entrées se font par
+                réception ou transfert.
               </TableCell>
             </TableRow>
           ) : (
@@ -64,6 +71,9 @@ export function SectionStock({
                 <TableCell numeric>
                   {formaterMontant(l.avgCost, devise)}
                 </TableCell>
+                <TableCell numeric>
+                  {formaterMontant(l.quantity * l.avgCost, devise)}
+                </TableCell>
               </TableRow>
             ))
           )}
@@ -71,9 +81,12 @@ export function SectionStock({
         {lignes.length > 0 && (
           <TableFooter>
             <TableRow>
-              <TableCell colSpan={colonnes - 2}>Total</TableCell>
+              <TableCell colSpan={colonnes - 3}>Total</TableCell>
               <TableCell numeric>{total}</TableCell>
               <TableCell />
+              <TableCell numeric>
+                {formaterMontant(totalValeur, devise)}
+              </TableCell>
             </TableRow>
           </TableFooter>
         )}
