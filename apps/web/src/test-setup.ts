@@ -22,3 +22,13 @@ if ((globalThis.navigator as { locks?: unknown }).locks === undefined) {
 afterEach(() => {
   localStorage.clear()
 })
+
+// jsdom implements neither createObjectURL nor revokeObjectURL. The image field
+// builds a local preview from the selected file, so provide a counter-based
+// stub: tests assert that every created URL is revoked, which a no-op would
+// make untestable.
+if (typeof URL.createObjectURL !== "function") {
+  let compteur = 0
+  URL.createObjectURL = () => `blob:test/${++compteur}`
+  URL.revokeObjectURL = () => undefined
+}

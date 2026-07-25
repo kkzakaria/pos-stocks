@@ -27,6 +27,7 @@ import { Route as AppVentesSaleIdRouteImport } from './routes/_app/ventes/$saleI
 import { Route as AppVentesRapportsRouteImport } from './routes/_app/ventes/rapports'
 import { Route as AppCatalogueProduitsIndexRouteImport } from './routes/_app/catalogue/produits/index'
 import { Route as AppCatalogueProduitsProductIdRouteImport } from './routes/_app/catalogue/produits/$productId'
+import { Route as AppCatalogueProduitsNouveauRouteImport } from './routes/_app/catalogue/produits/nouveau'
 import { Route as AppStockInventairesIndexRouteImport } from './routes/_app/stock/inventaires/index'
 import { Route as AppStockInventairesCountIdRouteImport } from './routes/_app/stock/inventaires/$countId'
 import { Route as AppStockReceptionsIndexRouteImport } from './routes/_app/stock/receptions/index'
@@ -129,6 +130,12 @@ const AppCatalogueProduitsProductIdRoute =
     path: '/catalogue/produits/$productId',
     getParentRoute: () => AppRoute,
   } as any)
+const AppCatalogueProduitsNouveauRoute =
+  AppCatalogueProduitsNouveauRouteImport.update({
+    id: '/catalogue/produits/nouveau',
+    path: '/catalogue/produits/nouveau',
+    getParentRoute: () => AppRoute,
+  } as any)
 const AppStockInventairesIndexRoute =
   AppStockInventairesIndexRouteImport.update({
     id: '/inventaires/',
@@ -181,6 +188,7 @@ export interface FileRoutesByFullPath {
   '/stock/': typeof AppStockIndexRoute
   '/ventes/': typeof AppVentesIndexRoute
   '/catalogue/produits/$productId': typeof AppCatalogueProduitsProductIdRoute
+  '/catalogue/produits/nouveau': typeof AppCatalogueProduitsNouveauRoute
   '/stock/inventaires/$countId': typeof AppStockInventairesCountIdRoute
   '/stock/receptions/$purchaseId': typeof AppStockReceptionsPurchaseIdRoute
   '/stock/transferts/$transferId': typeof AppStockTransfertsTransferIdRoute
@@ -205,6 +213,7 @@ export interface FileRoutesByTo {
   '/stock': typeof AppStockIndexRoute
   '/ventes': typeof AppVentesIndexRoute
   '/catalogue/produits/$productId': typeof AppCatalogueProduitsProductIdRoute
+  '/catalogue/produits/nouveau': typeof AppCatalogueProduitsNouveauRoute
   '/stock/inventaires/$countId': typeof AppStockInventairesCountIdRoute
   '/stock/receptions/$purchaseId': typeof AppStockReceptionsPurchaseIdRoute
   '/stock/transferts/$transferId': typeof AppStockTransfertsTransferIdRoute
@@ -232,6 +241,7 @@ export interface FileRoutesById {
   '/_app/stock/': typeof AppStockIndexRoute
   '/_app/ventes/': typeof AppVentesIndexRoute
   '/_app/catalogue/produits/$productId': typeof AppCatalogueProduitsProductIdRoute
+  '/_app/catalogue/produits/nouveau': typeof AppCatalogueProduitsNouveauRoute
   '/_app/stock/inventaires/$countId': typeof AppStockInventairesCountIdRoute
   '/_app/stock/receptions/$purchaseId': typeof AppStockReceptionsPurchaseIdRoute
   '/_app/stock/transferts/$transferId': typeof AppStockTransfertsTransferIdRoute
@@ -259,6 +269,7 @@ export interface FileRouteTypes {
     | '/stock/'
     | '/ventes/'
     | '/catalogue/produits/$productId'
+    | '/catalogue/produits/nouveau'
     | '/stock/inventaires/$countId'
     | '/stock/receptions/$purchaseId'
     | '/stock/transferts/$transferId'
@@ -283,6 +294,7 @@ export interface FileRouteTypes {
     | '/stock'
     | '/ventes'
     | '/catalogue/produits/$productId'
+    | '/catalogue/produits/nouveau'
     | '/stock/inventaires/$countId'
     | '/stock/receptions/$purchaseId'
     | '/stock/transferts/$transferId'
@@ -309,6 +321,7 @@ export interface FileRouteTypes {
     | '/_app/stock/'
     | '/_app/ventes/'
     | '/_app/catalogue/produits/$productId'
+    | '/_app/catalogue/produits/nouveau'
     | '/_app/stock/inventaires/$countId'
     | '/_app/stock/receptions/$purchaseId'
     | '/_app/stock/transferts/$transferId'
@@ -452,6 +465,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppCatalogueProduitsProductIdRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/catalogue/produits/nouveau': {
+      id: '/_app/catalogue/produits/nouveau'
+      path: '/catalogue/produits/nouveau'
+      fullPath: '/catalogue/produits/nouveau'
+      preLoaderRoute: typeof AppCatalogueProduitsNouveauRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/stock/inventaires/': {
       id: '/_app/stock/inventaires/'
       path: '/inventaires'
@@ -536,6 +556,7 @@ interface AppRouteChildren {
   AppVentesRapportsRoute: typeof AppVentesRapportsRoute
   AppVentesIndexRoute: typeof AppVentesIndexRoute
   AppCatalogueProduitsProductIdRoute: typeof AppCatalogueProduitsProductIdRoute
+  AppCatalogueProduitsNouveauRoute: typeof AppCatalogueProduitsNouveauRoute
   AppCatalogueProduitsIndexRoute: typeof AppCatalogueProduitsIndexRoute
 }
 
@@ -552,6 +573,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppVentesRapportsRoute: AppVentesRapportsRoute,
   AppVentesIndexRoute: AppVentesIndexRoute,
   AppCatalogueProduitsProductIdRoute: AppCatalogueProduitsProductIdRoute,
+  AppCatalogueProduitsNouveauRoute: AppCatalogueProduitsNouveauRoute,
   AppCatalogueProduitsIndexRoute: AppCatalogueProduitsIndexRoute,
 }
 

@@ -3,9 +3,11 @@ import { drizzle } from "drizzle-orm/d1"
 import { and, asc, eq, gt, inArray, isNull, or, sql } from "drizzle-orm"
 import {
   productCreateSchema,
+  productCreateMultipartSchema,
   productUpdateSchema,
   variantCreateSchema,
 } from "shared"
+import type { ProductCreateMultipartInput } from "shared"
 import * as schema from "../db/schema"
 import { validerCorps } from "../lib/validation"
 import { estViolationUnicite } from "../lib/db-errors"
@@ -20,6 +22,7 @@ import { requireAuth } from "../middleware/require-auth"
 import { requireMembership, requireRole } from "../middleware/permissions"
 import type { PermissionVariables } from "../middleware/permissions"
 import type { Env } from "../env"
+import type { Context } from "hono"
 
 export const productsRoute = new Hono<{
   Bindings: Env
@@ -194,112 +197,356 @@ productsRoute.get("/:id/stock", async (c) => {
   return c.json({ stock })
 })
 
+type ContexteProduits = Context<{
+  Bindings: Env
+  Variables: PermissionVariables
+}>
+
+const TAILLE_MAX_IMAGE = 2 * 1024 * 1024
+
+const EXTENSIONS_IMAGE: Record<string, string> = {
+  "image/jpeg": "jpg",
+  "image/png": "png",
+  "image/webp": "webp",
+}
+
+// Covers both the multipart headers/boundaries AND the "donnees" JSON part,
+// which now carries up to MAX_VARIANTES_CREATION variants alongside the
+// image — the exact 2 MB check on the image itself happens post-parse below.
+const MARGE_ENTETES_MULTIPART = 64 * 1024
+
 productsRoute.post(
   "/",
   requireRole("owner", "admin", "stock_manager"),
   async (c) => {
+    // The Content-Type discriminates: multipart is the creation page, JSON is
+    // the historical contract the Supabase import relies on.
+    if ((c.req.header("content-type") ?? "").includes("multipart/form-data")) {
+      return creerDepuisMultipart(c)
+    }
+    // JSON path intentionally uses productCreateSchema (no `variants` field):
+    // this is the contract the external Supabase import script relies on, so
+    // a `variants` field here is silently ignored rather than rejected.
     const corps = await validerCorps(c, productCreateSchema)
     if (!corps.ok) return corps.reponse
-    const { organizationId } = c.get("membership")
-    const db = drizzle(c.env.DB, { schema })
+    return creerProduit(c, corps.data, null)
+  }
+)
 
+/** Reads the `donnees` JSON part and the optional `image` part, then delegates to the shared creation. */
+async function creerDepuisMultipart(c: ContexteProduits): Promise<Response> {
+  // Early rejection before parseBody() buffers the whole body. The declared
+  // Content-Length can lie (absent, wrong, chunked), hence the post-parse check
+  // kept below as defence in depth.
+  const longueurDeclaree = Number(c.req.header("content-length") ?? 0)
+  if (longueurDeclaree > TAILLE_MAX_IMAGE + MARGE_ENTETES_MULTIPART) {
+    return c.json(
+      { code: "IMAGE_TROP_LOURDE", message: "L'image dépasse 2 Mo" },
+      400
+    )
+  }
+
+  const form = await c.req.parseBody()
+  const brut = form["donnees"]
+  if (typeof brut !== "string") {
+    return c.json(
+      { code: "VALIDATION", message: "Champ « donnees » manquant" },
+      400
+    )
+  }
+  let json: unknown
+  try {
+    json = JSON.parse(brut)
+  } catch {
+    return c.json(
+      { code: "VALIDATION", message: "Champ « donnees » illisible" },
+      400
+    )
+  }
+  const parsed = productCreateMultipartSchema.safeParse(json)
+  if (!parsed.success) {
+    return c.json(
+      {
+        code: "VALIDATION",
+        message: "Données invalides",
+        details: parsed.error.flatten(),
+      },
+      400
+    )
+  }
+
+  const fichier = form["image"]
+  return creerProduit(c, parsed.data, fichier instanceof File ? fichier : null)
+}
+
+/**
+ * Single creation path for both formats. Everything is validated before the
+ * first write; the image lands in R2 first because the product row must carry
+ * its key, and a failed batch removes it again.
+ */
+async function creerProduit(
+  c: ContexteProduits,
+  donnees: ProductCreateMultipartInput,
+  image: File | null
+): Promise<Response> {
+  const { organizationId } = c.get("membership")
+  const db = drizzle(c.env.DB, { schema })
+
+  if (
+    donnees.categoryId &&
+    !(await categorieExiste(db, organizationId, donnees.categoryId))
+  ) {
+    return c.json(
+      { code: "INTROUVABLE", message: "Catégorie introuvable" },
+      404
+    )
+  }
+
+  if (
+    donnees.barcode &&
+    (await barcodeDejaUtilise(db, organizationId, donnees.barcode))
+  ) {
+    return c.json(
+      { code: "BARCODE_EXISTANT", message: "Ce code-barres est déjà utilisé" },
+      409
+    )
+  }
+
+  const variantes = donnees.variants ?? []
+  const aDesVariantes = variantes.length > 0
+
+  // Same rule and message as POST /:id/variants and PATCH /variants/:id: a
+  // variant's floor price may not exceed its OWN effective selling price
+  // (priceOverride, falling back to the product price) — not the product's.
+  // Skipping this lets a variant become unsellable at its catalogue price
+  // (sales.ts rejects every line under its floor).
+  for (const variante of variantes) {
+    const prixEffectifVariante = variante.priceOverride ?? donnees.price
     if (
-      corps.data.categoryId &&
-      !(await categorieExiste(db, organizationId, corps.data.categoryId))
+      variante.minPriceOverride !== undefined &&
+      variante.minPriceOverride > prixEffectifVariante
     ) {
       return c.json(
-        { code: "INTROUVABLE", message: "Catégorie introuvable" },
-        404
+        {
+          code: "VALIDATION",
+          message: `Le prix plancher de la variante « ${variante.name} » doit être inférieur ou égal au prix de vente`,
+        },
+        400
       )
     }
+  }
 
+  // Barcodes are checked against the database and against each other: two
+  // variants of the same payload cannot share one, and the conflict must be
+  // refused rather than discovered by the unique index.
+  const barcodesVus = new Set<string>()
+  if (donnees.barcode) barcodesVus.add(donnees.barcode)
+  for (const variante of variantes) {
+    if (!variante.barcode) continue
     if (
-      corps.data.barcode &&
-      (await barcodeDejaUtilise(db, organizationId, corps.data.barcode))
+      barcodesVus.has(variante.barcode) ||
+      (await barcodeDejaUtilise(db, organizationId, variante.barcode))
     ) {
       return c.json(
         {
           code: "BARCODE_EXISTANT",
-          message: "Ce code-barres est déjà utilisé",
+          message: `Le code-barres de la variante « ${variante.name} » est déjà utilisé`,
         },
         409
       )
     }
+    barcodesVus.add(variante.barcode)
+  }
 
-    const skuFourni = corps.data.sku
-    // SKU auto : régénéré en cas de course sur l'index unique (org, sku),
-    // 3 tentatives maximum puis 409.
-    for (let tentative = 0; tentative < 3; tentative++) {
+  // Explicit SKUs bypass genererSkuVariante's derivation from the (unique)
+  // product SKU and can collide with ANY existing variant in the org: the
+  // unique index is (organizationId, sku), not scoped to this product. Left
+  // unchecked, the collision only surfaces via the D1 batch's generic unique
+  // violation — and since the product SKU is auto here, that falls into the
+  // retry branch and burns three identical attempts before a misleading
+  // "could not generate a unique SKU" message.
+  for (const variante of variantes) {
+    if (!variante.sku) continue
+    const existants = await db
+      .select({ id: schema.productVariants.id })
+      .from(schema.productVariants)
+      .where(
+        and(
+          eq(schema.productVariants.organizationId, organizationId),
+          eq(schema.productVariants.sku, variante.sku)
+        )
+      )
+      .limit(1)
+    if (existants.length > 0) {
+      return c.json(
+        {
+          code: "SKU_EXISTANT",
+          message: `Le SKU « ${variante.sku} » de la variante « ${variante.name} » est déjà utilisé`,
+        },
+        409
+      )
+    }
+  }
+
+  // The id is drawn once, outside the SKU retry loop: the R2 key derives from
+  // it, so it must not change between attempts. A failed batch inserts nothing,
+  // which makes reusing the id safe.
+  const id = crypto.randomUUID()
+
+  let cleImage: string | null = null
+  if (image) {
+    if (image.size > TAILLE_MAX_IMAGE) {
+      return c.json(
+        { code: "IMAGE_TROP_LOURDE", message: "L'image dépasse 2 Mo" },
+        400
+      )
+    }
+    const extension = EXTENSIONS_IMAGE[image.type]
+    if (!extension) {
+      return c.json(
+        { code: "FORMAT_IMAGE", message: "Formats acceptés : JPEG, PNG, WebP" },
+        400
+      )
+    }
+    cleImage = `produits/${id}.${extension}`
+    await c.env.IMAGES.put(cleImage, image, {
+      httpMetadata: { contentType: image.type },
+    })
+  }
+
+  // Best-effort cleanup: an orphan R2 object is preferable to a broken row, and
+  // a failed cleanup must never mask the error that triggered it.
+  const oublierImage = async () => {
+    if (!cleImage) return
+    try {
+      await c.env.IMAGES.delete(cleImage)
+    } catch {
+      // Ignored on purpose: the object simply becomes orphaned.
+    }
+  }
+
+  const skuFourni = donnees.sku
+  // Auto SKU: regenerated on a race over the unique (org, sku) index, three
+  // attempts then 409.
+  for (let tentative = 0; tentative < 3; tentative++) {
+    const now = new Date()
+    try {
+      // The SKU generation (a MAX+1 read) lives inside the try: it runs after
+      // the R2 put, so any exception here — a transient D1 error, not just a
+      // batch conflict — must still trigger oublierImage() in the catch below.
       const sku = skuFourni ?? (await genererSkuProduit(db, organizationId))
-      const id = crypto.randomUUID()
-      const now = new Date()
-      try {
-        // Piège : batch hétérogène = tableau construit directement
-        // (pas de push + cast).
-        await db.batch([
-          db.insert(schema.products).values({
-            id,
-            organizationId,
-            categoryId: corps.data.categoryId ?? null,
-            name: corps.data.name,
-            description: corps.data.description ?? null,
-            sku,
-            barcode: corps.data.barcode ?? null,
-            price: corps.data.price,
-            minPrice: corps.data.minPrice ?? null,
-            defaultMinStock: corps.data.defaultMinStock ?? null,
-            trackLots: corps.data.trackLots ?? false,
-            createdAt: now,
-            updatedAt: now,
-          }),
-          db.insert(schema.productVariants).values({
-            id: crypto.randomUUID(),
-            organizationId,
-            productId: id,
-            name: "Standard",
-            attributes: "{}",
-            sku: `${sku}-STD`,
-            createdAt: now,
-          }),
-        ])
-      } catch (err) {
-        if (estViolationUnicite(err, "barcode")) {
+      // Variant SKUs derive from their attributes, so a collision is stable
+      // across retries: it is a definitive 409, never a reason to regenerate.
+      const skuImplicite = `${sku}-STD`
+      const skusVus = new Set<string>([skuImplicite])
+      const lignesVariantes: Array<typeof schema.productVariants.$inferInsert> =
+        []
+      for (const variante of variantes) {
+        const skuVariante =
+          variante.sku ?? genererSkuVariante(sku, variante.attributes)
+        if (skusVus.has(skuVariante)) {
+          await oublierImage()
           return c.json(
             {
-              code: "BARCODE_EXISTANT",
-              message: "Ce code-barres est déjà utilisé",
+              code: "SKU_EXISTANT",
+              message: `Le SKU « ${skuVariante} » est déjà pris par une autre variante de ce produit`,
             },
             409
           )
         }
-        if (estViolationUnicite(err, "products.name")) {
+        skusVus.add(skuVariante)
+        lignesVariantes.push({
+          id: crypto.randomUUID(),
+          organizationId,
+          productId: id,
+          name: variante.name,
+          attributes: JSON.stringify(variante.attributes),
+          sku: skuVariante,
+          barcode: variante.barcode ?? null,
+          priceOverride: variante.priceOverride ?? null,
+          minPriceOverride: variante.minPriceOverride ?? null,
+          createdAt: now,
+        })
+      }
+      // Trap: a heterogeneous batch must be built as a direct array literal —
+      // no push + cast.
+      await db.batch([
+        db.insert(schema.products).values({
+          id,
+          organizationId,
+          categoryId: donnees.categoryId ?? null,
+          name: donnees.name,
+          description: donnees.description ?? null,
+          sku,
+          barcode: donnees.barcode ?? null,
+          price: donnees.price,
+          minPrice: donnees.minPrice ?? null,
+          defaultMinStock: donnees.defaultMinStock ?? null,
+          trackLots: donnees.trackLots ?? false,
+          imageKey: cleImage,
+          // Explicit variants make the product a variant product straight away.
+          hasVariants: aDesVariantes,
+          createdAt: now,
+          updatedAt: now,
+        }),
+        db.insert(schema.productVariants).values({
+          id: crypto.randomUUID(),
+          organizationId,
+          productId: id,
+          name: "Standard",
+          attributes: "{}",
+          sku: skuImplicite,
+          // The implicit variant is always written, inactive when explicit ones
+          // accompany it: the final state must not depend on the path taken.
+          isActive: !aDesVariantes,
+          createdAt: now,
+        }),
+        ...lignesVariantes.map((ligne) =>
+          db.insert(schema.productVariants).values(ligne)
+        ),
+      ])
+      return c.json({ id, sku }, 201)
+    } catch (err) {
+      if (estViolationUnicite(err, "barcode")) {
+        await oublierImage()
+        return c.json(
+          {
+            code: "BARCODE_EXISTANT",
+            message: "Ce code-barres est déjà utilisé",
+          },
+          409
+        )
+      }
+      if (estViolationUnicite(err, "products.name")) {
+        await oublierImage()
+        return c.json(
+          { code: "NOM_EXISTANT", message: "Ce nom est déjà utilisé" },
+          409
+        )
+      }
+      if (estViolationUnicite(err)) {
+        if (skuFourni) {
+          await oublierImage()
           return c.json(
-            { code: "NOM_EXISTANT", message: "Ce nom est déjà utilisé" },
+            { code: "SKU_EXISTANT", message: "Ce SKU existe déjà" },
             409
           )
         }
-        if (estViolationUnicite(err)) {
-          if (skuFourni) {
-            return c.json(
-              { code: "SKU_EXISTANT", message: "Ce SKU existe déjà" },
-              409
-            )
-          }
-          continue
-        }
-        throw err
+        continue
       }
-      return c.json({ id, sku }, 201)
+      await oublierImage()
+      throw err
     }
-    return c.json(
-      {
-        code: "SKU_EXISTANT",
-        message: "Impossible de générer un SKU unique, veuillez réessayer",
-      },
-      409
-    )
   }
-)
+  await oublierImage()
+  return c.json(
+    {
+      code: "SKU_EXISTANT",
+      message: "Impossible de générer un SKU unique, veuillez réessayer",
+    },
+    409
+  )
+}
 
 productsRoute.patch(
   "/:id",
@@ -512,16 +759,6 @@ productsRoute.post(
     return c.json({ id, sku }, 201)
   }
 )
-
-const TAILLE_MAX_IMAGE = 2 * 1024 * 1024
-
-const EXTENSIONS_IMAGE: Record<string, string> = {
-  "image/jpeg": "jpg",
-  "image/png": "png",
-  "image/webp": "webp",
-}
-
-const MARGE_ENTETES_MULTIPART = 4096
 
 productsRoute.post(
   "/:id/image",
