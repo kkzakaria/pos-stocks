@@ -126,10 +126,17 @@ export function FormulaireCreationProduit({
       corps.append("donnees", JSON.stringify(donnees))
       if (image) corps.append("image", image)
       // No content-type header: the browser sets the multipart boundary.
-      return apiFetch<{ id: string; sku: string }>("/api/v1/products", {
-        method: "POST",
-        body: corps,
-      })
+      // Extended timeout (default is 15s): this body can carry up to a 2 MB
+      // image, and on a slow link a client-side abort could race a server
+      // commit that already succeeded, leading to a non-idempotent retry.
+      return apiFetch<{ id: string; sku: string }>(
+        "/api/v1/products",
+        {
+          method: "POST",
+          body: corps,
+        },
+        60000
+      )
     },
     onSuccess: async (res) => {
       await queryClient.invalidateQueries({ queryKey: ["products"] })

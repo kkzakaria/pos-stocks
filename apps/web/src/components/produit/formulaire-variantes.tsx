@@ -114,7 +114,6 @@ export function FormulaireVariantes({
         <Label htmlFor="v-nom">Nom (ex : M / Rouge)</Label>
         <Input
           id="v-nom"
-          aria-label="Nom de la variante"
           value={nom}
           onChange={(e) => setNom(e.target.value)}
         />
@@ -169,7 +168,6 @@ export function FormulaireVariantes({
             type="number"
             min={1}
             step={1}
-            aria-label="Prix de la variante"
             value={prix}
             onChange={(e) => setPrix(e.target.value)}
           />
@@ -181,7 +179,6 @@ export function FormulaireVariantes({
             type="number"
             min={1}
             step={1}
-            aria-label="Prix plancher de la variante"
             value={plancher}
             onChange={(e) => setPlancher(e.target.value)}
           />
@@ -192,7 +189,6 @@ export function FormulaireVariantes({
             id="v-barcode"
             autoComplete="off"
             spellCheck={false}
-            aria-label="Code-barres de la variante"
             value={codeBarres}
             onChange={(e) => setCodeBarres(e.target.value)}
           />

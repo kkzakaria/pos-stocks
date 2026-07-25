@@ -8,7 +8,7 @@ describe("FormulaireVariantes", () => {
     const onChange = vi.fn()
     render(<FormulaireVariantes value={[]} onChange={onChange} />)
 
-    fireEvent.change(screen.getByLabelText("Nom de la variante"), {
+    fireEvent.change(screen.getByLabelText("Nom (ex : M / Rouge)"), {
       target: { value: "1.5 mm²" },
     })
     fireEvent.change(screen.getByLabelText("Attribut 1 — nom"), {
@@ -17,7 +17,7 @@ describe("FormulaireVariantes", () => {
     fireEvent.change(screen.getByLabelText("Attribut 1 — valeur"), {
       target: { value: "1.5" },
     })
-    fireEvent.change(screen.getByLabelText("Prix de la variante"), {
+    fireEvent.change(screen.getByLabelText("Prix (optionnel)"), {
       target: { value: "1500" },
     })
     fireEvent.click(screen.getByRole("button", { name: "Ajouter la variante" }))
@@ -44,7 +44,7 @@ describe("FormulaireVariantes", () => {
     const onChange = vi.fn()
     render(<FormulaireVariantes value={[]} onChange={onChange} />)
 
-    fireEvent.change(screen.getByLabelText("Nom de la variante"), {
+    fireEvent.change(screen.getByLabelText("Nom (ex : M / Rouge)"), {
       target: { value: "Unique" },
     })
     fireEvent.click(screen.getByRole("button", { name: "Ajouter la variante" }))
@@ -79,7 +79,7 @@ describe("FormulaireVariantes", () => {
     render(<FormulaireVariantes value={[]} onChange={onChange} />)
 
     fireEvent.click(screen.getByRole("button", { name: "Ajouter un attribut" }))
-    fireEvent.change(screen.getByLabelText("Nom de la variante"), {
+    fireEvent.change(screen.getByLabelText("Nom (ex : M / Rouge)"), {
       target: { value: "M / Rouge" },
     })
     fireEvent.change(screen.getByLabelText("Attribut 1 — nom"), {
@@ -106,7 +106,7 @@ describe("FormulaireVariantes", () => {
     render(<FormulaireVariantes value={[]} onChange={onChange} />)
 
     fireEvent.click(screen.getByRole("button", { name: "Ajouter un attribut" }))
-    fireEvent.change(screen.getByLabelText("Nom de la variante"), {
+    fireEvent.change(screen.getByLabelText("Nom (ex : M / Rouge)"), {
       target: { value: "M" },
     })
     // First pair: key filled, value empty (will be filtered out)
@@ -131,7 +131,7 @@ describe("FormulaireVariantes", () => {
     const onChange = vi.fn()
     render(<FormulaireVariantes value={[]} onChange={onChange} />)
 
-    fireEvent.change(screen.getByLabelText("Nom de la variante"), {
+    fireEvent.change(screen.getByLabelText("Nom (ex : M / Rouge)"), {
       target: { value: "Variant" },
     })
     fireEvent.change(screen.getByLabelText("Attribut 1 — nom"), {
@@ -140,7 +140,7 @@ describe("FormulaireVariantes", () => {
     fireEvent.change(screen.getByLabelText("Attribut 1 — valeur"), {
       target: { value: "M" },
     })
-    fireEvent.change(screen.getByLabelText("Prix de la variante"), {
+    fireEvent.change(screen.getByLabelText("Prix (optionnel)"), {
       target: { value: "1500.5" },
     })
     fireEvent.click(screen.getByRole("button", { name: "Ajouter la variante" }))
@@ -153,7 +153,7 @@ describe("FormulaireVariantes", () => {
     const onChange = vi.fn()
     render(<FormulaireVariantes value={[]} onChange={onChange} />)
 
-    fireEvent.change(screen.getByLabelText("Nom de la variante"), {
+    fireEvent.change(screen.getByLabelText("Nom (ex : M / Rouge)"), {
       target: { value: "Variant" },
     })
     fireEvent.change(screen.getByLabelText("Attribut 1 — nom"), {
@@ -162,7 +162,7 @@ describe("FormulaireVariantes", () => {
     fireEvent.change(screen.getByLabelText("Attribut 1 — valeur"), {
       target: { value: "M" },
     })
-    fireEvent.change(screen.getByLabelText("Prix de la variante"), {
+    fireEvent.change(screen.getByLabelText("Prix (optionnel)"), {
       target: { value: "0" },
     })
     fireEvent.click(screen.getByRole("button", { name: "Ajouter la variante" }))
@@ -175,7 +175,7 @@ describe("FormulaireVariantes", () => {
     const onChange = vi.fn()
     render(<FormulaireVariantes value={[]} onChange={onChange} />)
 
-    fireEvent.change(screen.getByLabelText("Nom de la variante"), {
+    fireEvent.change(screen.getByLabelText("Nom (ex : M / Rouge)"), {
       target: { value: "Premium" },
     })
     fireEvent.change(screen.getByLabelText("Attribut 1 — nom"), {
@@ -184,10 +184,10 @@ describe("FormulaireVariantes", () => {
     fireEvent.change(screen.getByLabelText("Attribut 1 — valeur"), {
       target: { value: "A" },
     })
-    fireEvent.change(screen.getByLabelText("Code-barres de la variante"), {
+    fireEvent.change(screen.getByLabelText("Code-barres (optionnel)"), {
       target: { value: "123456789" },
     })
-    fireEvent.change(screen.getByLabelText("Prix plancher de la variante"), {
+    fireEvent.change(screen.getByLabelText("Plancher (optionnel)"), {
       target: { value: "1000" },
     })
     fireEvent.click(screen.getByRole("button", { name: "Ajouter la variante" }))

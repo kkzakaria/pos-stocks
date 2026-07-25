@@ -48,34 +48,37 @@ export function ChampImage({
           Aucune image
         </div>
       )}
-      <input
-        id="p-image"
-        type="file"
-        accept="image/jpeg,image/png,image/webp"
-        aria-label="Choisir une image"
-        onChange={(e) => {
-          // e.target.files is nullable (FileList | null): the optional chain is
-          // legitimate for no-unnecessary-condition.
-          const input = e.target
-          const fichier = input.files?.[0]
-          // Reset after every attempt: otherwise re-selecting the SAME file
-          // does not fire onChange.
-          input.value = ""
-          if (!fichier) return
-          if (fichier.size > TAILLE_MAX) {
-            setErreur("L'image dépasse 2 Mo")
-            return
-          }
-          if (!TYPES_ACCEPTES.includes(fichier.type)) {
-            setErreur("Formats acceptés : JPEG, PNG, WebP")
-            return
-          }
-          setErreur(null)
-          onChange(fichier)
-        }}
-        className="peer sr-only"
-      />
       <div className="flex items-center gap-2">
+        <input
+          id="p-image"
+          type="file"
+          accept="image/jpeg,image/png,image/webp"
+          aria-label="Choisir une image"
+          onChange={(e) => {
+            // e.target.files is nullable (FileList | null): the optional chain is
+            // legitimate for no-unnecessary-condition.
+            const input = e.target
+            const fichier = input.files?.[0]
+            // Reset after every attempt: otherwise re-selecting the SAME file
+            // does not fire onChange.
+            input.value = ""
+            if (!fichier) return
+            if (fichier.size > TAILLE_MAX) {
+              setErreur("L'image dépasse 2 Mo")
+              return
+            }
+            if (!TYPES_ACCEPTES.includes(fichier.type)) {
+              setErreur("Formats acceptés : JPEG, PNG, WebP")
+              return
+            }
+            setErreur(null)
+            onChange(fichier)
+          }}
+          // "peer" must be an immediate previous sibling of the label for
+          // peer-focus-visible: to apply — Tailwind's peer combinator only
+          // matches general siblings, not ancestors/descendants.
+          className="peer sr-only"
+        />
         <label
           htmlFor="p-image"
           className={cn(

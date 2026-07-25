@@ -59,7 +59,7 @@ describe("FormulaireCreationProduit", () => {
     fireEvent.click(
       screen.getByRole("button", { name: "Ce produit se décline" })
     )
-    fireEvent.change(screen.getByLabelText("Nom de la variante"), {
+    fireEvent.change(screen.getByLabelText("Nom (ex : M / Rouge)"), {
       target: { value: "1.5 mm²" },
     })
     fireEvent.change(screen.getByLabelText("Attribut 1 — nom"), {

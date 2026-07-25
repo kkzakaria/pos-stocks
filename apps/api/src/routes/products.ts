@@ -7,6 +7,7 @@ import {
   productUpdateSchema,
   variantCreateSchema,
 } from "shared"
+import type { ProductCreateMultipartInput } from "shared"
 import * as schema from "../db/schema"
 import { validerCorps } from "../lib/validation"
 import { estViolationUnicite } from "../lib/db-errors"
@@ -22,7 +23,6 @@ import { requireMembership, requireRole } from "../middleware/permissions"
 import type { PermissionVariables } from "../middleware/permissions"
 import type { Env } from "../env"
 import type { Context } from "hono"
-import type { z } from "zod"
 
 export const productsRoute = new Hono<{
   Bindings: Env
@@ -202,8 +202,6 @@ type ContexteProduits = Context<{
   Variables: PermissionVariables
 }>
 
-type DonneesCreation = z.infer<typeof productCreateMultipartSchema>
-
 const TAILLE_MAX_IMAGE = 2 * 1024 * 1024
 
 const EXTENSIONS_IMAGE: Record<string, string> = {
@@ -212,7 +210,10 @@ const EXTENSIONS_IMAGE: Record<string, string> = {
   "image/webp": "webp",
 }
 
-const MARGE_ENTETES_MULTIPART = 4096
+// Covers both the multipart headers/boundaries AND the "donnees" JSON part,
+// which now carries up to MAX_VARIANTES_CREATION variants alongside the
+// image — the exact 2 MB check on the image itself happens post-parse below.
+const MARGE_ENTETES_MULTIPART = 64 * 1024
 
 productsRoute.post(
   "/",
@@ -223,6 +224,9 @@ productsRoute.post(
     if ((c.req.header("content-type") ?? "").includes("multipart/form-data")) {
       return creerDepuisMultipart(c)
     }
+    // JSON path intentionally uses productCreateSchema (no `variants` field):
+    // this is the contract the external Supabase import script relies on, so
+    // a `variants` field here is silently ignored rather than rejected.
     const corps = await validerCorps(c, productCreateSchema)
     if (!corps.ok) return corps.reponse
     return creerProduit(c, corps.data, null)
@@ -282,7 +286,7 @@ async function creerDepuisMultipart(c: ContexteProduits): Promise<Response> {
  */
 async function creerProduit(
   c: ContexteProduits,
-  donnees: DonneesCreation,
+  donnees: ProductCreateMultipartInput,
   image: File | null
 ): Promise<Response> {
   const { organizationId } = c.get("membership")

@@ -66,6 +66,12 @@ describe("ChampImage", () => {
     const input = screen.getByLabelText("Choisir une image")
     const label = container.querySelector("label[for='p-image']")
 
+    // Tailwind's peer-focus-visible: compiles to a general sibling combinator
+    // (.peer:focus-visible ~ .target): it only works if the label is an
+    // actual sibling of the input, not merely a class-name match. Assert the
+    // real DOM relationship, not just the presence of the class strings.
+    expect(input.nextElementSibling).toBe(label)
+
     // Verify that the input has the peer class so the selector can work
     expect(input.className).toContain("peer")
 
