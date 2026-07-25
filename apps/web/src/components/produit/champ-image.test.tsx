@@ -59,4 +59,20 @@ describe("ChampImage", () => {
     fireEvent.click(screen.getByRole("button", { name: "Retirer l'image" }))
     expect(onChange).toHaveBeenCalledWith(null)
   })
+
+  it("affiche le focus clavier sur le label via le motif peer", () => {
+    const { container } = render(<ChampImage value={null} onChange={vi.fn()} />)
+
+    const input = screen.getByLabelText("Choisir une image")
+    const label = container.querySelector("label[for='p-image']")
+
+    // Verify that the input has the peer class so the selector can work
+    expect(input.className).toContain("peer")
+
+    // Verify that the label has the peer-focus-visible classes to display
+    // the ring when the input is focused, making keyboard navigation visible
+    expect(label).toBeTruthy()
+    expect(label?.className).toContain("peer-focus-visible:ring-2")
+    expect(label?.className).toContain("peer-focus-visible:ring-ring/30")
+  })
 })
