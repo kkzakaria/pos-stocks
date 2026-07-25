@@ -311,6 +311,27 @@ async function creerProduit(
   const variantes = donnees.variants ?? []
   const aDesVariantes = variantes.length > 0
 
+  // Same rule and message as POST /:id/variants and PATCH /variants/:id: a
+  // variant's floor price may not exceed its OWN effective selling price
+  // (priceOverride, falling back to the product price) — not the product's.
+  // Skipping this lets a variant become unsellable at its catalogue price
+  // (sales.ts rejects every line under its floor).
+  for (const variante of variantes) {
+    const prixEffectifVariante = variante.priceOverride ?? donnees.price
+    if (
+      variante.minPriceOverride !== undefined &&
+      variante.minPriceOverride > prixEffectifVariante
+    ) {
+      return c.json(
+        {
+          code: "VALIDATION",
+          message: `Le prix plancher de la variante « ${variante.name} » doit être inférieur ou égal au prix de vente`,
+        },
+        400
+      )
+    }
+  }
+
   // Barcodes are checked against the database and against each other: two
   // variants of the same payload cannot share one, and the conflict must be
   // refused rather than discovered by the unique index.
@@ -331,6 +352,36 @@ async function creerProduit(
       )
     }
     barcodesVus.add(variante.barcode)
+  }
+
+  // Explicit SKUs bypass genererSkuVariante's derivation from the (unique)
+  // product SKU and can collide with ANY existing variant in the org: the
+  // unique index is (organizationId, sku), not scoped to this product. Left
+  // unchecked, the collision only surfaces via the D1 batch's generic unique
+  // violation — and since the product SKU is auto here, that falls into the
+  // retry branch and burns three identical attempts before a misleading
+  // "could not generate a unique SKU" message.
+  for (const variante of variantes) {
+    if (!variante.sku) continue
+    const existants = await db
+      .select({ id: schema.productVariants.id })
+      .from(schema.productVariants)
+      .where(
+        and(
+          eq(schema.productVariants.organizationId, organizationId),
+          eq(schema.productVariants.sku, variante.sku)
+        )
+      )
+      .limit(1)
+    if (existants.length > 0) {
+      return c.json(
+        {
+          code: "SKU_EXISTANT",
+          message: `Le SKU « ${variante.sku} » de la variante « ${variante.name} » est déjà utilisé`,
+        },
+        409
+      )
+    }
   }
 
   // The id is drawn once, outside the SKU retry loop: the R2 key derives from

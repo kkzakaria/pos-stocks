@@ -428,4 +428,88 @@ describe("POST /api/v1/products — création multipart", () => {
     const db = drizzle(env.DB, { schema })
     expect(await db.select().from(schema.products)).toHaveLength(0)
   })
+
+  it("refuse une variante dont le prix plancher dépasse son propre prix effectif", async () => {
+    const { ownerCookie } = await bootstrapOwner()
+
+    // priceOverride 1000 < minPriceOverride 5000: invalid against the
+    // VARIANT's own effective price, not the product's 1500.
+    const res = await creerMultipart(ownerCookie, {
+      name: "Câble plancher invalide",
+      price: 1500,
+      variants: [
+        {
+          name: "M",
+          attributes: { taille: "M" },
+          priceOverride: 1000,
+          minPriceOverride: 5000,
+        },
+      ],
+    })
+    expect(res.status).toBe(400)
+    const corps = await res.json<{ code: string; message: string }>()
+    expect(corps.code).toBe("VALIDATION")
+    // The message must name the offending variant.
+    expect(corps.message).toContain("M")
+
+    const db = drizzle(env.DB, { schema })
+    expect(await db.select().from(schema.products)).toHaveLength(0)
+  })
+
+  it("refuse un SKU de variante explicite déjà pris par une variante d'un autre produit", async () => {
+    const { ownerCookie } = await bootstrapOwner()
+    // An existing product already holds this variant SKU.
+    const premier = await creerMultipart(ownerCookie, {
+      name: "Câble existant",
+      price: 1000,
+      variants: [
+        { name: "Existant", attributes: { section: "1" }, sku: "CUSTOM-1" },
+      ],
+    })
+    expect(premier.status).toBe(201)
+
+    const res = await creerMultipart(ownerCookie, {
+      name: "Câble conflit sku",
+      price: 1500,
+      variants: [
+        { name: "Conflit", attributes: { section: "2" }, sku: "CUSTOM-1" },
+      ],
+    })
+    expect(res.status).toBe(409)
+    const corps = await res.json<{ code: string; message: string }>()
+    expect(corps.code).toBe("SKU_EXISTANT")
+    // The message must name the offending variant.
+    expect(corps.message).toContain("Conflit")
+
+    const db = drizzle(env.DB, { schema })
+    // Only the first (already committed) product exists.
+    expect(await db.select().from(schema.products)).toHaveLength(1)
+  })
+
+  it("purge l'image R2 quand une collision de SKU calculé rejette le batch", async () => {
+    const { ownerCookie } = await bootstrapOwner()
+
+    // Same attribute values → same generated suffix → same SKU. Unlike the
+    // barcode and pre-checked SKU rejections above, this collision is only
+    // discovered inside the retry loop, AFTER the R2 put: oublierImage()
+    // must run, or this image would stay orphaned in the bucket.
+    const res = await creerMultipart(
+      ownerCookie,
+      {
+        name: "Câble collision avec image",
+        price: 1500,
+        variants: [
+          { name: "Rouge", attributes: { teinte: "Rouge" } },
+          { name: "Rouge bis", attributes: { couleur: "Rouge" } },
+        ],
+      },
+      petiteImage()
+    )
+    expect(res.status).toBe(409)
+    expect((await res.json<{ code: string }>()).code).toBe("SKU_EXISTANT")
+
+    const db = drizzle(env.DB, { schema })
+    expect(await db.select().from(schema.products)).toHaveLength(0)
+    expect(await env.IMAGES.list()).toMatchObject({ objects: [] })
+  })
 })
