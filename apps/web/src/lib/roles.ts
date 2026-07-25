@@ -52,10 +52,16 @@ export function peutGererRole(
   return ROLES_GERABLES_PAR_ADMIN.includes(cible)
 }
 
-/** Company roles `demandeur` may assign, in the order shown in the selects. */
+/**
+ * Company roles `demandeur` may assign, in the order shown in the selects.
+ * Empty for every role without management rights, so the list stays aligned
+ * with `peutGererRole` instead of handing an auditor a set of roles it may
+ * not grant.
+ */
 export function rolesAttribuables(demandeur: CompanyRole): CompanyRole[] {
   if (demandeur === "owner") {
     return ["owner", "admin", "stock_manager", "auditor", "staff"]
   }
-  return [...ROLES_GERABLES_PAR_ADMIN]
+  if (demandeur === "admin") return [...ROLES_GERABLES_PAR_ADMIN]
+  return []
 }

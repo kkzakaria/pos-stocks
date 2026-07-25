@@ -75,8 +75,12 @@ const LIBELLES_STATUT: Record<"true" | "false", string> = {
  */
 function UtilisateursPage() {
   const { me } = Route.useRouteContext()
-  const roleDemandeur = me.membership?.role
-  const peutEcrire = roleDemandeur === "owner" || roleDemandeur === "admin"
+  // Typed rather than inferred from a boolean: every write control derives from
+  // this role, so it carries the narrowing itself instead of relying on the
+  // compiler tracking a `peutEcrire` alias.
+  const role = me.membership?.role
+  const roleGestionnaire = role === "owner" || role === "admin" ? role : null
+  const peutEcrire = roleGestionnaire !== null
   const queryClient = useQueryClient()
   const navigateFiltres = Route.useNavigate()
 
@@ -143,8 +147,8 @@ function UtilisateursPage() {
   const [idGere, setIdGere] = useState<string | null>(null)
 
   // Roles assignable at creation: a new account is never created as owner.
-  const optionsCreation = peutEcrire
-    ? rolesAttribuables(roleDemandeur).filter((r) => r !== "owner")
+  const optionsCreation = roleGestionnaire
+    ? rolesAttribuables(roleGestionnaire).filter((r) => r !== "owner")
     : []
 
   const creer = useMutation({
@@ -175,6 +179,16 @@ function UtilisateursPage() {
   // Read from the fresh list rather than a snapshot: the dialog reflects each
   // mutation as soon as the query is invalidated.
   const utilisateurGere = liste.find((u) => u.id === idGere) ?? null
+
+  // A mutation or a filter change can drop the managed account from the list —
+  // deactivating it while filtering on active ones does exactly that. Drop the
+  // selection with it, otherwise the dialog springs back open on its own once
+  // the account reappears. Gated on `isSuccess`: mid-refetch the list is empty
+  // and would clear a selection that is still valid.
+  useEffect(() => {
+    if (idGere === null || !utilisateurs.isSuccess) return
+    if (!liste.some((u) => u.id === idGere)) setIdGere(null)
+  }, [idGere, liste, utilisateurs.isSuccess])
 
   return (
     <div className="flex h-[calc(100dvh-3rem)] flex-col">
@@ -403,7 +417,7 @@ function UtilisateursPage() {
                     {/* The front hides what the API would refuse: an admin
                         never manages an owner or another admin. */}
                     {u.id !== me.user.id &&
-                      peutGererRole(roleDemandeur, u.role) && (
+                      peutGererRole(roleGestionnaire, u.role) && (
                         <Button
                           variant="outline"
                           onClick={() => setIdGere(u.id)}
@@ -436,11 +450,11 @@ function UtilisateursPage() {
         />
       )}
 
-      {peutEcrire && utilisateurGere && (
+      {roleGestionnaire && utilisateurGere && (
         <GererAcces
           utilisateur={utilisateurGere}
           entrepots={entrepots.data?.warehouses ?? []}
-          roleDemandeur={roleDemandeur}
+          roleDemandeur={roleGestionnaire}
           open
           onOpenChange={(ouvert) => {
             if (!ouvert) setIdGere(null)

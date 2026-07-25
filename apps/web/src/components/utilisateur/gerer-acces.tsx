@@ -288,9 +288,17 @@ export function GererAcces({
                     </SelectContent>
                   </Select>
                 </div>
+                {/* Gate on the list itself, not just on a non-empty id: a
+                    warehouse assigned meanwhile leaves the options, and the
+                    trigger already falls back to "— choisir —". */}
                 <Button
                   type="submit"
-                  disabled={affecter.isPending || !entrepotAAffecter}
+                  disabled={
+                    affecter.isPending ||
+                    !entrepotsDisponibles.some(
+                      (w) => w.id === entrepotAAffecter
+                    )
+                  }
                 >
                   Affecter
                 </Button>

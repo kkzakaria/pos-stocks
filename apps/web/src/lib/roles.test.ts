@@ -50,6 +50,12 @@ describe("rolesAttribuables", () => {
       "staff",
     ])
   })
+
+  it("ne propose aucun rôle aux rôles sans droit de gestion", () => {
+    for (const demandeur of ["auditor", "stock_manager", "staff"] as const) {
+      expect(rolesAttribuables(demandeur)).toEqual([])
+    }
+  })
 })
 
 describe("aPorteeGlobale", () => {

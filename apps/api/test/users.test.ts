@@ -208,7 +208,7 @@ describe("API utilisateurs", () => {
 
   it("filtres recherche/role/actif : appliqués au total, combinables, métacaractères LIKE neutralisés, valeurs invalides → 400", async () => {
     const { ownerCookie } = await bootstrapOwner()
-    // 4 comptes attendus : le propriétaire du bootstrap + les 3 ci-dessous.
+    // 4 accounts expected: the bootstrap owner plus the three below.
     await createUser(ownerCookie, {
       name: "Awa Traoré",
       email: "awa@exemple.com",
@@ -240,7 +240,7 @@ describe("API utilisateurs", () => {
 
     expect((await lister("")).total).toBe(4)
 
-    // Recherche sur le nom, insensible à la casse (ASCII), et sur l'email.
+    // Search on the name, case-insensitive (ASCII), and on the email.
     const parNom = await lister("?recherche=awa")
     expect(parNom.total).toBe(2)
     expect(parNom.users.map((u) => u.name)).toEqual([
@@ -251,7 +251,7 @@ describe("API utilisateurs", () => {
     expect(parEmail.total).toBe(1)
     expect(parEmail.users[0]?.name).toBe("Bakary Koné")
 
-    // Filtre de rôle, puis de statut après désactivation d'un compte.
+    // Role filter, then status filter once an account has been deactivated.
     const parRole = await lister("?role=staff")
     expect(parRole.total).toBe(1)
     expect(parRole.users[0]?.email).toBe("awa@exemple.com")
@@ -268,17 +268,17 @@ describe("API utilisateurs", () => {
     expect(inactifs.users[0]?.email).toBe("awa@exemple.com")
     expect((await lister("?actif=true")).total).toBe(3)
 
-    // Filtres combinables : « Awa » ∩ auditor ne laisse qu'Awa Diallo.
+    // Filters combine: "Awa" intersected with auditor leaves only Awa Diallo.
     const combine = await lister("?recherche=awa&role=auditor")
     expect(combine.total).toBe(1)
     expect(combine.users[0]?.name).toBe("Awa Diallo")
 
-    // Le total reste celui du filtre, pas celui de la page.
+    // The total stays the filtered one, not the page's.
     const pagine = await lister("?recherche=awa&limite=1")
     expect(pagine.users).toHaveLength(1)
     expect(pagine.total).toBe(2)
 
-    // Les métacaractères LIKE saisis par l'utilisateur sont littéraux.
+    // LIKE metacharacters typed by the user are matched literally.
     expect((await lister("?recherche=%25")).total).toBe(0)
     expect((await lister("?recherche=_")).total).toBe(0)
 
