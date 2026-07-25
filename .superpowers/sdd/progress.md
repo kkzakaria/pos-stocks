@@ -356,3 +356,35 @@ Revue finale #14 (opus): 1 Critical + 3 Important + 6 Minor. Vague unique ab8397
   Differes (ledger): M2 entrees orphelines + majA non lu; M4 prixModifie jamais efface; M5 prixPlancher non revalide (trou preexistant).
 E2E navigateur #14 validé (local, Boutique Centre): panier écrit en localStorage à l ajout; RECHARGEMENT -> panier restauré identique (Riz local 5kg x2, total 15 000 = 2x7500), sans modale, ENCAISSER visible (valide fix M3); encaissement -> panier vidé ET clé purgée. Portée par session vérifiée structurellement (session id dans la clé).
 BRANCHE PRÊTE POUR PR.
+
+
+---
+
+# Ledger — levée ambiguïté vente (issue #21, branche fix/ambiguite-vente-issue-21)
+Plan: docs/superpowers/plans/2026-07-20-levee-ambiguite-vente.md
+Base commit: fcd750f
+Issue #21 — Task 1: complete (commits fcd750f..031d0e0, review clean — production conforme, 5/5, typecheck OK)
+  Erreur de plan corrigée par l implementeur: bootstrapOwner non rappelable (setup global unique) -> 2e org insérée en base + createUserWithRole(orgB,"owner"). Assertion 404/INTROUVABLE inchangée.
+Issue #21 — Task 2: complete (commits 031d0e0..8638957, review clean — finaliserVente extrait et partagé, resoudreAmbiguite conforme, 149/149, typecheck+lint OK)
+Issue #21 — Task 3: complete (commits 8638957..e14c78e, review clean — onFermer ne déverrouille plus, bouton Vérifier, test préexistant réécrit, 151/151)
+  + fix 1f8b27e: commentaire panierVerrouille devenu faux (annonçait abandon=résolution et requestId jamais régénéré)
+
+
+---
+
+# Ledger — refonte fiche produit (branche feat/fiche-produit)
+Plan: docs/superpowers/plans/2026-07-22-fiche-produit.md
+Base commit: f41685c
+Task 1: complete (commits f41685c..42cec98, review clean — endpoint stock produit, 3/3 + suite 328/328, cross-org via insertion directe 2e org)
+Task 2: complete (commits 42cec98..4bdd602, review clean — SectionSynthese 4/4)
+  Correction de trajectoire contrôleur : commit initial 7a9be76 défait (il embarquait le package.json racine préexistant + une dépendance jest-dom inutile) ; plan aligné sur l'idiome matchers du dépôt (toBeTruthy/toBeNull), commit docs dédié.
+Task 3: complete (commits 4bdd602..db81813, review clean — SectionIdentite 3/3, transplant upload vérifié ligne à ligne)
+  Minor à trier en revue finale : pas de test « Annuler ne PATCHe pas » dans section-identite.test.tsx.
+Task 4: complete (commits db81813..c1efb57, review clean — SectionStock 3/3, colonnes 3/4 cohérentes sur les 3 états)
+Task 5: complete (commits c1efb57..dca3f24, review clean — lots imbriqués 2/2 + suite web 167/167, transplant dialog fidèle)
+Task 6: complete (commits dca3f24..27c8954, review clean — page 2 colonnes, 3 fichiers sections supprimés proprement, suite 168/168)
+  Bug de brief corrigé par l'implémenteur : collision fixture « 14 » (findAllByText) ; ⚠️ signatures cross-task levé par les revues T2-T5 + typecheck.
+Task 7: complete (E2E navigateur owner : édition synthèse prix 5000→5500→5000 vérifiée avec invalidation, édition description OK, repli 900 px sans débordement (scrollWidth=clientWidth), lots/stock/variantes rendus ; caissier1@exemple.com : 0 affordance d'édition, « Aucun stock visible », pas de Stock total. Captures fiche-apres/fiche-900px/fiche-caissier au scratchpad.)
+Revue finale de branche (fable): READY TO MERGE, 4 minors -> vague de fix unique 676f34b (arbitrage utilisateur: tout corriger), re-revue: 4/4 CLOSED, rien d'introduit.
+E2E lien retour filtré validé (detail ?q=ampoule -> retour liste filtrée).
+BRANCHE PRÊTE POUR PR.
