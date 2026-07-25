@@ -12,7 +12,7 @@
 
 ## Global Constraints
 
-- **Séquencement** : ne pas démarrer avant le merge de `worktree-import-produits-supabase`. Cette branche ne touche aucun fichier de `apps/api`, `apps/web` ni `packages/shared` — le rebase est vide, mais l'ordre a été fixé par l'utilisateur.
+- **Séquencement** : développement mené en parallèle de `worktree-import-produits-supabase`, **merge après le sien** (décision utilisateur). Cette branche ne touche aucun fichier de `apps/api`, `apps/web` ni `packages/shared` : aucun conflit possible, le rebase restera vide. Ne pas ouvrir la PR au merge avant que celle de l'import soit passée.
 - **Le contrat `application/json` de `POST /api/v1/products` ne change pas.** Le script d'import en dépend. Un test de non-régression le verrouille (Tâche 1).
 - Langue : UI, messages d'erreur et messages de commit en **français** ; **commentaires de code et JSDoc en anglais**.
 - Enveloppe d'erreur API : `{ code: "MAJUSCULES", message: "français", details? }`. Réutiliser les codes existants avant d'en créer.
@@ -47,77 +47,21 @@ Le endpoint accepte `multipart/form-data` avec une partie `donnees` (JSON) et un
 
 **Files:**
 
-- Modify: `packages/shared/src/schemas/catalog.ts`
 - Modify: `apps/api/src/routes/products.ts:197-303` (le handler `POST /`)
 - Create: `apps/api/test/products-creation-multipart.test.ts`
+
+Aucune modification de `packages/shared` : la voie multipart réutilise
+`productCreateSchema` tel quel. Le schéma dédié aux variantes arrive en Tâche 2,
+au moment où il porte enfin quelque chose de différent.
 
 **Interfaces:**
 
 - Consumes : `genererSkuProduit`, `barcodeDejaUtilise`, `categorieExiste` (déjà importés dans `products.ts`), les constantes `TAILLE_MAX_IMAGE`, `EXTENSIONS_IMAGE`, `MARGE_ENTETES_MULTIPART` (déclarées `apps/api/src/routes/products.ts:516-524`).
 - Produces :
-  - `productCreateMultipartSchema` — même forme que `productCreateSchema`, plus `variants?: VariantCreateInput[]` (le champ est ajouté en Tâche 2 ; en Tâche 1 le schéma existe mais sans `variants`).
   - `POST /api/v1/products` en multipart → `201 { id, sku }`, identique à la voie JSON.
+  - `creerProduit(c, donnees, image)` — fonction de création partagée par les deux formats, étendue aux variantes en Tâche 2.
 
-- [ ] **Step 1: Déplacer `variantCreateSchema` avant `productCreateSchema` et extraire l'objet de base**
-
-`productCreateSchema` est un `ZodEffects` (il porte un `.refine`) : **on ne peut pas l'étendre**. Il faut extraire l'objet nu, puis reposer le `refine` sur chaque export.
-
-Dans `packages/shared/src/schemas/catalog.ts`, déplacer le bloc `export const variantCreateSchema = z.object({…})` (actuellement ligne 96) **au-dessus** de `productCreateSchema` (ligne 36), puis remplacer `productCreateSchema` par :
-
-```ts
-export const MAX_VARIANTES_CREATION = 50
-
-// Shared by both product creation schemas: the floor price may not exceed the
-// selling price. Kept as a standalone predicate because `productCreateSchema`
-// is a ZodEffects once refined and can no longer be extended.
-const plancherInferieurAuPrix = (v: { price: number; minPrice?: number }) =>
-  v.minPrice === undefined || v.minPrice <= v.price
-
-const MESSAGE_PLANCHER = {
-  message: "Le prix plancher doit être inférieur ou égal au prix de vente",
-  path: ["minPrice"],
-}
-
-const productCreateBase = z.object({
-  name: z.string().trim().min(1, "Le nom est requis"),
-  description: z.string().trim().min(1).optional(),
-  categoryId: z.string().min(1).optional(),
-  barcode: z.string().trim().min(1).optional(),
-  price: z
-    .number()
-    .int("Le prix doit être un entier")
-    .positive("Le prix doit être positif"),
-  minPrice: z
-    .number()
-    .int("Le prix plancher doit être un entier")
-    .positive("Le prix plancher doit être positif")
-    .optional(),
-  defaultMinStock: z.number().int().nonnegative().optional(),
-  trackLots: z.boolean().optional(),
-  sku: z.string().trim().min(1).optional(),
-})
-
-export const productCreateSchema = productCreateBase.refine(
-  plancherInferieurAuPrix,
-  MESSAGE_PLANCHER
-)
-
-// Multipart creation: same fields, plus the variants carried in the same call.
-// The `variants` field itself lands in Task 2.
-export const productCreateMultipartSchema = productCreateBase.refine(
-  plancherInferieurAuPrix,
-  MESSAGE_PLANCHER
-)
-```
-
-Puis exporter les nouveautés depuis `packages/shared/src/index.ts` (exports **nommés** uniquement, jamais `export *`) : ajouter `productCreateMultipartSchema` et `MAX_VARIANTES_CREATION` à la liste existante qui contient déjà `productCreateSchema`.
-
-- [ ] **Step 2: Vérifier que rien n'a bougé côté types**
-
-Run: `bun run typecheck`
-Expected: PASS. Si `productCreateSchema` est utilisé ailleurs avec `.extend` ou `.shape`, le typecheck le signalera ici — le seul appelant attendu est `apps/api/src/routes/products.ts`.
-
-- [ ] **Step 3: Écrire les tests d'intégration qui échouent**
+- [ ] **Step 1: Écrire les tests d'intégration qui échouent**
 
 Créer `apps/api/test/products-creation-multipart.test.ts` :
 
@@ -322,20 +266,21 @@ describe("POST /api/v1/products — création multipart", () => {
 })
 ```
 
-- [ ] **Step 4: Lancer les tests et vérifier qu'ils échouent**
+- [ ] **Step 2: Lancer les tests et vérifier qu'ils échouent**
 
 Run: `bun run --cwd apps/api test -- products-creation-multipart.test.ts`
 Expected: FAIL. Les appels multipart partent aujourd'hui dans `validerCorps`, qui fait `c.req.json()` sur un corps multipart et échoue → `400 VALIDATION` au lieu de `201`. Le test « voie JSON inchangée » doit en revanche **déjà passer** : c'est le filet de non-régression.
 
-- [ ] **Step 5: Extraire la fonction de création commune**
+- [ ] **Step 3: Extraire la fonction de création commune**
 
 Dans `apps/api/src/routes/products.ts`, remplacer le handler `POST /` (lignes 197-303) par une branche de format et une fonction unique. Ajouter en haut du fichier les imports manquants :
 
 ```ts
 import type { Context } from "hono"
-import { productCreateMultipartSchema } from "shared"
 import type { z } from "zod"
 ```
+
+`productCreateSchema` est déjà importé en tête de fichier.
 
 Puis :
 
@@ -345,7 +290,7 @@ type ContexteProduits = Context<{
   Variables: PermissionVariables
 }>
 
-type DonneesCreation = z.infer<typeof productCreateMultipartSchema>
+type DonneesCreation = z.infer<typeof productCreateSchema>
 
 productsRoute.post(
   "/",
@@ -392,7 +337,7 @@ async function creerDepuisMultipart(c: ContexteProduits): Promise<Response> {
       400
     )
   }
-  const parsed = productCreateMultipartSchema.safeParse(json)
+  const parsed = productCreateSchema.safeParse(json)
   if (!parsed.success) {
     return c.json(
       {
@@ -560,21 +505,21 @@ async function creerProduit(
 
 Déplacer les constantes `TAILLE_MAX_IMAGE`, `EXTENSIONS_IMAGE` et `MARGE_ENTETES_MULTIPART` (aujourd'hui lignes 516-524, après leur nouvel usage) **au-dessus** de `productsRoute.post("/")`, sans quoi elles sont référencées avant déclaration.
 
-- [ ] **Step 6: Lancer les tests et vérifier qu'ils passent**
+- [ ] **Step 4: Lancer les tests et vérifier qu'ils passent**
 
 Run: `bun run --cwd apps/api test -- products-creation-multipart.test.ts`
 Expected: PASS, 8/8.
 
-- [ ] **Step 7: Vérifier la non-régression de toute la suite produits**
+- [ ] **Step 5: Vérifier la non-régression de toute la suite produits**
 
 Run: `bun run --cwd apps/api test -- products.test.ts` puis `bun run --cwd apps/api test -- images.test.ts`
 Expected: PASS. Ces deux fichiers couvrent la voie JSON et l'endpoint image séparé, aucun des deux ne doit bouger.
 
-- [ ] **Step 8: Commit**
+- [ ] **Step 6: Commit**
 
 ```bash
-git add packages/shared/src/schemas/catalog.ts packages/shared/src/index.ts \
-        apps/api/src/routes/products.ts apps/api/test/products-creation-multipart.test.ts
+git add apps/api/src/routes/products.ts \
+        apps/api/test/products-creation-multipart.test.ts
 git commit -m "feat(api): création de produit en multipart avec image atomique"
 ```
 
@@ -592,14 +537,53 @@ Le même appel porte désormais les variantes. La variante implicite « Standard
 
 **Interfaces:**
 
-- Consumes : `creerProduit(c, donnees, image)` et `productCreateMultipartSchema` (Tâche 1), `genererSkuVariante(skuProduit, attributes)` (`apps/api/src/lib/sku.ts`).
+- Consumes : `creerProduit(c, donnees, image)` (Tâche 1), qui valide aujourd'hui avec `productCreateSchema` ; `genererSkuVariante(skuProduit, attributes)` (`apps/api/src/lib/sku.ts`) ; `variantCreateSchema` (`packages/shared/src/schemas/catalog.ts:96`).
 - Produces : `productCreateMultipartSchema` porte `variants?: VariantCreateInput[]` borné à `MAX_VARIANTES_CREATION`.
 
-- [ ] **Step 1: Ajouter le champ `variants` au schéma multipart**
+- [ ] **Step 1: Créer le schéma multipart dans le paquet partagé**
 
-Dans `packages/shared/src/schemas/catalog.ts`, remplacer l'export `productCreateMultipartSchema` de la Tâche 1 par :
+`productCreateSchema` est un `ZodEffects` (il porte un `.refine`) : **on ne peut pas l'étendre**. Il faut extraire l'objet nu, puis reposer le `refine` sur chaque export.
+
+Dans `packages/shared/src/schemas/catalog.ts`, déplacer d'abord le bloc `export const variantCreateSchema = z.object({…})` (actuellement ligne 96) **au-dessus** de `productCreateSchema` (ligne 36) — le nouveau schéma le référence. Puis remplacer `productCreateSchema` par :
 
 ```ts
+export const MAX_VARIANTES_CREATION = 50
+
+// Shared by both creation schemas: the floor price may not exceed the selling
+// price. Kept as a standalone predicate because a refined schema is a
+// ZodEffects and can no longer be extended.
+const plancherInferieurAuPrix = (v: { price: number; minPrice?: number }) =>
+  v.minPrice === undefined || v.minPrice <= v.price
+
+const MESSAGE_PLANCHER = {
+  message: "Le prix plancher doit être inférieur ou égal au prix de vente",
+  path: ["minPrice"],
+}
+
+const productCreateBase = z.object({
+  name: z.string().trim().min(1, "Le nom est requis"),
+  description: z.string().trim().min(1).optional(),
+  categoryId: z.string().min(1).optional(),
+  barcode: z.string().trim().min(1).optional(),
+  price: z
+    .number()
+    .int("Le prix doit être un entier")
+    .positive("Le prix doit être positif"),
+  minPrice: z
+    .number()
+    .int("Le prix plancher doit être un entier")
+    .positive("Le prix plancher doit être positif")
+    .optional(),
+  defaultMinStock: z.number().int().nonnegative().optional(),
+  trackLots: z.boolean().optional(),
+  sku: z.string().trim().min(1).optional(),
+})
+
+export const productCreateSchema = productCreateBase.refine(
+  plancherInferieurAuPrix,
+  MESSAGE_PLANCHER
+)
+
 // Multipart creation: same fields, plus the variants carried in the same call.
 // Bounded because every variant adds a statement to a single D1 batch.
 export const productCreateMultipartSchema = productCreateBase
@@ -614,6 +598,10 @@ export const productCreateMultipartSchema = productCreateBase
   })
   .refine(plancherInferieurAuPrix, MESSAGE_PLANCHER)
 ```
+
+Exporter les nouveautés depuis `packages/shared/src/index.ts` (exports **nommés** uniquement, jamais `export *`) : ajouter `productCreateMultipartSchema` et `MAX_VARIANTES_CREATION` à la liste qui contient déjà `productCreateSchema`.
+
+Puis, dans `apps/api/src/routes/products.ts`, brancher la voie multipart sur le nouveau schéma : importer `productCreateMultipartSchema` depuis `shared`, remplacer `productCreateSchema.safeParse(json)` par `productCreateMultipartSchema.safeParse(json)`, et faire pointer `type DonneesCreation = z.infer<typeof productCreateMultipartSchema>`. La voie JSON continue de valider avec `productCreateSchema`.
 
 - [ ] **Step 2: Écrire les tests qui échouent**
 
@@ -2103,13 +2091,17 @@ Expected: seules les clés des produits réellement créés. Une clé sans produ
 
 - [ ] **Step 4: Vérifier la non-régression du script d'import**
 
-Le script appelle `POST /api/v1/products` en JSON puis téléverse l'image séparément. Lancer son dry-run contre l'API locale :
+Le script appelle `POST /api/v1/products` en JSON puis téléverse l'image séparément.
+
+**Si `scripts/import-produits-supabase/` n'existe pas encore** (l'import n'est pas mergé au moment de l'exécution), la couverture repose entièrement sur le test « la voie application/json reste inchangée » de la Tâche 1 : le vérifier vert et passer à l'étape suivante.
+
+**S'il existe**, lancer son dry-run contre l'API locale :
 
 ```bash
 bun run --cwd scripts/import-produits-supabase run.ts --dry-run
 ```
 
-Expected: aucun échec de création. Si le script a été mergé avec une autre commande, consulter `scripts/import-produits-supabase/README.md`.
+Expected: aucun échec de création. Consulter `scripts/import-produits-supabase/README.md` si la commande diffère.
 
 - [ ] **Step 5: Suites complètes**
 
