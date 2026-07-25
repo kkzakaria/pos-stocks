@@ -206,6 +206,92 @@ describe("API utilisateurs", () => {
     expect(corpsIsolation.total).toBe(4)
   })
 
+  it("filtres recherche/role/actif : appliqués au total, combinables, métacaractères LIKE neutralisés, valeurs invalides → 400", async () => {
+    const { ownerCookie } = await bootstrapOwner()
+    // 4 comptes attendus : le propriétaire du bootstrap + les 3 ci-dessous.
+    await createUser(ownerCookie, {
+      name: "Awa Traoré",
+      email: "awa@exemple.com",
+      role: "staff",
+    })
+    await createUser(ownerCookie, {
+      name: "Awa Diallo",
+      email: "awa.diallo@exemple.com",
+      role: "auditor",
+    })
+    await createUser(ownerCookie, {
+      name: "Bakary Koné",
+      email: "bakary@exemple.com",
+      role: "stock_manager",
+    })
+
+    const lister = async (query: string) => {
+      const res = await app.request(
+        `/api/v1/users${query}`,
+        { headers: { cookie: ownerCookie } },
+        env
+      )
+      expect(res.status).toBe(200)
+      return res.json<{
+        users: Array<{ id: string; name: string; email: string; role: string }>
+        total: number
+      }>()
+    }
+
+    expect((await lister("")).total).toBe(4)
+
+    // Recherche sur le nom, insensible à la casse (ASCII), et sur l'email.
+    const parNom = await lister("?recherche=awa")
+    expect(parNom.total).toBe(2)
+    expect(parNom.users.map((u) => u.name)).toEqual([
+      "Awa Diallo",
+      "Awa Traoré",
+    ])
+    const parEmail = await lister("?recherche=bakary%40exemple.com")
+    expect(parEmail.total).toBe(1)
+    expect(parEmail.users[0]?.name).toBe("Bakary Koné")
+
+    // Filtre de rôle, puis de statut après désactivation d'un compte.
+    const parRole = await lister("?role=staff")
+    expect(parRole.total).toBe(1)
+    expect(parRole.users[0]?.email).toBe("awa@exemple.com")
+
+    const desactivation = await patchJson(
+      ownerCookie,
+      `/api/v1/users/${parRole.users[0]?.id}/statut`,
+      { isActive: false }
+    )
+    expect(desactivation.status).toBe(200)
+
+    const inactifs = await lister("?actif=false")
+    expect(inactifs.total).toBe(1)
+    expect(inactifs.users[0]?.email).toBe("awa@exemple.com")
+    expect((await lister("?actif=true")).total).toBe(3)
+
+    // Filtres combinables : « Awa » ∩ auditor ne laisse qu'Awa Diallo.
+    const combine = await lister("?recherche=awa&role=auditor")
+    expect(combine.total).toBe(1)
+    expect(combine.users[0]?.name).toBe("Awa Diallo")
+
+    // Le total reste celui du filtre, pas celui de la page.
+    const pagine = await lister("?recherche=awa&limite=1")
+    expect(pagine.users).toHaveLength(1)
+    expect(pagine.total).toBe(2)
+
+    // Les métacaractères LIKE saisis par l'utilisateur sont littéraux.
+    expect((await lister("?recherche=%25")).total).toBe(0)
+    expect((await lister("?recherche=_")).total).toBe(0)
+
+    for (const query of ["?role=inconnu", "?actif=oui"]) {
+      const res = await app.request(
+        `/api/v1/users${query}`,
+        { headers: { cookie: ownerCookie } },
+        env
+      )
+      expect(res.status).toBe(400)
+    }
+  })
+
   it("changement de rôle : owner OK ; dernier owner protégé ; admin limité", async () => {
     const { organizationId, ownerCookie, ownerId } = await bootstrapOwner()
     const staff = await createUserWithRole(organizationId, "staff")

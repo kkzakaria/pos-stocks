@@ -1,8 +1,13 @@
 import { Hono } from "hono"
 import type { ContentfulStatusCode } from "hono/utils/http-status"
 import { drizzle } from "drizzle-orm/d1"
-import { and, asc, eq, inArray, ne, sql } from "drizzle-orm"
-import { userCreateSchema, userRoleSchema, userStatusSchema } from "shared"
+import { and, asc, eq, inArray, ne, or, sql } from "drizzle-orm"
+import {
+  COMPANY_ROLES,
+  userCreateSchema,
+  userRoleSchema,
+  userStatusSchema,
+} from "shared"
 import type { CompanyRole } from "shared"
 import { APIError } from "better-auth/api"
 import * as schema from "../db/schema"
@@ -14,6 +19,7 @@ import type { PermissionVariables } from "../middleware/permissions"
 import { validerCorps } from "../lib/validation"
 import { lirePagination } from "../lib/pagination"
 import { requeterParLots } from "../lib/db-batch"
+import { likeEchappe } from "../lib/recherche"
 import type { Env } from "../env"
 
 export const usersRoute = new Hono<{
@@ -126,10 +132,46 @@ usersRoute.get("/", requireRole("owner", "admin", "auditor"), async (c) => {
   const pagination = lirePagination(c)
   if (pagination instanceof Response) return pagination
   const { page, limite } = pagination
+
+  // Filters mirror the products list: search on name/email, company role and
+  // account status. They are applied server-side so that `total` — and thus
+  // pagination — stays truthful whatever the filter.
+  const recherche = c.req.query("recherche")
+  const roleFiltre = c.req.query("role")
+  const actif = c.req.query("actif")
+  if (
+    roleFiltre !== undefined &&
+    !(COMPANY_ROLES as readonly string[]).includes(roleFiltre)
+  ) {
+    return c.json({ code: "VALIDATION", message: "Rôle inconnu" }, 400)
+  }
+  if (actif !== undefined && actif !== "true" && actif !== "false") {
+    return c.json(
+      { code: "VALIDATION", message: "Statut invalide (true ou false)" },
+      400
+    )
+  }
+
+  const conditions = [eq(schema.member.organizationId, organizationId)]
+  if (roleFiltre !== undefined) {
+    conditions.push(eq(schema.member.role, roleFiltre))
+  }
+  if (actif !== undefined) {
+    conditions.push(eq(schema.user.isActive, actif === "true"))
+  }
+  if (recherche) {
+    const filtre = or(
+      likeEchappe(schema.user.name, recherche),
+      likeEchappe(schema.user.email, recherche)
+    )
+    if (filtre) conditions.push(filtre)
+  }
+
   const totalRows = await db
     .select({ total: sql<number>`COUNT(*)` })
     .from(schema.member)
-    .where(eq(schema.member.organizationId, organizationId))
+    .innerJoin(schema.user, eq(schema.member.userId, schema.user.id))
+    .where(and(...conditions))
   const total = totalRows[0]?.total ?? 0
 
   const rows = await db
@@ -142,7 +184,7 @@ usersRoute.get("/", requireRole("owner", "admin", "auditor"), async (c) => {
     })
     .from(schema.member)
     .innerJoin(schema.user, eq(schema.member.userId, schema.user.id))
-    .where(eq(schema.member.organizationId, organizationId))
+    .where(and(...conditions))
     .orderBy(asc(schema.user.name), asc(schema.user.id))
     .limit(limite)
     .offset((page - 1) * limite)
