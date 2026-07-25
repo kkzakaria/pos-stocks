@@ -63,6 +63,9 @@ CD : `deploy.yml` migre la D1 de prod puis déploie les deux Workers via `bunx w
 - Dédup de données avant pose d'un index unique : dans la même migration, via CTE `AS MATERIALIZED` + `ROW_NUMBER()` — jamais de sous-requête corrélée (elle relit la table en cours d'UPDATE et casse à 3+ doublons).
 - Le ticket 80 mm s'imprime via `createPortal(document.body)` — un ancêtre `print:hidden` rendrait la page blanche, aucune classe descendante ne peut le réafficher.
 - Testing Library + montants `fr-FR` : espaces insécables étroites (U+202F) — utiliser les helpers regex existants (`texteMontant`) plutôt que `getByText(formaterMontant(x))`.
+- TanStack Router **reparse les `search params` en types JS** : `?actif=false` arrive en booléen, pas en `"false"`. Un `validateSearch` qui teste la chaîne laisse tomber le filtre au rechargement, sans erreur. Typer le champ `boolean` et ne convertir en chaîne qu'au moment de construire la requête API.
+- `<SelectValue>` avec **fonction de rendu ignore `placeholder`** (base-ui) : la fonction est appelée même à vide et son retour `undefined` affiche un champ blanc. Écrire le libellé de repli dans la fonction — de préférence via le repli du lookup (`find(…)?.name ?? "— choisir —"`), qui couvre aussi la remise à zéro après succès quand l'option vient de quitter la liste.
+- `TableHeader sticky` **n'a d'effet que si le conteneur de la table est lui-même la boîte de défilement vertical** : sans `containerClassName="min-h-0 flex-1 overflow-y-auto"` dans une colonne pleine hauteur, l'en-tête ne colle jamais (échoue en silence).
 
 ## Tests
 
