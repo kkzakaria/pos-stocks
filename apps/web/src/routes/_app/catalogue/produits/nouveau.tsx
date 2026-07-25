@@ -59,6 +59,7 @@ function NouveauProduitPage() {
       {peutEcrire ? (
         <FormulaireCreationProduit
           categories={categories.data?.categories ?? []}
+          categoriesEnErreur={categories.isError}
           surSucces={(productId) =>
             void navigate({
               to: "/catalogue/produits/$productId",
@@ -83,10 +84,12 @@ function NouveauProduitPage() {
  */
 export function FormulaireCreationProduit({
   categories,
+  categoriesEnErreur = false,
   surSucces,
   surAnnulation,
 }: {
   categories: Categorie[]
+  categoriesEnErreur?: boolean
   surSucces: (productId: string) => void
   surAnnulation?: () => void
 }) {
@@ -201,6 +204,14 @@ export function FormulaireCreationProduit({
               </ComboboxList>
             </ComboboxContent>
           </Combobox>
+          {/* An empty list after a failed request is indistinguishable from an
+              organisation with no category at all: say which one it is. The
+              category stays optional, so submission is never blocked. */}
+          {categoriesEnErreur && (
+            <p role="alert" className="text-xs text-destructive">
+              La liste des catégories n'a pas pu être chargée.
+            </p>
+          )}
         </div>
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="p-barcode">Code-barres (optionnel)</Label>

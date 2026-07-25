@@ -98,4 +98,31 @@ describe("FormulaireCreationProduit", () => {
     )
     expect(screen.getByLabelText<HTMLInputElement>("Nom").value).toBe("Doublon")
   })
+
+  it("signale que la liste des catégories n'a pas pu être chargée", () => {
+    // An empty combobox after a failed request looks exactly like an
+    // organisation without categories: the message tells the two apart, and
+    // creation stays possible since the category is optional.
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    })
+    render(
+      <QueryClientProvider client={client}>
+        <FormulaireCreationProduit
+          categories={[]}
+          categoriesEnErreur
+          surSucces={vi.fn()}
+        />
+      </QueryClientProvider>
+    )
+
+    expect(
+      screen
+        .getAllByRole("alert")
+        .some((n) => n.textContent.includes("catégories"))
+    ).toBe(true)
+    expect(
+      screen.getByRole("button", { name: "Créer le produit" })
+    ).toBeTruthy()
+  })
 })

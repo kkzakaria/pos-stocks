@@ -16,6 +16,27 @@ type PaireAttribut = { cle: string; valeur: string }
 const PAIRE_VIDE: PaireAttribut = { cle: "", valeur: "" }
 
 /**
+ * Mirrors `genererSkuVariante` on the API side (apps/api/src/lib/sku.ts): the
+ * variant SKU suffix derives from the attribute VALUES, never from the name.
+ * Two variants whose values normalise the same collide on the unique SKU index
+ * and make the API reject the whole creation, so the clash is caught here
+ * instead of after the round trip. Both implementations must stay aligned.
+ */
+function suffixeSku(attributes: Record<string, string>): string {
+  return Object.values(attributes)
+    .map((valeur) =>
+      valeur
+        .normalize("NFD")
+        .replace(/[̀-ͯ]/g, "")
+        .toUpperCase()
+        .replace(/[^A-Z0-9]+/g, "-")
+        .replace(/^-+|-+$/g, "")
+    )
+    .filter((valeur) => valeur.length > 0)
+    .join("-")
+}
+
+/**
  * Controlled variant list: holds the draft row locally and hands the committed
  * variants to its parent. It issues no request — variants travel with the
  * creation call, so nothing here is persisted until the product is submitted.
@@ -47,6 +68,16 @@ export function FormulaireVariantes({
       // Without an attribute the API generates the same SKU as the implicit
       // "Standard" variant and refuses the whole creation.
       setErreur("Renseignez au moins un attribut (ex. taille, couleur)")
+      return
+    }
+    const suffixe = suffixeSku(attributes)
+    if (value.some((v) => suffixeSku(v.attributes) === suffixe)) {
+      // The clash is on normalised values, so distinct keys or a different
+      // name do not avoid it: « teinte: Rouge » and « couleur: Rouge » both
+      // yield "-ROUGE".
+      setErreur(
+        `Une variante produit déjà la même référence « ${suffixe} » — changez la valeur d'un attribut`
+      )
       return
     }
     // Validate prices: must be integers and positive if provided.

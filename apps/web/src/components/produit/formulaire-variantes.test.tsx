@@ -201,4 +201,80 @@ describe("FormulaireVariantes", () => {
       },
     ])
   })
+
+  it("refuse une variante dont les valeurs d'attributs produisent une référence déjà prise", () => {
+    // The API derives the variant SKU from attribute VALUES, so distinct keys
+    // do not avoid the clash: both yield the "-ROUGE" suffix.
+    const onChange = vi.fn()
+    render(
+      <FormulaireVariantes
+        value={[{ name: "Rouge", attributes: { teinte: "Rouge" } }]}
+        onChange={onChange}
+      />
+    )
+
+    fireEvent.change(screen.getByLabelText("Nom (ex : M / Rouge)"), {
+      target: { value: "Autre rouge" },
+    })
+    fireEvent.change(screen.getByLabelText("Attribut 1 — nom"), {
+      target: { value: "couleur" },
+    })
+    fireEvent.change(screen.getByLabelText("Attribut 1 — valeur"), {
+      target: { value: "Rouge" },
+    })
+    fireEvent.click(screen.getByRole("button", { name: "Ajouter la variante" }))
+
+    expect(onChange).not.toHaveBeenCalled()
+    expect(screen.getByRole("alert").textContent).toContain("ROUGE")
+  })
+
+  it("ne se laisse pas contourner par la casse ni par les accents", () => {
+    const onChange = vi.fn()
+    render(
+      <FormulaireVariantes
+        value={[{ name: "Rouge", attributes: { teinte: "Rouge" } }]}
+        onChange={onChange}
+      />
+    )
+
+    fireEvent.change(screen.getByLabelText("Nom (ex : M / Rouge)"), {
+      target: { value: "Rougé minuscule" },
+    })
+    fireEvent.change(screen.getByLabelText("Attribut 1 — nom"), {
+      target: { value: "teinte" },
+    })
+    fireEvent.change(screen.getByLabelText("Attribut 1 — valeur"), {
+      target: { value: "rougé" },
+    })
+    fireEvent.click(screen.getByRole("button", { name: "Ajouter la variante" }))
+
+    expect(onChange).not.toHaveBeenCalled()
+  })
+
+  it("accepte deux variantes de même nom dont les attributs diffèrent", () => {
+    // The name plays no part in the SKU: only the values matter.
+    const onChange = vi.fn()
+    render(
+      <FormulaireVariantes
+        value={[{ name: "Standard", attributes: { taille: "M" } }]}
+        onChange={onChange}
+      />
+    )
+
+    fireEvent.change(screen.getByLabelText("Nom (ex : M / Rouge)"), {
+      target: { value: "Standard" },
+    })
+    fireEvent.change(screen.getByLabelText("Attribut 1 — nom"), {
+      target: { value: "taille" },
+    })
+    fireEvent.change(screen.getByLabelText("Attribut 1 — valeur"), {
+      target: { value: "L" },
+    })
+    fireEvent.click(screen.getByRole("button", { name: "Ajouter la variante" }))
+
+    expect(onChange).toHaveBeenCalledWith([
+      { name: "Standard", attributes: { taille: "M" } },
+      { name: "Standard", attributes: { taille: "L" } },
+    ])
+  })
 })
