@@ -49,6 +49,21 @@ export function FormulaireVariantes({
       setErreur("Renseignez au moins un attribut (ex. taille, couleur)")
       return
     }
+    // Validate prices: must be integers and positive if provided.
+    if (prix) {
+      const prixNum = Number(prix)
+      if (!Number.isInteger(prixNum) || prixNum <= 0) {
+        setErreur("Le prix doit être un entier positif")
+        return
+      }
+    }
+    if (plancher) {
+      const plancherNum = Number(plancher)
+      if (!Number.isInteger(plancherNum) || plancherNum <= 0) {
+        setErreur("Le plancher doit être un entier positif")
+        return
+      }
+    }
     const variante: VarianteSaisie = { name: nom.trim(), attributes }
     if (prix) variante.priceOverride = Number(prix)
     if (plancher) variante.minPriceOverride = Number(plancher)
