@@ -86,15 +86,23 @@ produit comme variantes, avec la même limite de trois tentatives puis 409.
 `false`. L'ajout ultérieur d'une première variante explicite, via
 `POST /:id/variants`, désactive cette implicite et bascule `hasVariants` à `true`.
 
-**Quand des variantes explicites accompagnent la création, l'implicite n'est pas
-créée du tout** et le produit naît avec `hasVariants: true`. Créer puis désactiver
-dans le même batch produirait une ligne morte qu'aucun mouvement de stock ne peut
-référencer, puisque le produit vient de naître.
+**L'implicite est créée dans tous les cas**, y compris quand des variantes
+explicites accompagnent la création. Seuls deux drapeaux varient :
 
-Conséquence assumée : un produit à variantes n'a pas exactement le même contenu de
-table selon le chemin emprunté — création atomique (aucune implicite) ou ajout
-incrémental depuis la fiche (une implicite désactivée). Les deux états sont
-équivalents pour toute lecture métier, qui ne considère que les variantes actives.
+| Création                | Variante implicite         | `hasVariants` |
+| ----------------------- | -------------------------- | ------------- |
+| sans variante explicite | insérée, active            | `false`       |
+| avec variantes          | insérée, `isActive: false` | `true`        |
+
+**L'état final ne dépend pas du chemin emprunté** : un produit à variantes
+présente exactement les mêmes lignes qu'il ait été créé d'un bloc ou complété
+depuis sa fiche. C'est vérifiable à l'octet près, `product_variants` ne portant
+pas de colonne `updatedAt` — insérer directement avec `isActive: false` est
+indiscernable d'insérer puis désactiver.
+
+Cette convergence est une propriété à tenir, pas une coïncidence : elle évite
+qu'une lecture, un export ou une reprise d'inventaire ait à connaître l'histoire
+d'un produit pour l'interpréter.
 
 ### Codes d'erreur des conflits
 
@@ -174,9 +182,13 @@ Autour :
 
 - multipart avec image et deux variantes → 201 ; produit, variantes et `imageKey`
   vérifiés en base ; image relisible via `GET /api/v1/files/:key` ; `hasVariants`
-  à `true` et **aucune variante implicite** créée ;
+  à `true` et variante implicite « Standard » présente mais inactive ;
 - multipart sans image ni variante → 201, équivalent au JSON : variante implicite
-  « Standard » présente et `hasVariants` à `false` ;
+  active et `hasVariants` à `false` ;
+- **équivalence des chemins** : un produit créé d'un bloc avec une variante et un
+  produit créé nu puis complété par `POST /:id/variants` présentent les mêmes
+  lignes de `product_variants` (nom, attributs, SKU, `isActive`) et le même
+  `hasVariants`. C'est la propriété de convergence, elle mérite son test ;
 - **`application/json` inchangé → 201** — non-régression du contrat de l'import ;
 - deux variantes du même envoi partageant un code-barres → 409, rien créé ;
 - image de plus de 2 Mo → 400, rien créé ;
