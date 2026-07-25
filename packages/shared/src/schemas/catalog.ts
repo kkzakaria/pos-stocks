@@ -33,29 +33,73 @@ export const supplierUpdateSchema = z
     message: "Aucun champ à modifier",
   })
 
-export const productCreateSchema = z
-  .object({
-    name: z.string().trim().min(1, "Le nom est requis"),
-    description: z.string().trim().min(1).optional(),
-    categoryId: z.string().min(1).optional(),
-    barcode: z.string().trim().min(1).optional(),
-    price: z
-      .number()
-      .int("Le prix doit être un entier")
-      .positive("Le prix doit être positif"),
-    minPrice: z
-      .number()
-      .int("Le prix plancher doit être un entier")
-      .positive("Le prix plancher doit être positif")
+export const variantCreateSchema = z.object({
+  name: z.string().trim().min(1, "Le nom est requis"),
+  attributes: z.record(z.string(), z.string().trim().min(1)).default({}),
+  barcode: z.string().trim().min(1).optional(),
+  priceOverride: z
+    .number()
+    .int("Le prix doit être un entier")
+    .positive("Le prix doit être positif")
+    .optional(),
+  minPriceOverride: z
+    .number()
+    .int("Le prix plancher doit être un entier")
+    .positive("Le prix plancher doit être positif")
+    .optional(),
+  sku: z.string().trim().min(1).optional(),
+})
+
+export const MAX_VARIANTES_CREATION = 50
+
+// Shared by both creation schemas: the floor price may not exceed the selling
+// price. Kept as a standalone predicate because a refined schema is a
+// ZodEffects and can no longer be extended.
+const plancherInferieurAuPrix = (v: { price: number; minPrice?: number }) =>
+  v.minPrice === undefined || v.minPrice <= v.price
+
+const MESSAGE_PLANCHER = {
+  message: "Le prix plancher doit être inférieur ou égal au prix de vente",
+  path: ["minPrice"],
+}
+
+const productCreateBase = z.object({
+  name: z.string().trim().min(1, "Le nom est requis"),
+  description: z.string().trim().min(1).optional(),
+  categoryId: z.string().min(1).optional(),
+  barcode: z.string().trim().min(1).optional(),
+  price: z
+    .number()
+    .int("Le prix doit être un entier")
+    .positive("Le prix doit être positif"),
+  minPrice: z
+    .number()
+    .int("Le prix plancher doit être un entier")
+    .positive("Le prix plancher doit être positif")
+    .optional(),
+  defaultMinStock: z.number().int().nonnegative().optional(),
+  trackLots: z.boolean().optional(),
+  sku: z.string().trim().min(1).optional(),
+})
+
+export const productCreateSchema = productCreateBase.refine(
+  plancherInferieurAuPrix,
+  MESSAGE_PLANCHER
+)
+
+// Multipart creation: same fields, plus the variants carried in the same call.
+// Bounded because every variant adds a statement to a single D1 batch.
+export const productCreateMultipartSchema = productCreateBase
+  .extend({
+    variants: z
+      .array(variantCreateSchema)
+      .max(
+        MAX_VARIANTES_CREATION,
+        `Maximum ${MAX_VARIANTES_CREATION} variantes`
+      )
       .optional(),
-    defaultMinStock: z.number().int().nonnegative().optional(),
-    trackLots: z.boolean().optional(),
-    sku: z.string().trim().min(1).optional(),
   })
-  .refine((v) => v.minPrice === undefined || v.minPrice <= v.price, {
-    message: "Le prix plancher doit être inférieur ou égal au prix de vente",
-    path: ["minPrice"],
-  })
+  .refine(plancherInferieurAuPrix, MESSAGE_PLANCHER)
 
 export const productUpdateSchema = z
   .object({
@@ -93,23 +137,6 @@ export const productUpdateSchema = z
     }
   )
 
-export const variantCreateSchema = z.object({
-  name: z.string().trim().min(1, "Le nom est requis"),
-  attributes: z.record(z.string(), z.string().trim().min(1)).default({}),
-  barcode: z.string().trim().min(1).optional(),
-  priceOverride: z
-    .number()
-    .int("Le prix doit être un entier")
-    .positive("Le prix doit être positif")
-    .optional(),
-  minPriceOverride: z
-    .number()
-    .int("Le prix plancher doit être un entier")
-    .positive("Le prix plancher doit être positif")
-    .optional(),
-  sku: z.string().trim().min(1).optional(),
-})
-
 export const variantUpdateSchema = z
   .object({
     barcode: z.string().trim().min(1).nullable().optional(),
@@ -134,6 +161,9 @@ export type CategoryUpdateInput = z.infer<typeof categoryUpdateSchema>
 export type SupplierCreateInput = z.infer<typeof supplierCreateSchema>
 export type SupplierUpdateInput = z.infer<typeof supplierUpdateSchema>
 export type ProductCreateInput = z.infer<typeof productCreateSchema>
+export type ProductCreateMultipartInput = z.infer<
+  typeof productCreateMultipartSchema
+>
 export type ProductUpdateInput = z.infer<typeof productUpdateSchema>
 export type VariantCreateInput = z.infer<typeof variantCreateSchema>
 export type VariantUpdateInput = z.infer<typeof variantUpdateSchema>

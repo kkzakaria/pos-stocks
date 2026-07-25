@@ -226,4 +226,206 @@ describe("POST /api/v1/products — création multipart", () => {
       expect(res.status).toBe(403)
     }
   })
+
+  it("crée produit et variantes en un seul appel : implicite inactive, hasVariants vrai", async () => {
+    const { ownerCookie } = await bootstrapOwner()
+
+    const res = await creerMultipart(ownerCookie, {
+      name: "Câble électrique",
+      price: 1500,
+      variants: [
+        {
+          name: "1.5 mm²",
+          attributes: { section: "1.5" },
+          priceOverride: 1500,
+        },
+        {
+          name: "2.5 mm²",
+          attributes: { section: "2.5" },
+          priceOverride: 2200,
+        },
+      ],
+    })
+    expect(res.status).toBe(201)
+    const { id, sku } = await res.json<{ id: string; sku: string }>()
+
+    const db = drizzle(env.DB, { schema })
+    // .at(0) rather than [0]: its return type stays T | undefined regardless
+    // of noUncheckedIndexedAccess, so the lookup keeps its optional-chain
+    // guard through no-unnecessary-condition.
+    const produit = (
+      await db.select().from(schema.products).where(eq(schema.products.id, id))
+    ).at(0)
+    expect(produit?.hasVariants).toBe(true)
+
+    const variantes = await db
+      .select()
+      .from(schema.productVariants)
+      .where(eq(schema.productVariants.productId, id))
+    expect(variantes).toHaveLength(3)
+
+    const implicite = variantes.find((v) => v.attributes === "{}")
+    expect(implicite?.name).toBe("Standard")
+    expect(implicite?.sku).toBe(`${sku}-STD`)
+    expect(implicite?.isActive).toBe(false)
+
+    const explicites = variantes.filter((v) => v.attributes !== "{}")
+    expect(explicites.map((v) => v.sku).sort()).toEqual([
+      `${sku}-1-5`,
+      `${sku}-2-5`,
+    ])
+    expect(explicites.every((v) => v.isActive)).toBe(true)
+  })
+
+  it("équivalence des chemins : création d'un bloc et création puis ajout donnent le même état", async () => {
+    const { ownerCookie } = await bootstrapOwner()
+    const db = drizzle(env.DB, { schema })
+
+    // Path A: everything in one call.
+    const bloc = await creerMultipart(ownerCookie, {
+      name: "Peinture A",
+      price: 9000,
+      variants: [{ name: "Blanc", attributes: { teinte: "Blanc" } }],
+    })
+    const { id: idBloc } = await bloc.json<{ id: string }>()
+
+    // Path B: bare product, then the variant added from the product sheet.
+    const nu = await creerJson(ownerCookie, { name: "Peinture B", price: 9000 })
+    const { id: idNu } = await nu.json<{ id: string }>()
+    const ajout = await app.request(
+      `/api/v1/products/${idNu}/variants`,
+      {
+        method: "POST",
+        headers: { "content-type": "application/json", cookie: ownerCookie },
+        body: JSON.stringify({
+          name: "Blanc",
+          attributes: { teinte: "Blanc" },
+        }),
+      },
+      env
+    )
+    expect(ajout.status).toBe(201)
+
+    const resume = async (produitId: string) => {
+      const produit = (
+        await db
+          .select()
+          .from(schema.products)
+          .where(eq(schema.products.id, produitId))
+      ).at(0)
+      const variantes = await db
+        .select()
+        .from(schema.productVariants)
+        .where(eq(schema.productVariants.productId, produitId))
+      return {
+        hasVariants: produit?.hasVariants,
+        // SKU prefixes differ between the two products, so compare suffixes.
+        variantes: variantes
+          .map((v) => ({
+            name: v.name,
+            attributes: v.attributes,
+            suffixe: v.sku.replace(produit?.sku ?? "", ""),
+            isActive: v.isActive,
+          }))
+          .sort((a, b) => a.suffixe.localeCompare(b.suffixe)),
+      }
+    }
+
+    expect(await resume(idBloc)).toEqual(await resume(idNu))
+  })
+
+  it("refuse une variante dont le code-barres est déjà pris, sans rien créer ni laisser d'image", async () => {
+    const { ownerCookie } = await bootstrapOwner()
+    // An existing product already holds the barcode.
+    expect(
+      (
+        await creerJson(ownerCookie, {
+          name: "Article témoin",
+          price: 1000,
+          barcode: "3011110000999",
+        })
+      ).status
+    ).toBe(201)
+
+    const res = await creerMultipart(
+      ownerCookie,
+      {
+        name: "Câble conflit",
+        price: 1500,
+        variants: [
+          { name: "1.5 mm²", attributes: { section: "1.5" } },
+          {
+            name: "2.5 mm²",
+            attributes: { section: "2.5" },
+            barcode: "3011110000999",
+          },
+        ],
+      },
+      petiteImage()
+    )
+    expect(res.status).toBe(409)
+    const corps = await res.json<{ code: string; message: string }>()
+    expect(corps.code).toBe("BARCODE_EXISTANT")
+    // The message must name the offending variant, not just the conflict.
+    expect(corps.message).toContain("2.5 mm²")
+
+    const db = drizzle(env.DB, { schema })
+    const produits = await db.select().from(schema.products)
+    expect(produits).toHaveLength(1)
+    expect(produits[0]?.name).toBe("Article témoin")
+    // No orphan object left behind by the rejected creation.
+    expect(await env.IMAGES.list()).toMatchObject({ objects: [] })
+  })
+
+  it("refuse deux variantes du même envoi partageant un code-barres", async () => {
+    const { ownerCookie } = await bootstrapOwner()
+
+    const res = await creerMultipart(ownerCookie, {
+      name: "Câble doublon",
+      price: 1500,
+      variants: [
+        { name: "1.5 mm²", attributes: { section: "1.5" }, barcode: "111" },
+        { name: "2.5 mm²", attributes: { section: "2.5" }, barcode: "111" },
+      ],
+    })
+    expect(res.status).toBe(409)
+    expect((await res.json<{ code: string }>()).code).toBe("BARCODE_EXISTANT")
+
+    const db = drizzle(env.DB, { schema })
+    expect(await db.select().from(schema.products)).toHaveLength(0)
+  })
+
+  it("refuse deux variantes dont le SKU calculé entre en collision", async () => {
+    const { ownerCookie } = await bootstrapOwner()
+
+    // Same attribute values → same generated suffix → same SKU.
+    const res = await creerMultipart(ownerCookie, {
+      name: "Câble collision",
+      price: 1500,
+      variants: [
+        { name: "Rouge", attributes: { teinte: "Rouge" } },
+        { name: "Rouge bis", attributes: { couleur: "Rouge" } },
+      ],
+    })
+    expect(res.status).toBe(409)
+    expect((await res.json<{ code: string }>()).code).toBe("SKU_EXISTANT")
+
+    const db = drizzle(env.DB, { schema })
+    expect(await db.select().from(schema.products)).toHaveLength(0)
+  })
+
+  it("refuse une variante sans attribut, qui entrerait en collision avec l'implicite", async () => {
+    const { ownerCookie } = await bootstrapOwner()
+
+    const res = await creerMultipart(ownerCookie, {
+      name: "Câble sans attribut",
+      price: 1500,
+      variants: [{ name: "Unique", attributes: {} }],
+    })
+    expect(res.status).toBe(409)
+    expect((await res.json<{ code: string }>()).code).toBe("SKU_EXISTANT")
+
+    const db = drizzle(env.DB, { schema })
+    expect(await db.select().from(schema.products)).toHaveLength(0)
+  })
 })

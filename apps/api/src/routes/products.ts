@@ -3,6 +3,7 @@ import { drizzle } from "drizzle-orm/d1"
 import { and, asc, eq, gt, inArray, isNull, or, sql } from "drizzle-orm"
 import {
   productCreateSchema,
+  productCreateMultipartSchema,
   productUpdateSchema,
   variantCreateSchema,
 } from "shared"
@@ -201,7 +202,7 @@ type ContexteProduits = Context<{
   Variables: PermissionVariables
 }>
 
-type DonneesCreation = z.infer<typeof productCreateSchema>
+type DonneesCreation = z.infer<typeof productCreateMultipartSchema>
 
 const TAILLE_MAX_IMAGE = 2 * 1024 * 1024
 
@@ -258,7 +259,7 @@ async function creerDepuisMultipart(c: ContexteProduits): Promise<Response> {
       400
     )
   }
-  const parsed = productCreateSchema.safeParse(json)
+  const parsed = productCreateMultipartSchema.safeParse(json)
   if (!parsed.success) {
     return c.json(
       {
@@ -305,6 +306,31 @@ async function creerProduit(
       { code: "BARCODE_EXISTANT", message: "Ce code-barres est déjà utilisé" },
       409
     )
+  }
+
+  const variantes = donnees.variants ?? []
+  const aDesVariantes = variantes.length > 0
+
+  // Barcodes are checked against the database and against each other: two
+  // variants of the same payload cannot share one, and the conflict must be
+  // refused rather than discovered by the unique index.
+  const barcodesVus = new Set<string>()
+  if (donnees.barcode) barcodesVus.add(donnees.barcode)
+  for (const variante of variantes) {
+    if (!variante.barcode) continue
+    if (
+      barcodesVus.has(variante.barcode) ||
+      (await barcodeDejaUtilise(db, organizationId, variante.barcode))
+    ) {
+      return c.json(
+        {
+          code: "BARCODE_EXISTANT",
+          message: `Le code-barres de la variante « ${variante.name} » est déjà utilisé`,
+        },
+        409
+      )
+    }
+    barcodesVus.add(variante.barcode)
   }
 
   // The id is drawn once, outside the SKU retry loop: the R2 key derives from
@@ -354,6 +380,39 @@ async function creerProduit(
       // the R2 put, so any exception here — a transient D1 error, not just a
       // batch conflict — must still trigger oublierImage() in the catch below.
       const sku = skuFourni ?? (await genererSkuProduit(db, organizationId))
+      // Variant SKUs derive from their attributes, so a collision is stable
+      // across retries: it is a definitive 409, never a reason to regenerate.
+      const skuImplicite = `${sku}-STD`
+      const skusVus = new Set<string>([skuImplicite])
+      const lignesVariantes: Array<typeof schema.productVariants.$inferInsert> =
+        []
+      for (const variante of variantes) {
+        const skuVariante =
+          variante.sku ?? genererSkuVariante(sku, variante.attributes)
+        if (skusVus.has(skuVariante)) {
+          await oublierImage()
+          return c.json(
+            {
+              code: "SKU_EXISTANT",
+              message: `Le SKU « ${skuVariante} » est déjà pris par une autre variante de ce produit`,
+            },
+            409
+          )
+        }
+        skusVus.add(skuVariante)
+        lignesVariantes.push({
+          id: crypto.randomUUID(),
+          organizationId,
+          productId: id,
+          name: variante.name,
+          attributes: JSON.stringify(variante.attributes),
+          sku: skuVariante,
+          barcode: variante.barcode ?? null,
+          priceOverride: variante.priceOverride ?? null,
+          minPriceOverride: variante.minPriceOverride ?? null,
+          createdAt: now,
+        })
+      }
       // Trap: a heterogeneous batch must be built as a direct array literal —
       // no push + cast.
       await db.batch([
@@ -370,6 +429,8 @@ async function creerProduit(
           defaultMinStock: donnees.defaultMinStock ?? null,
           trackLots: donnees.trackLots ?? false,
           imageKey: cleImage,
+          // Explicit variants make the product a variant product straight away.
+          hasVariants: aDesVariantes,
           createdAt: now,
           updatedAt: now,
         }),
@@ -379,9 +440,15 @@ async function creerProduit(
           productId: id,
           name: "Standard",
           attributes: "{}",
-          sku: `${sku}-STD`,
+          sku: skuImplicite,
+          // The implicit variant is always written, inactive when explicit ones
+          // accompany it: the final state must not depend on the path taken.
+          isActive: !aDesVariantes,
           createdAt: now,
         }),
+        ...lignesVariantes.map((ligne) =>
+          db.insert(schema.productVariants).values(ligne)
+        ),
       ])
       return c.json({ id, sku }, 201)
     } catch (err) {
