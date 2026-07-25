@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react"
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router"
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { useQuery } from "@tanstack/react-query"
 import { apiFetch, apiUrl } from "@/lib/api"
 import { formaterMontant } from "@/lib/format"
 import { usePeutEcrire } from "@/lib/permissions"
@@ -9,12 +9,9 @@ import { PackageSearch } from "lucide-react"
 import { EtatVide } from "@/components/etat-vide"
 import { Pagination } from "@/components/ui/pagination"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
 import { InputRecherche } from "@/components/ui/input-recherche"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
-import { Checkbox } from "@/components/ui/checkbox"
-import { Textarea } from "@/components/ui/textarea"
 import {
   Combobox,
   ComboboxContent,
@@ -23,13 +20,6 @@ import {
   ComboboxItem,
   ComboboxList,
 } from "@/components/ui/combobox"
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog"
 import {
   Table,
   TableBody,
@@ -69,7 +59,6 @@ type Reglages = { currency: string }
 function ProduitsPage() {
   const navigate = useNavigate()
   const navigateFiltres = Route.useNavigate()
-  const queryClient = useQueryClient()
   const peutEcrire = usePeutEcrire()
 
   const { q = "", categorie = "", page = 1 } = Route.useSearch()
@@ -125,44 +114,6 @@ function ProduitsPage() {
   })
   const devise = organisation.data?.currency ?? "XOF"
 
-  const [dialogOuvert, setDialogOuvert] = useState(false)
-  const [nom, setNom] = useState("")
-  const [prix, setPrix] = useState("")
-  const [plancher, setPlancher] = useState("")
-  const [seuilAlerte, setSeuilAlerte] = useState("")
-  const [categorieProduit, setCategorieProduit] = useState("")
-  const [codeBarres, setCodeBarres] = useState("")
-  const [description, setDescription] = useState("")
-  const [suiviLots, setSuiviLots] = useState(false)
-  const [erreur, setErreur] = useState<string | null>(null)
-
-  const creer = useMutation({
-    mutationFn: () =>
-      apiFetch<{ id: string; sku: string }>("/api/v1/products", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          name: nom,
-          price: Number(prix),
-          minPrice: plancher ? Number(plancher) : undefined,
-          defaultMinStock: seuilAlerte ? Number(seuilAlerte) : undefined,
-          categoryId: categorieProduit || undefined,
-          barcode: codeBarres || undefined,
-          description: description || undefined,
-          trackLots: suiviLots,
-        }),
-      }),
-    onSuccess: async (res) => {
-      await queryClient.invalidateQueries({ queryKey: ["products"] })
-      setDialogOuvert(false)
-      void navigate({
-        to: "/catalogue/produits/$productId",
-        params: { productId: res.id },
-      })
-    },
-    onError: (err) => setErreur(err instanceof Error ? err.message : "Erreur"),
-  })
-
   const listeCategories = categories.data?.categories ?? []
   const idsCategories = listeCategories.map((c) => c.id)
   const nomCategorie = (id: string) =>
@@ -173,143 +124,20 @@ function ProduitsPage() {
       <div className="mb-6 flex items-center justify-between">
         <h1 className="text-xl font-semibold">Produits</h1>
         {peutEcrire && (
-          <Dialog open={dialogOuvert} onOpenChange={setDialogOuvert}>
-            <DialogTrigger render={<Button />}>Nouveau produit</DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Nouveau produit</DialogTitle>
-              </DialogHeader>
-              <form
-                className="flex flex-col gap-4"
-                onSubmit={(e) => {
-                  e.preventDefault()
-                  setErreur(null)
-                  creer.mutate()
-                }}
-              >
-                <div className="flex flex-col gap-1.5">
-                  <Label htmlFor="p-nom">Nom</Label>
-                  <Input
-                    id="p-nom"
-                    required
-                    autoComplete="off"
-                    value={nom}
-                    onChange={(e) => setNom(e.target.value)}
-                  />
-                </div>
-                <div className="flex gap-3">
-                  <div className="flex flex-1 flex-col gap-1.5">
-                    <Label htmlFor="p-prix">Prix de vente</Label>
-                    <Input
-                      id="p-prix"
-                      type="number"
-                      min={1}
-                      step={1}
-                      required
-                      value={prix}
-                      onChange={(e) => setPrix(e.target.value)}
-                    />
-                  </div>
-                  <div className="flex flex-1 flex-col gap-1.5">
-                    <Label htmlFor="p-plancher">
-                      Prix plancher (optionnel)
-                    </Label>
-                    <Input
-                      id="p-plancher"
-                      type="number"
-                      min={1}
-                      step={1}
-                      value={plancher}
-                      onChange={(e) => setPlancher(e.target.value)}
-                    />
-                  </div>
-                </div>
-                <div className="flex flex-col gap-1.5">
-                  <Label htmlFor="p-seuil-alerte">
-                    Seuil d'alerte par défaut (optionnel)
-                  </Label>
-                  <Input
-                    id="p-seuil-alerte"
-                    type="number"
-                    min={0}
-                    step={1}
-                    value={seuilAlerte}
-                    onChange={(e) => setSeuilAlerte(e.target.value)}
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Alerte quand le stock d'un entrepôt passe sous ce seuil —
-                    surchargeable par entrepôt.
-                  </p>
-                </div>
-                <div className="flex flex-col gap-1.5">
-                  <Label htmlFor="p-categorie">Catégorie</Label>
-                  <Combobox
-                    items={idsCategories}
-                    itemToStringLabel={nomCategorie}
-                    autoHighlight
-                    value={categorieProduit || null}
-                    onValueChange={(valeur) =>
-                      setCategorieProduit(valeur ?? "")
-                    }
-                  >
-                    <ComboboxInput
-                      id="p-categorie"
-                      placeholder="— aucune —"
-                      showClear
-                      className="w-full"
-                    />
-                    <ComboboxContent>
-                      <ComboboxEmpty>Aucune catégorie trouvée</ComboboxEmpty>
-                      <ComboboxList>
-                        {(id: string) => (
-                          <ComboboxItem key={id} value={id}>
-                            {nomCategorie(id)}
-                          </ComboboxItem>
-                        )}
-                      </ComboboxList>
-                    </ComboboxContent>
-                  </Combobox>
-                </div>
-                <div className="flex flex-col gap-1.5">
-                  <Label htmlFor="p-barcode">Code-barres (optionnel)</Label>
-                  <Input
-                    id="p-barcode"
-                    autoComplete="off"
-                    spellCheck={false}
-                    value={codeBarres}
-                    onChange={(e) => setCodeBarres(e.target.value)}
-                  />
-                </div>
-                <div className="flex flex-col gap-1.5">
-                  <Label htmlFor="p-description">Description (optionnel)</Label>
-                  <Textarea
-                    id="p-description"
-                    rows={2}
-                    value={description}
-                    onChange={(e) => setDescription(e.target.value)}
-                  />
-                </div>
-                <div className="flex items-center gap-2">
-                  <Checkbox
-                    id="p-suivi-lots"
-                    checked={suiviLots}
-                    onCheckedChange={(valeur) => setSuiviLots(valeur === true)}
-                  />
-                  <Label htmlFor="p-suivi-lots">
-                    Suivre les lots (péremption)
-                  </Label>
-                </div>
-                {erreur && (
-                  <p role="alert" className="text-sm text-destructive">
-                    {erreur}
-                  </p>
-                )}
-                <Button type="submit" disabled={creer.isPending}>
-                  {creer.isPending ? "Création…" : "Créer le produit"}
-                </Button>
-              </form>
-            </DialogContent>
-          </Dialog>
+          <Button
+            onClick={() =>
+              void navigate({
+                to: "/catalogue/produits/nouveau",
+                search: {
+                  q: q || undefined,
+                  categorie: categorie || undefined,
+                  page: page > 1 ? page : undefined,
+                },
+              })
+            }
+          >
+            Nouveau produit
+          </Button>
         )}
       </div>
 
@@ -391,7 +219,18 @@ function ProduitsPage() {
                   }
                   action={
                     peutEcrire && !q && !categorie ? (
-                      <Button onClick={() => setDialogOuvert(true)}>
+                      <Button
+                        onClick={() =>
+                          void navigate({
+                            to: "/catalogue/produits/nouveau",
+                            search: {
+                              q: q || undefined,
+                              categorie: categorie || undefined,
+                              page: page > 1 ? page : undefined,
+                            },
+                          })
+                        }
+                      >
                         Nouveau produit
                       </Button>
                     ) : undefined
