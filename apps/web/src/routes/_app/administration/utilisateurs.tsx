@@ -1,14 +1,22 @@
-import { useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { createFileRoute, redirect } from "@tanstack/react-router"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import type { CompanyRole, WarehouseRole } from "shared"
+import { Users } from "lucide-react"
+import { COMPANY_ROLES } from "shared"
+import type { CompanyRole } from "shared"
 import { apiFetch } from "@/lib/api"
+import { validerRechercheUtilisateurs } from "@/lib/recherche-utilisateurs"
+import {
+  peutGererRole,
+  rolesAttribuables,
+  ROLES_ENTREPRISE_FR,
+} from "@/lib/roles"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { InputRecherche } from "@/components/ui/input-recherche"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { Pagination } from "@/components/ui/pagination"
-import { toast } from "@/components/ui/toast"
 import {
   Select,
   SelectContent,
@@ -24,17 +32,6 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog"
-import {
   Table,
   TableBody,
   TableCell,
@@ -43,7 +40,14 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { TableSkeleton } from "@/components/ui/table-skeleton"
+import { EtatVide } from "@/components/etat-vide"
 import { ProvisionalPasswordDialog } from "@/components/provisional-password-dialog"
+import { GererAcces } from "@/components/utilisateur/gerer-acces"
+import { PorteeUtilisateur } from "@/components/utilisateur/portee"
+import type {
+  EntrepotOption,
+  Utilisateur,
+} from "@/components/utilisateur/types"
 
 export const Route = createFileRoute("/_app/administration/utilisateurs")({
   beforeLoad: ({ context }) => {
@@ -52,174 +56,142 @@ export const Route = createFileRoute("/_app/administration/utilisateurs")({
       throw redirect({ to: "/" })
     }
   },
+  // Filters and page live in the URL: shareable, refresh- and back-safe.
+  validateSearch: validerRechercheUtilisateurs,
   component: UtilisateursPage,
 })
 
-type Utilisateur = {
-  id: string
-  name: string
-  email: string
-  role: CompanyRole
-  isActive: boolean
-  assignments: Array<{
-    id: string
-    warehouseId: string
-    warehouseName: string
-    role: WarehouseRole
-  }>
+const LIBELLES_STATUT: Record<"true" | "false", string> = {
+  true: "Actifs",
+  false: "Désactivés",
 }
 
-const ROLES_FR: Record<CompanyRole, string> = {
-  owner: "Propriétaire",
-  admin: "Administrateur",
-  auditor: "Auditeur",
-  stock_manager: "Gestionnaire de stock",
-  staff: "Employé",
-}
-
-const ROLES_ENTREPOT_FR: Record<WarehouseRole, string> = {
-  manager: "Responsable",
-  auditor: "Auditeur",
-  cashier: "Caissier",
-}
-
-/** Users admin page: account creation (provisional password), role changes, activation, and warehouse assignment; writing is restricted to owner/admin. */
+/**
+ * Users register: who holds which company role, over which warehouses, and
+ * whether the account can still sign in. The table stays read-only; every
+ * write for one account goes through its "Gérer l'accès" dialog.
+ * Full-height column layout: heading, filters and pagination stay fixed
+ * while the table body scrolls under its sticky header.
+ */
 function UtilisateursPage() {
   const { me } = Route.useRouteContext()
-  const peutEcrire =
-    me.membership?.role === "owner" || me.membership?.role === "admin"
+  // Typed rather than inferred from a boolean: every write control derives from
+  // this role, so it carries the narrowing itself instead of relying on the
+  // compiler tracking a `peutEcrire` alias.
+  const role = me.membership?.role
+  const roleGestionnaire = role === "owner" || role === "admin" ? role : null
+  const peutEcrire = roleGestionnaire !== null
   const queryClient = useQueryClient()
+  const navigateFiltres = Route.useNavigate()
 
-  // Rôles attribuables à la création (admin réservé au propriétaire).
-  const optionsRole: Array<{ value: CompanyRole; label: string }> = [
-    { value: "staff", label: "Employé (caissier)" },
-    { value: "stock_manager", label: "Gestionnaire de stock" },
-    { value: "auditor", label: "Auditeur" },
-    ...(me.membership?.role === "owner"
-      ? [{ value: "admin" as CompanyRole, label: "Administrateur" }]
-      : []),
-  ]
+  const { q = "", role: roleFiltre, actif, page = 1 } = Route.useSearch()
+  const [recherche, setRecherche] = useState(q)
+  const refRecherche = useRef<HTMLInputElement>(null)
 
-  const [page, setPage] = useState(1)
+  // 300 ms debounce: the URL (source of truth for the query) is only updated
+  // once typing has settled; changing a filter resets to page 1. The equality
+  // guard keeps mount and back/forward realignment from stripping ?page out
+  // of a shared or reloaded URL.
+  useEffect(() => {
+    if (recherche === q) return
+    const timer = setTimeout(() => {
+      void navigateFiltres({
+        search: (prec) => ({
+          ...prec,
+          q: recherche || undefined,
+          page: undefined,
+        }),
+        replace: true,
+      })
+    }, 300)
+    return () => clearTimeout(timer)
+  }, [recherche, q, navigateFiltres])
+
+  // Back/forward: realign the field with the URL, without clobbering typing
+  useEffect(() => {
+    if (document.activeElement !== refRecherche.current) setRecherche(q)
+  }, [q])
+
+  const utilisateurs = useQuery({
+    queryKey: ["users", q, roleFiltre, actif, page],
+    queryFn: () => {
+      const params = new URLSearchParams()
+      if (q) params.set("recherche", q)
+      if (roleFiltre) params.set("role", roleFiltre)
+      if (actif !== undefined) params.set("actif", String(actif))
+      params.set("page", String(page))
+      return apiFetch<{
+        users: Utilisateur[]
+        total: number
+        page: number
+        limite: number
+      }>(`/api/v1/users?${params.toString()}`)
+    },
+  })
+  const entrepots = useQuery({
+    queryKey: ["warehouses"],
+    queryFn: () =>
+      apiFetch<{ warehouses: EntrepotOption[] }>("/api/v1/warehouses"),
+    enabled: peutEcrire,
+  })
+
   const [dialogCreation, setDialogCreation] = useState(false)
   const [nom, setNom] = useState("")
   const [email, setEmail] = useState("")
-  const [role, setRole] = useState<CompanyRole>("staff")
+  const [roleNouveau, setRoleNouveau] = useState<CompanyRole>("staff")
   const [erreur, setErreur] = useState<string | null>(null)
   const [provisoire, setProvisoire] = useState<{
     password: string
     email: string
   } | null>(null)
-  const [affectation, setAffectation] = useState<{
-    userId: string
-    warehouseId: string
-    role: WarehouseRole
-  }>({
-    userId: "",
-    warehouseId: "",
-    role: "cashier",
-  })
+  const [idGere, setIdGere] = useState<string | null>(null)
 
-  const utilisateurs = useQuery({
-    queryKey: ["users", page],
-    queryFn: () =>
-      apiFetch<{
-        users: Utilisateur[]
-        total: number
-        page: number
-        limite: number
-      }>(`/api/v1/users?page=${page}`),
-  })
-  const entrepots = useQuery({
-    queryKey: ["warehouses"],
-    queryFn: () =>
-      apiFetch<{ warehouses: Array<{ id: string; name: string }> }>(
-        "/api/v1/warehouses"
-      ),
-  })
-
-  const invalider = () => queryClient.invalidateQueries({ queryKey: ["users"] })
+  // Roles assignable at creation: a new account is never created as owner.
+  const optionsCreation = roleGestionnaire
+    ? rolesAttribuables(roleGestionnaire).filter((r) => r !== "owner")
+    : []
 
   const creer = useMutation({
     mutationFn: () =>
       apiFetch<{ provisionalPassword: string }>("/api/v1/users", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ name: nom, email, role }),
+        body: JSON.stringify({ name: nom, email, role: roleNouveau }),
       }),
     onSuccess: async (res) => {
-      await invalider()
+      await queryClient.invalidateQueries({ queryKey: ["users"] })
       setDialogCreation(false)
       setProvisoire({ password: res.provisionalPassword, email })
       setNom("")
       setEmail("")
-      setRole("staff")
+      setRoleNouveau("staff")
       setErreur(null)
     },
     onError: (err) => setErreur(err instanceof Error ? err.message : "Erreur"),
   })
 
-  const changerRole = useMutation({
-    mutationFn: (v: { userId: string; role: CompanyRole }) =>
-      apiFetch(`/api/v1/users/${v.userId}/role`, {
-        method: "PATCH",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ role: v.role }),
-      }),
-    onSuccess: async () => {
-      await invalider()
-      toast.success("Rôle mis à jour")
-    },
-    onError: (err) =>
-      toast.error(err instanceof Error ? err.message : "Erreur"),
-  })
+  const liste = utilisateurs.data?.users ?? []
+  const total = utilisateurs.data?.total ?? 0
+  // `actif` is a boolean: `false` filters on deactivated accounts, so it has
+  // to be tested against undefined rather than for truthiness.
+  const filtreActif = Boolean(q || roleFiltre) || actif !== undefined
+  const colonnes = peutEcrire ? 5 : 4
+  // Read from the fresh list rather than a snapshot: the dialog reflects each
+  // mutation as soon as the query is invalidated.
+  const utilisateurGere = liste.find((u) => u.id === idGere) ?? null
 
-  const changerStatut = useMutation({
-    mutationFn: (u: Utilisateur) =>
-      apiFetch(`/api/v1/users/${u.id}/statut`, {
-        method: "PATCH",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ isActive: !u.isActive }),
-      }),
-    onSuccess: async (_res, u) => {
-      await invalider()
-      toast.success(u.isActive ? "Compte désactivé" : "Compte réactivé")
-    },
-    onError: (err) =>
-      toast.error(err instanceof Error ? err.message : "Erreur"),
-  })
-
-  const affecter = useMutation({
-    mutationFn: () =>
-      apiFetch("/api/v1/warehouse-members", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify(affectation),
-      }),
-    onSuccess: async () => {
-      await invalider()
-      setAffectation({ userId: "", warehouseId: "", role: "cashier" })
-      toast.success("Affectation ajoutée")
-    },
-    onError: (err) =>
-      toast.error(err instanceof Error ? err.message : "Erreur"),
-  })
-
-  const retirerAffectation = useMutation({
-    mutationFn: (assignmentId: string) =>
-      apiFetch(`/api/v1/warehouse-members/${assignmentId}`, {
-        method: "DELETE",
-      }),
-    onSuccess: async () => {
-      await invalider()
-      toast.success("Affectation retirée")
-    },
-    onError: (err) =>
-      toast.error(err instanceof Error ? err.message : "Erreur"),
-  })
+  // A mutation or a filter change can drop the managed account from the list —
+  // deactivating it while filtering on active ones does exactly that. Drop the
+  // selection with it, otherwise the dialog springs back open on its own once
+  // the account reappears. Gated on `isSuccess`: mid-refetch the list is empty
+  // and would clear a selection that is still valid.
+  useEffect(() => {
+    if (idGere === null || !utilisateurs.isSuccess) return
+    if (!liste.some((u) => u.id === idGere)) setIdGere(null)
+  }, [idGere, liste, utilisateurs.isSuccess])
 
   return (
-    <div>
+    <div className="flex h-[calc(100dvh-3rem)] flex-col">
       <div className="mb-6 flex items-center justify-between">
         <h1 className="text-xl font-semibold">Utilisateurs</h1>
         {peutEcrire && (
@@ -229,12 +201,13 @@ function UtilisateursPage() {
             </DialogTrigger>
             <DialogContent>
               <DialogHeader>
-                <DialogTitle>Créer un compte employé</DialogTitle>
+                <DialogTitle>Nouvel utilisateur</DialogTitle>
               </DialogHeader>
               <form
                 className="flex flex-col gap-4"
                 onSubmit={(e) => {
                   e.preventDefault()
+                  setErreur(null)
                   creer.mutate()
                 }}
               >
@@ -260,24 +233,30 @@ function UtilisateursPage() {
                 <div className="flex flex-col gap-1.5">
                   <Label htmlFor="u-role">Rôle</Label>
                   <Select
-                    value={role}
-                    onValueChange={(valeur) => setRole(valeur as CompanyRole)}
+                    value={roleNouveau}
+                    onValueChange={(valeur) =>
+                      setRoleNouveau(valeur as CompanyRole)
+                    }
                   >
                     <SelectTrigger id="u-role" className="w-full">
                       <SelectValue>
-                        {(valeur: CompanyRole) =>
-                          optionsRole.find((o) => o.value === valeur)?.label
-                        }
+                        {(valeur: CompanyRole) => ROLES_ENTREPRISE_FR[valeur]}
                       </SelectValue>
                     </SelectTrigger>
                     <SelectContent>
-                      {optionsRole.map((o) => (
-                        <SelectItem key={o.value} value={o.value}>
-                          {o.label}
+                      {optionsCreation.map((r) => (
+                        <SelectItem key={r} value={r}>
+                          {ROLES_ENTREPRISE_FR[r]}
                         </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
+                  {roleNouveau === "staff" && (
+                    <p className="text-xs text-muted-foreground">
+                      Un employé n'accède à rien tant qu'il n'est pas affecté à
+                      un entrepôt.
+                    </p>
+                  )}
                 </div>
                 {erreur && (
                   <p role="alert" className="text-sm text-destructive">
@@ -301,102 +280,132 @@ function UtilisateursPage() {
         />
       )}
 
-      <Table>
+      <div className="mb-4 flex flex-wrap items-end gap-3">
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="u-recherche">Recherche</Label>
+          <InputRecherche
+            id="u-recherche"
+            name="recherche"
+            ref={refRecherche}
+            placeholder="Nom ou email…"
+            value={recherche}
+            onChange={(e) => setRecherche(e.target.value)}
+            className="w-72"
+          />
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="u-filtre-role">Rôle</Label>
+          <Select
+            value={roleFiltre ?? ""}
+            onValueChange={(valeur) =>
+              // Push (not replace): each filter step stays in history
+              void navigateFiltres({
+                search: (prec) => ({
+                  ...prec,
+                  role: (valeur as CompanyRole | "") || undefined,
+                  page: undefined,
+                }),
+              })
+            }
+          >
+            <SelectTrigger id="u-filtre-role" className="w-52">
+              <SelectValue placeholder="Tous">
+                {(valeur: string) =>
+                  valeur === ""
+                    ? "Tous"
+                    : ROLES_ENTREPRISE_FR[valeur as CompanyRole]
+                }
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="">Tous</SelectItem>
+              {COMPANY_ROLES.map((r) => (
+                <SelectItem key={r} value={r}>
+                  {ROLES_ENTREPRISE_FR[r]}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="u-filtre-statut">Statut</Label>
+          <Select
+            value={actif === undefined ? "" : String(actif)}
+            onValueChange={(valeur) =>
+              void navigateFiltres({
+                search: (prec) => ({
+                  ...prec,
+                  actif: valeur === "" ? undefined : valeur === "true",
+                  page: undefined,
+                }),
+              })
+            }
+          >
+            <SelectTrigger id="u-filtre-statut" className="w-36">
+              <SelectValue placeholder="Tous">
+                {(valeur: string) =>
+                  valeur === "true" || valeur === "false"
+                    ? LIBELLES_STATUT[valeur]
+                    : "Tous"
+                }
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="">Tous</SelectItem>
+              <SelectItem value="true">Actifs</SelectItem>
+              <SelectItem value="false">Désactivés</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
+      <Table containerClassName="min-h-0 flex-1 overflow-y-auto">
         <TableHeader sticky>
           <TableRow>
-            <TableHead>Nom</TableHead>
-            <TableHead>Email</TableHead>
+            <TableHead>Utilisateur</TableHead>
             <TableHead>Rôle</TableHead>
-            <TableHead>Affectations</TableHead>
+            <TableHead>Portée</TableHead>
             <TableHead>Statut</TableHead>
             {peutEcrire && <TableHead />}
           </TableRow>
         </TableHeader>
         <TableBody>
           {utilisateurs.isPending ? (
-            <TableSkeleton colonnes={peutEcrire ? 6 : 5} />
+            <TableSkeleton colonnes={colonnes} />
+          ) : liste.length === 0 ? (
+            <TableRow>
+              <TableCell colSpan={colonnes}>
+                <EtatVide
+                  icon={Users}
+                  titre="Aucun utilisateur trouvé"
+                  message={
+                    filtreActif
+                      ? "Aucun compte ne correspond à ces critères. Ajustez la recherche ou les filtres."
+                      : "Créez un premier compte pour donner accès à l'application."
+                  }
+                  action={
+                    peutEcrire && !filtreActif ? (
+                      <Button onClick={() => setDialogCreation(true)}>
+                        Nouvel utilisateur
+                      </Button>
+                    ) : undefined
+                  }
+                />
+              </TableCell>
+            </TableRow>
           ) : (
-            (utilisateurs.data?.users ?? []).map((u) => (
+            liste.map((u) => (
               <TableRow key={u.id}>
-                <TableCell className="font-medium">{u.name}</TableCell>
-                <TableCell>{u.email}</TableCell>
                 <TableCell>
-                  {peutEcrire && u.id !== me.user.id ? (
-                    <Select
-                      value={u.role}
-                      onValueChange={(valeur) =>
-                        changerRole.mutate({
-                          userId: u.id,
-                          role: valeur as CompanyRole,
-                        })
-                      }
-                    >
-                      <SelectTrigger size="sm" className="w-48">
-                        <SelectValue>
-                          {(valeur: CompanyRole) => ROLES_FR[valeur]}
-                        </SelectValue>
-                      </SelectTrigger>
-                      <SelectContent>
-                        {(
-                          Object.entries(ROLES_FR) as [CompanyRole, string][]
-                        ).map(([valeur, libelle]) => (
-                          <SelectItem key={valeur} value={valeur}>
-                            {libelle}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  ) : (
-                    ROLES_FR[u.role]
+                  <span className="font-medium">{u.name}</span>
+                  {u.id === me.user.id && (
+                    <span className="text-muted-foreground"> (vous)</span>
                   )}
+                  <span className="block text-muted-foreground">{u.email}</span>
                 </TableCell>
-                <TableCell className="text-sm">
-                  {u.assignments.length === 0 ? (
-                    "—"
-                  ) : (
-                    <span className="flex flex-wrap gap-1">
-                      {u.assignments.map((a) => (
-                        <Badge key={a.id} variant="secondary">
-                          {a.warehouseName} ({ROLES_ENTREPOT_FR[a.role]})
-                          {peutEcrire && (
-                            <AlertDialog>
-                              <AlertDialogTrigger
-                                render={
-                                  <button
-                                    type="button"
-                                    aria-label={`Retirer l'affectation ${a.warehouseName}`}
-                                    className="ml-1 font-semibold outline-none hover:text-destructive focus-visible:ring-2 focus-visible:ring-ring/30"
-                                  />
-                                }
-                              >
-                                ×
-                              </AlertDialogTrigger>
-                              <AlertDialogContent>
-                                <AlertDialogHeader>
-                                  <AlertDialogTitle>
-                                    Retirer l'affectation ?
-                                  </AlertDialogTitle>
-                                  <AlertDialogDescription>
-                                    Retirer « {a.warehouseName} » de {u.name} ?
-                                  </AlertDialogDescription>
-                                </AlertDialogHeader>
-                                <AlertDialogFooter>
-                                  <AlertDialogCancel>Annuler</AlertDialogCancel>
-                                  <AlertDialogAction
-                                    onClick={() =>
-                                      retirerAffectation.mutate(a.id)
-                                    }
-                                  >
-                                    Retirer
-                                  </AlertDialogAction>
-                                </AlertDialogFooter>
-                              </AlertDialogContent>
-                            </AlertDialog>
-                          )}
-                        </Badge>
-                      ))}
-                    </span>
-                  )}
+                <TableCell>{ROLES_ENTREPRISE_FR[u.role]}</TableCell>
+                <TableCell>
+                  <PorteeUtilisateur utilisateur={u} />
                 </TableCell>
                 <TableCell>
                   <Badge variant={u.isActive ? "success" : "secondary"}>
@@ -405,15 +414,18 @@ function UtilisateursPage() {
                 </TableCell>
                 {peutEcrire && (
                   <TableCell>
-                    {u.id !== me.user.id && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => changerStatut.mutate(u)}
-                      >
-                        {u.isActive ? "Désactiver" : "Réactiver"}
-                      </Button>
-                    )}
+                    {/* The front hides what the API would refuse: an admin
+                        never manages an owner or another admin. */}
+                    {u.id !== me.user.id &&
+                      peutGererRole(roleGestionnaire, u.role) && (
+                        <Button
+                          variant="outline"
+                          onClick={() => setIdGere(u.id)}
+                          aria-label={`Gérer l'accès de ${u.name}`}
+                        >
+                          Gérer l'accès
+                        </Button>
+                      )}
                   </TableCell>
                 )}
               </TableRow>
@@ -422,121 +434,32 @@ function UtilisateursPage() {
         </TableBody>
       </Table>
 
-      {(utilisateurs.data?.total ?? 0) > 0 && (
+      {total > 0 && (
         <Pagination
           page={page}
-          total={utilisateurs.data?.total ?? 0}
+          total={total}
           pageSize={utilisateurs.data?.limite ?? 50}
-          onPageChange={setPage}
+          onPageChange={(p) =>
+            // Push (not replace): Back returns to the previous page of results
+            void navigateFiltres({
+              search: (prec) => ({ ...prec, page: p > 1 ? p : undefined }),
+            })
+          }
           element={{ un: "utilisateur", plusieurs: "utilisateurs" }}
           className="mt-3"
         />
       )}
 
-      {peutEcrire && (
-        <div className="mt-8 max-w-2xl rounded-md border p-4">
-          <h2 className="mb-3 text-base font-semibold">
-            Affecter à un entrepôt
-          </h2>
-          <form
-            className="flex flex-wrap items-end gap-3"
-            onSubmit={(e) => {
-              e.preventDefault()
-              affecter.mutate()
-            }}
-          >
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="a-user">Utilisateur</Label>
-              <Select
-                value={affectation.userId}
-                onValueChange={(valeur) =>
-                  setAffectation({ ...affectation, userId: valeur as string })
-                }
-              >
-                <SelectTrigger id="a-user" className="w-56">
-                  <SelectValue placeholder="— choisir —">
-                    {(valeur: string) =>
-                      (utilisateurs.data?.users ?? []).find(
-                        (u) => u.id === valeur
-                      )?.name
-                    }
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  {(utilisateurs.data?.users ?? [])
-                    .filter((u) => u.isActive)
-                    .map((u) => (
-                      <SelectItem key={u.id} value={u.id}>
-                        {u.name}
-                      </SelectItem>
-                    ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="a-wh">Entrepôt</Label>
-              <Select
-                value={affectation.warehouseId}
-                onValueChange={(valeur) =>
-                  setAffectation({
-                    ...affectation,
-                    warehouseId: valeur as string,
-                  })
-                }
-              >
-                <SelectTrigger id="a-wh" className="w-56">
-                  <SelectValue placeholder="— choisir —">
-                    {(valeur: string) =>
-                      (entrepots.data?.warehouses ?? []).find(
-                        (w) => w.id === valeur
-                      )?.name
-                    }
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  {(entrepots.data?.warehouses ?? []).map((w) => (
-                    <SelectItem key={w.id} value={w.id}>
-                      {w.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="a-role">Rôle</Label>
-              <Select
-                value={affectation.role}
-                onValueChange={(valeur) =>
-                  setAffectation({
-                    ...affectation,
-                    role: valeur as WarehouseRole,
-                  })
-                }
-              >
-                <SelectTrigger id="a-role" className="w-40">
-                  <SelectValue>
-                    {(valeur: WarehouseRole) => ROLES_ENTREPOT_FR[valeur]}
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="cashier">Caissier</SelectItem>
-                  <SelectItem value="manager">Responsable</SelectItem>
-                  <SelectItem value="auditor">Auditeur</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <Button
-              type="submit"
-              disabled={
-                affecter.isPending ||
-                !affectation.userId ||
-                !affectation.warehouseId
-              }
-            >
-              Affecter
-            </Button>
-          </form>
-        </div>
+      {roleGestionnaire && utilisateurGere && (
+        <GererAcces
+          utilisateur={utilisateurGere}
+          entrepots={entrepots.data?.warehouses ?? []}
+          roleDemandeur={roleGestionnaire}
+          open
+          onOpenChange={(ouvert) => {
+            if (!ouvert) setIdGere(null)
+          }}
+        />
       )}
     </div>
   )

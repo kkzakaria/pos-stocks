@@ -356,3 +356,60 @@ Revue finale #14 (opus): 1 Critical + 3 Important + 6 Minor. Vague unique ab8397
   Differes (ledger): M2 entrees orphelines + majA non lu; M4 prixModifie jamais efface; M5 prixPlancher non revalide (trou preexistant).
 E2E navigateur #14 validé (local, Boutique Centre): panier écrit en localStorage à l ajout; RECHARGEMENT -> panier restauré identique (Riz local 5kg x2, total 15 000 = 2x7500), sans modale, ENCAISSER visible (valide fix M3); encaissement -> panier vidé ET clé purgée. Portée par session vérifiée structurellement (session id dans la clé).
 BRANCHE PRÊTE POUR PR.
+
+
+---
+
+# Ledger — levée ambiguïté vente (issue #21, branche fix/ambiguite-vente-issue-21)
+Plan: docs/superpowers/plans/2026-07-20-levee-ambiguite-vente.md
+Base commit: fcd750f
+Issue #21 — Task 1: complete (commits fcd750f..031d0e0, review clean — production conforme, 5/5, typecheck OK)
+  Erreur de plan corrigée par l implementeur: bootstrapOwner non rappelable (setup global unique) -> 2e org insérée en base + createUserWithRole(orgB,"owner"). Assertion 404/INTROUVABLE inchangée.
+Issue #21 — Task 2: complete (commits 031d0e0..8638957, review clean — finaliserVente extrait et partagé, resoudreAmbiguite conforme, 149/149, typecheck+lint OK)
+Issue #21 — Task 3: complete (commits 8638957..e14c78e, review clean — onFermer ne déverrouille plus, bouton Vérifier, test préexistant réécrit, 151/151)
+  + fix 1f8b27e: commentaire panierVerrouille devenu faux (annonçait abandon=résolution et requestId jamais régénéré)
+
+
+---
+
+# Ledger — refonte fiche produit (branche feat/fiche-produit)
+Plan: docs/superpowers/plans/2026-07-22-fiche-produit.md
+Base commit: f41685c
+Task 1: complete (commits f41685c..42cec98, review clean — endpoint stock produit, 3/3 + suite 328/328, cross-org via insertion directe 2e org)
+Task 2: complete (commits 42cec98..4bdd602, review clean — SectionSynthese 4/4)
+  Correction de trajectoire contrôleur : commit initial 7a9be76 défait (il embarquait le package.json racine préexistant + une dépendance jest-dom inutile) ; plan aligné sur l'idiome matchers du dépôt (toBeTruthy/toBeNull), commit docs dédié.
+Task 3: complete (commits 4bdd602..db81813, review clean — SectionIdentite 3/3, transplant upload vérifié ligne à ligne)
+  Minor à trier en revue finale : pas de test « Annuler ne PATCHe pas » dans section-identite.test.tsx.
+Task 4: complete (commits db81813..c1efb57, review clean — SectionStock 3/3, colonnes 3/4 cohérentes sur les 3 états)
+Task 5: complete (commits c1efb57..dca3f24, review clean — lots imbriqués 2/2 + suite web 167/167, transplant dialog fidèle)
+Task 6: complete (commits dca3f24..27c8954, review clean — page 2 colonnes, 3 fichiers sections supprimés proprement, suite 168/168)
+  Bug de brief corrigé par l'implémenteur : collision fixture « 14 » (findAllByText) ; ⚠️ signatures cross-task levé par les revues T2-T5 + typecheck.
+Task 7: complete (E2E navigateur owner : édition synthèse prix 5000→5500→5000 vérifiée avec invalidation, édition description OK, repli 900 px sans débordement (scrollWidth=clientWidth), lots/stock/variantes rendus ; caissier1@exemple.com : 0 affordance d'édition, « Aucun stock visible », pas de Stock total. Captures fiche-apres/fiche-900px/fiche-caissier au scratchpad.)
+Revue finale de branche (fable): READY TO MERGE, 4 minors -> vague de fix unique 676f34b (arbitrage utilisateur: tout corriger), re-revue: 4/4 CLOSED, rien d'introduit.
+E2E lien retour filtré validé (detail ?q=ampoule -> retour liste filtrée).
+BRANCHE PRÊTE POUR PR.
+
+
+---
+
+# Ledger — révision UI/UX page utilisateurs (branche feat/revision-ui-utilisateurs, PR #27)
+Pas de plan formel : audit + proposition validée en conversation. Deux arbitrages utilisateur : (1) dialogue « Gérer l'accès » plutôt que conserver l'édition en ligne, (2) filtres serveur + URL plutôt que filtrage client (un total mensonger est incompatible avec « l'exactitude vérifiable »).
+Base commit: 9b581cc
+Commit 38f6194 — révision complète API + web :
+  Colonne « Portée » (élément signature) en remplacement de « Affectations » : portée EFFECTIVE, pas la donnée brute — « Tous les entrepôts » pour un rôle global, entrepôt · rôle local pour un staff, badge warning « Aucun accès » pour un staff sans affectation (l'ancien écran affichait « — », neutre).
+  Dialogue « Gérer l'accès » = point d'écriture unique par compte (rôle, affectations, activation), en écho à l'invariant applyMovements. Supprime le formulaire d'affectation orphelin sous la pagination et le « × » de 10 px logé dans un badge de statut.
+  Le front masque ce que l'API refuserait (peutGererRole : un admin ne gère ni owner ni admin ; sélecteur de rôle restreint au demandeur). Avant : 5 rôles offerts, interdit découvert par toast.
+  Gravité proportionnée : confirmation sur les 2 gestes non réversibles seulement (nommer propriétaire, désactiver = sessions fermées). Retrait d'affectation sans confirmation, il se rétablit depuis le formulaire juste en dessous. C'était l'inverse avant.
+  GET /api/v1/users : filtres recherche (nom/email, likeEchappe)/role/actif appliqués au COUNT — le total ne ment jamais. État des filtres en URL (motif liste produits).
+  3 bugs corrigés au passage : TableHeader sticky inopérant sans conteneur scrollant ; ?actif=false perdu au rechargement (TanStack Router reparse en booléen, type chaîne rejeté en silence) ; SelectValue à fonction de rendu ignore placeholder (sélecteur d'entrepôt vide) — hérité de l'ancienne page.
+Commit c490b11 — les 3 pièges consignés dans CLAUDE.md (section « Pièges vérifiés empiriquement »).
+E2E navigateur owner validé : création + mot de passe provisoire, affectation, retrait, les 2 confirmations, les 3 filtres, état vide, restauration des filtres depuis URL partagée. ⚠️ Masquage côté admin NON validé au navigateur (aucun compte admin en base locale) — couvert par roles.test.ts (front) et users.test.ts (API).
+Revue CodeRabbit CLI (v0.7.0) sur PR #27 : 7 constats (1 major, 6 minor) -> vague de fix unique aaed3ca, 6 corrigés / 1 écarté, re-revue 0 constat.
+  Bug réel trouvé par la revue : le dialogue se rouvrait seul — désactiver un compte sous le filtre « Actifs » le fait sortir de la liste, idGere restait, et repasser sur « Désactivés » faisait surgir le dialogue. Reproduit au navigateur puis revérifié après correctif. Effet gardé sur isSuccess (en refetch la liste est vide et effacerait une sélection valide).
+  rolesAttribuables retombait sur ROLES_GERABLES_PAR_ADMIN pour auditor/stock_manager/staff : inatteignable (seuls owner/admin y accèdent) mais le miroir divergeait de peutGererRole -> renvoie [] + test.
+  Écarté : reset de promotionOwner à la fermeture du parent. GererAcces est démonté avec idGere donc l'état est détruit, et Échap ferme d'abord la confirmation (son propre onOpenChange). Vérifié au navigateur, réouverture propre.
+  Commentaires français du test des filtres traduits en anglais (politique de langue) — récurrence du retour CodeRabbit de la PR #26. Les commentaires français antérieurs du fichier restent en place.
+⚠️ Pre-push local rouge sur flakiness workerd (58 processus, WSL2, retry:0 hors CI) : diagnostic avant conclusion — main échoue PLUS fort (18 tests/7 fichiers vs 7/2 sur la branche), jeu de fichiers variable d'un run à l'autre. Poussée avec CI=1 (singleWorker + retry), hook exécuté en entier, jamais --no-verify.
+Suites vertes : 329 API (D1 réelle) / 181 web ; typecheck + lint verts.
+Différé (non traité, hors périmètre) : apps/web/src/styles.css signalé par Prettier, défaut pré-existant hors diff.
+BRANCHE PRÊTE POUR MERGE.
