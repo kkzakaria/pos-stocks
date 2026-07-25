@@ -388,3 +388,28 @@ Task 7: complete (E2E navigateur owner : édition synthèse prix 5000→5500→5
 Revue finale de branche (fable): READY TO MERGE, 4 minors -> vague de fix unique 676f34b (arbitrage utilisateur: tout corriger), re-revue: 4/4 CLOSED, rien d'introduit.
 E2E lien retour filtré validé (detail ?q=ampoule -> retour liste filtrée).
 BRANCHE PRÊTE POUR PR.
+
+
+---
+
+# Ledger — révision UI/UX page utilisateurs (branche feat/revision-ui-utilisateurs, PR #27)
+Pas de plan formel : audit + proposition validée en conversation. Deux arbitrages utilisateur : (1) dialogue « Gérer l'accès » plutôt que conserver l'édition en ligne, (2) filtres serveur + URL plutôt que filtrage client (un total mensonger est incompatible avec « l'exactitude vérifiable »).
+Base commit: 9b581cc
+Commit 38f6194 — révision complète API + web :
+  Colonne « Portée » (élément signature) en remplacement de « Affectations » : portée EFFECTIVE, pas la donnée brute — « Tous les entrepôts » pour un rôle global, entrepôt · rôle local pour un staff, badge warning « Aucun accès » pour un staff sans affectation (l'ancien écran affichait « — », neutre).
+  Dialogue « Gérer l'accès » = point d'écriture unique par compte (rôle, affectations, activation), en écho à l'invariant applyMovements. Supprime le formulaire d'affectation orphelin sous la pagination et le « × » de 10 px logé dans un badge de statut.
+  Le front masque ce que l'API refuserait (peutGererRole : un admin ne gère ni owner ni admin ; sélecteur de rôle restreint au demandeur). Avant : 5 rôles offerts, interdit découvert par toast.
+  Gravité proportionnée : confirmation sur les 2 gestes non réversibles seulement (nommer propriétaire, désactiver = sessions fermées). Retrait d'affectation sans confirmation, il se rétablit depuis le formulaire juste en dessous. C'était l'inverse avant.
+  GET /api/v1/users : filtres recherche (nom/email, likeEchappe)/role/actif appliqués au COUNT — le total ne ment jamais. État des filtres en URL (motif liste produits).
+  3 bugs corrigés au passage : TableHeader sticky inopérant sans conteneur scrollant ; ?actif=false perdu au rechargement (TanStack Router reparse en booléen, type chaîne rejeté en silence) ; SelectValue à fonction de rendu ignore placeholder (sélecteur d'entrepôt vide) — hérité de l'ancienne page.
+Commit c490b11 — les 3 pièges consignés dans CLAUDE.md (section « Pièges vérifiés empiriquement »).
+E2E navigateur owner validé : création + mot de passe provisoire, affectation, retrait, les 2 confirmations, les 3 filtres, état vide, restauration des filtres depuis URL partagée. ⚠️ Masquage côté admin NON validé au navigateur (aucun compte admin en base locale) — couvert par roles.test.ts (front) et users.test.ts (API).
+Revue CodeRabbit CLI (v0.7.0) sur PR #27 : 7 constats (1 major, 6 minor) -> vague de fix unique aaed3ca, 6 corrigés / 1 écarté, re-revue 0 constat.
+  Bug réel trouvé par la revue : le dialogue se rouvrait seul — désactiver un compte sous le filtre « Actifs » le fait sortir de la liste, idGere restait, et repasser sur « Désactivés » faisait surgir le dialogue. Reproduit au navigateur puis revérifié après correctif. Effet gardé sur isSuccess (en refetch la liste est vide et effacerait une sélection valide).
+  rolesAttribuables retombait sur ROLES_GERABLES_PAR_ADMIN pour auditor/stock_manager/staff : inatteignable (seuls owner/admin y accèdent) mais le miroir divergeait de peutGererRole -> renvoie [] + test.
+  Écarté : reset de promotionOwner à la fermeture du parent. GererAcces est démonté avec idGere donc l'état est détruit, et Échap ferme d'abord la confirmation (son propre onOpenChange). Vérifié au navigateur, réouverture propre.
+  Commentaires français du test des filtres traduits en anglais (politique de langue) — récurrence du retour CodeRabbit de la PR #26. Les commentaires français antérieurs du fichier restent en place.
+⚠️ Pre-push local rouge sur flakiness workerd (58 processus, WSL2, retry:0 hors CI) : diagnostic avant conclusion — main échoue PLUS fort (18 tests/7 fichiers vs 7/2 sur la branche), jeu de fichiers variable d'un run à l'autre. Poussée avec CI=1 (singleWorker + retry), hook exécuté en entier, jamais --no-verify.
+Suites vertes : 329 API (D1 réelle) / 181 web ; typecheck + lint verts.
+Différé (non traité, hors périmètre) : apps/web/src/styles.css signalé par Prettier, défaut pré-existant hors diff.
+BRANCHE PRÊTE POUR MERGE.
