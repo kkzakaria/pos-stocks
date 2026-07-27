@@ -553,8 +553,8 @@ describe("POST /api/v1/products — création multipart", () => {
 
   it("refuse une charge dépassant la borne de variantes", async () => {
     const { ownerCookie } = await bootstrapOwner()
-    // MAX_VARIANTES_CREATION vaut 50 : la 51e doit être refusée par le schéma,
-    // la borne justifiant le plafond de statements du batch D1.
+    // MAX_VARIANTES_CREATION is 50: the 51st must be refused by the schema.
+    // That bound is what keeps the single D1 batch within its statement cap.
     const res = await creerMultipart(ownerCookie, {
       name: "Câble surchargé",
       price: 1500,
