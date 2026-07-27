@@ -509,3 +509,44 @@ Revue CodeRabbit sur PR #29 : pass, 1 constat Minor fondé — un commentaire de
 Note : la branche worktree-import-produits-supabase (29 commits, jamais mergée) a été
   sauvegardée sur origin puis son worktree supprimé ; son diff non commité est dans
   ~/pos-stocks-import-worktree-non-commite.patch. Son ledger n'existe que là.
+
+---
+
+> **Entrée récupérée.** Le lot d'import Supabase n'a jamais été mergé : ses 29 commits
+> vivaient sur la branche locale `worktree-import-produits-supabase`, dont le worktree a été
+> supprimé le 2026-07-25 à la demande de l'utilisateur. La branche a été poussée sur `origin`
+> avant suppression, et son diff non commité sauvegardé dans
+> `~/pos-stocks-import-worktree-non-commite.patch` — d'où provient ce ledger, qui n'existait
+> nulle part dans `main`. Il est reproduit verbatim ci-dessous ; son dernier état déclaré
+> (« BRANCHE PRÊTE ») décrit la branche telle qu'abandonnée, pas du code en production.
+
+# Ledger — Import catalogue Supabase (worktree-import-produits-supabase)
+Plan: docs/superpowers/plans/2026-07-18-import-produits-supabase.md
+Task 1: complete (commits b454c63..2713f3e, review clean after fix — bun-types devDependency redondant retiré)
+Task 2: complete (commits 2713f3e..51cc178, review clean — 2 minor non-bloquants : trim() sur description côté productCreateSchema, tri non locale-aware des catégories)
+Task 3: complete (commits 51cc178..ba5adec, review clean — minors non-bloquants : style import test, pas de validation runtime du JSON chargé, ENOENT si dossier parent absent)
+Task 4: complete (commits ba5adec..7842211, review clean — minor non-bloquant : limite<=0 traiterait 0 item silencieusement, non exercé)
+Task 5: complete (commits 7842211..d80f14a, review clean après fix critique — fetch/arrayBuffer non catché pouvait lever une exception réseau non gérée ; 3 tests ajoutés via Bun.serve pour telechargerEtConvertir)
+Task 6: complete (commits d80f14a..2149c82, review clean après fix plan-mandated — origin hardcodé sur localhost:3000 aurait bloqué le rejeu prod ; connecter prend origin en paramètre, plan mis à jour en conséquence)
+Task 7: complete (commits 0eec4a0..010e5cf, review clean après fix — image jamais retentée pour un produit déjà créé ; 1 produit orphelin identifié et documenté, NOM_EXISTANT sur relance). Vérification réelle : 719/744 produits importés en D1 locale (712 avec image), 25 échecs qualité-données (23 noms dupliqués, 2 prix à 0), reprise idempotente confirmée sur un second run complet contre 744 vrais produits.
+
+
+---
+
+# Ledger — recréation magasins + inventaire Supabase (worktree import-produits-supabase)
+Plan: docs/superpowers/plans/2026-07-19-recreation-magasins-inventaire-supabase.md
+Base commit: c3e401c
+Task 1: complete (commits c3e401c..7cb791e, review clean — spec OK, tests 2/2)
+  Minor (final wave): stray `import type {} from "zod"` no-op dans supabase-source.ts à retirer
+Task 2: complete (commits 7cb791e..6b96743, review clean — verbatim du plan, test 1/1)
+Task 3: complete (commits 6b96743..35607a4, review clean — verbatim, tests OK)
+Task 4: complete (commits 35607a4..671d4ce puis fixes 1d035b8/6b16c23, review clean — dry-run validé lit 3 magasins Supabase)
+  Fixes intégration: tsc local cassé depuis T2 (journal-simple.test type) corrigé; --project-ref inopérant pour db query -> --workdir (défaut racine worktree); dead import zod retiré (Minor T1 résolu)
+Task 5: complete (commits 6b16c23..529a6f2, review clean — verbatim, tests 5/5, tsc exit 0 vérifié)
+Task 6: complete (commit 529a6f2..de730e0, review clean — relu intégralement: pagination/reprise/404/dry-run corrects, tsc exit 0)
+  Notes finales: (a) une erreur sur un entrepôt abandonne ses lots restants mais continue les autres entrepôts; (b) fenêtre non-idempotente entre receive OK et écriture journal (même classe que creer-magasins, accepté)
+Task 7: complete (commits de730e0..b41c8ab, E2E local validé). Niveaux 691/15/0, quantité+CMP=round(cost) vérifiés contre Supabase (décimaux inclus), idempotence OK, README à jour.
+  Fix E2E: cost numeric Supabase en chaîne -> coercition (commit 78e8052)
+Revue finale (opus): shippable, 0 Critical. Corrigé: Important 1 (ORDER BY lecture inventaire -> reprise déterministe), Important 2 (garde référence lot reçu -> ferme la fenêtre receive/journal, validé E2E: journal supprimé -> 0 re-semé, niveaux 691/15 inchangés), Minor 1 (garde pagination), Minor 3 (validation --taille-lot). Commit c5a1811.
+  Minors acceptés: M2 fail-fast storeId non mappé (voulu, 3 magasins toujours créés); M4 brouillons orphelins sur échec (sans effet stock); M5 pas de test unitaire recupererProduits (mitige par garde M1 + E2E).
+BRANCHE PRÊTE. Reste: run PROD (magasins -> catalogue -> inventaire) lancé par l utilisateur via ! avec identifiants owner prod.
