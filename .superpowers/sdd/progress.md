@@ -485,3 +485,27 @@ formulaire ; id "p-image" codé en dur ; deux attributs de même clé s'écrasen
 d'une paire d'attributs ; description/codeBarres non trimés ; parseBody non gardé (500 au lieu
 de 400, identique à /:id/image préexistant).
 BRANCHE PRÊTE POUR PR.
+
+--- Reprise des différés (PR #29, merge ffb77f3) ---
+Les SEPT différés du lot création produit sont traités. Plus aucun différé ouvert sur ce lot.
+  Batching : barcodeDejaUtilise coûtait 2 SELECT par appel dans une boucle sur les variantes,
+    plus 1 par SKU explicite — ~150 allers-retours D1 sérialisés avant la 1re écriture à
+    50 variantes. Remplacés par barcodesDejaUtilises et skusVariantesDejaUtilises, bâtis sur
+    requeterParLots. Ordre des décisions inchangé. L'unicité INTER-TABLES (produits + variantes
+    confondus) est le piège de cette refonte : verrouillée par un test où le code-barres en
+    conflit appartient à une VARIANTE, pas à un produit.
+  parseBody gardé sur les DEUX routes multipart (400 au lieu de 500) — l'objection du
+    « correctif global » qui l'avait fait différer tombe ainsi.
+  Formulaire : plafond des variantes aligné sur MAX_VARIANTES_CREATION (+ test API de la borne,
+    qui manquait), clés d'attributs en double refusées, retrait d'une paire possible (la
+    dernière reste, une variante exigeant un attribut), description/codeBarres trimés.
+  ChampImage accepte un id (le sien était partagé avec section-identite.tsx).
+  7 tests ajoutés. Suites : 350 API / 207 web.
+Revue CodeRabbit sur PR #29 : pass, 1 constat Minor fondé — un commentaire de code que j'avais
+  écrit en français, la règle même imposée à tous les subagents du lot. Corrigé (7e5de3c).
+⚠️ Ce lot et les correctifs CodeRabbit de la PR #28 n'ont PAS eu de relecteur indépendant :
+  le classifieur a refusé les dépêches d'agent pendant plusieurs heures. CodeRabbit a tenu ce
+  rôle sur les deux PR, filet plus léger que la revue par tâche du reste de la branche.
+Note : la branche worktree-import-produits-supabase (29 commits, jamais mergée) a été
+  sauvegardée sur origin puis son worktree supprimé ; son diff non commité est dans
+  ~/pos-stocks-import-worktree-non-commite.patch. Son ledger n'existe que là.
