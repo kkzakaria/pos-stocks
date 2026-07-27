@@ -12,7 +12,11 @@ import * as schema from "../db/schema"
 import { validerCorps } from "../lib/validation"
 import { estViolationUnicite } from "../lib/db-errors"
 import { requeterParLots } from "../lib/db-batch"
-import { barcodeDejaUtilise } from "../lib/barcode"
+import {
+  barcodeDejaUtilise,
+  barcodesDejaUtilises,
+  skusVariantesDejaUtilises,
+} from "../lib/barcode"
 import { genererSkuProduit, genererSkuVariante } from "../lib/sku"
 import { categorieExiste, produitScope } from "../lib/org-scope"
 import { filtrePortee, porteeLectureStock } from "../lib/stock-acces"
@@ -246,7 +250,18 @@ async function creerDepuisMultipart(c: ContexteProduits): Promise<Response> {
     )
   }
 
-  const form = await c.req.parseBody()
+  // A malformed multipart body is a CLIENT error: without this guard
+  // parseBody throws and the request surfaces as 500, unlike the JSON
+  // path where validerCorps already degrades to 400.
+  let form: Awaited<ReturnType<typeof c.req.parseBody>>
+  try {
+    form = await c.req.parseBody()
+  } catch {
+    return c.json(
+      { code: "VALIDATION", message: "Corps multipart illisible" },
+      400
+    )
+  }
   const brut = form["donnees"]
   if (typeof brut !== "string") {
     return c.json(
@@ -302,18 +317,24 @@ async function creerProduit(
     )
   }
 
-  if (
-    donnees.barcode &&
-    (await barcodeDejaUtilise(db, organizationId, donnees.barcode))
-  ) {
+  const variantes = donnees.variants ?? []
+  const aDesVariantes = variantes.length > 0
+
+  // Every barcode of the payload is looked up in ONE batched pass, product and
+  // variants alike. The one-at-a-time helper costs two selects per call, so a
+  // 50-variant payload used to spend ~100 sequential round trips here before
+  // the first write. The decision order below is unchanged.
+  const barcodesPris = await barcodesDejaUtilises(db, organizationId, [
+    ...(donnees.barcode ? [donnees.barcode] : []),
+    ...variantes.flatMap((v) => (v.barcode ? [v.barcode] : [])),
+  ])
+
+  if (donnees.barcode && barcodesPris.has(donnees.barcode)) {
     return c.json(
       { code: "BARCODE_EXISTANT", message: "Ce code-barres est déjà utilisé" },
       409
     )
   }
-
-  const variantes = donnees.variants ?? []
-  const aDesVariantes = variantes.length > 0
 
   // Same rule and message as POST /:id/variants and PATCH /variants/:id: a
   // variant's floor price may not exceed its OWN effective selling price
@@ -345,7 +366,7 @@ async function creerProduit(
     if (!variante.barcode) continue
     if (
       barcodesVus.has(variante.barcode) ||
-      (await barcodeDejaUtilise(db, organizationId, variante.barcode))
+      barcodesPris.has(variante.barcode)
     ) {
       return c.json(
         {
@@ -365,19 +386,14 @@ async function creerProduit(
   // violation — and since the product SKU is auto here, that falls into the
   // retry branch and burns three identical attempts before a misleading
   // "could not generate a unique SKU" message.
+  const skusPris = await skusVariantesDejaUtilises(
+    db,
+    organizationId,
+    variantes.flatMap((v) => (v.sku ? [v.sku] : []))
+  )
   for (const variante of variantes) {
     if (!variante.sku) continue
-    const existants = await db
-      .select({ id: schema.productVariants.id })
-      .from(schema.productVariants)
-      .where(
-        and(
-          eq(schema.productVariants.organizationId, organizationId),
-          eq(schema.productVariants.sku, variante.sku)
-        )
-      )
-      .limit(1)
-    if (existants.length > 0) {
+    if (skusPris.has(variante.sku)) {
       return c.json(
         {
           code: "SKU_EXISTANT",
@@ -787,7 +803,18 @@ productsRoute.post(
       )
     }
 
-    const form = await c.req.parseBody()
+    // A malformed multipart body is a CLIENT error: without this guard
+    // parseBody throws and the request surfaces as 500, unlike the JSON
+    // path where validerCorps already degrades to 400.
+    let form: Awaited<ReturnType<typeof c.req.parseBody>>
+    try {
+      form = await c.req.parseBody()
+    } catch {
+      return c.json(
+        { code: "VALIDATION", message: "Corps multipart illisible" },
+        400
+      )
+    }
     const fichier = form["image"]
     if (!(fichier instanceof File)) {
       return c.json(

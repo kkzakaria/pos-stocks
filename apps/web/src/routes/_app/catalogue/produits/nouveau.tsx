@@ -117,9 +117,12 @@ export function FormulaireCreationProduit({
         name: nom,
         price: Number(prix),
       }
-      if (description) donnees.description = description
+      // Trimmed before the truthiness test: a whitespace-only paste used to
+      // travel to the server and come back as Zod's default English message,
+      // which apiFetch surfaces over the envelope's own.
+      if (description.trim()) donnees.description = description.trim()
       if (categorieId) donnees.categoryId = categorieId
-      if (codeBarres) donnees.barcode = codeBarres
+      if (codeBarres.trim()) donnees.barcode = codeBarres.trim()
       if (plancher) donnees.minPrice = Number(plancher)
       if (seuilAlerte) donnees.defaultMinStock = Number(seuilAlerte)
       if (suiviLots) donnees.trackLots = true
