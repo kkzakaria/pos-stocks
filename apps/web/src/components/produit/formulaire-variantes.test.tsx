@@ -277,4 +277,73 @@ describe("FormulaireVariantes", () => {
       { name: "Standard", attributes: { taille: "L" } },
     ])
   })
+
+  it("refuse deux attributs portant la même clé plutôt que d'en perdre un", () => {
+    const onChange = vi.fn()
+    render(<FormulaireVariantes value={[]} onChange={onChange} />)
+
+    fireEvent.click(screen.getByRole("button", { name: "Ajouter un attribut" }))
+    fireEvent.change(screen.getByLabelText("Nom (ex : M / Rouge)"), {
+      target: { value: "M rouge" },
+    })
+    fireEvent.change(screen.getByLabelText("Attribut 1 — nom"), {
+      target: { value: "taille" },
+    })
+    fireEvent.change(screen.getByLabelText("Attribut 1 — valeur"), {
+      target: { value: "M" },
+    })
+    fireEvent.change(screen.getByLabelText("Attribut 2 — nom"), {
+      target: { value: "taille" },
+    })
+    fireEvent.change(screen.getByLabelText("Attribut 2 — valeur"), {
+      target: { value: "L" },
+    })
+    fireEvent.click(screen.getByRole("button", { name: "Ajouter la variante" }))
+
+    expect(onChange).not.toHaveBeenCalled()
+    expect(screen.getByRole("alert").textContent).toContain("taille")
+  })
+
+  it("permet de retirer une paire d'attributs ajoutée par erreur", () => {
+    const onChange = vi.fn()
+    render(<FormulaireVariantes value={[]} onChange={onChange} />)
+
+    // A single pair offers no removal: a variant needs one attribute.
+    expect(
+      screen.queryByRole("button", { name: "Retirer l'attribut 1" })
+    ).toBeNull()
+
+    fireEvent.click(screen.getByRole("button", { name: "Ajouter un attribut" }))
+    fireEvent.change(screen.getByLabelText("Attribut 2 — nom"), {
+      target: { value: "erreur" },
+    })
+    fireEvent.click(
+      screen.getByRole("button", { name: "Retirer l'attribut 2" })
+    )
+
+    expect(screen.queryByLabelText("Attribut 2 — nom")).toBeNull()
+  })
+
+  it("plafonne le nombre de variantes sur la borne de l'API", () => {
+    const onChange = vi.fn()
+    const pleines = Array.from({ length: 50 }, (_, i) => ({
+      name: `V${i}`,
+      attributes: { indice: String(i) },
+    }))
+    render(<FormulaireVariantes value={pleines} onChange={onChange} />)
+
+    fireEvent.change(screen.getByLabelText("Nom (ex : M / Rouge)"), {
+      target: { value: "De trop" },
+    })
+    fireEvent.change(screen.getByLabelText("Attribut 1 — nom"), {
+      target: { value: "indice" },
+    })
+    fireEvent.change(screen.getByLabelText("Attribut 1 — valeur"), {
+      target: { value: "99" },
+    })
+    fireEvent.click(screen.getByRole("button", { name: "Ajouter la variante" }))
+
+    expect(onChange).not.toHaveBeenCalled()
+    expect(screen.getByRole("alert").textContent).toContain("50")
+  })
 })

@@ -14,9 +14,12 @@ const TYPES_ACCEPTES = ["image/jpeg", "image/png", "image/webp"]
 export function ChampImage({
   value,
   onChange,
+  id = "p-image",
 }: {
   value: File | null
   onChange: (fichier: File | null) => void
+  /** DOM id of the file input; override when two instances share a view. */
+  id?: string
 }) {
   const [erreur, setErreur] = useState<string | null>(null)
   const [apercu, setApercu] = useState<string | null>(null)
@@ -50,7 +53,7 @@ export function ChampImage({
       )}
       <div className="flex items-center gap-2">
         <input
-          id="p-image"
+          id={id}
           type="file"
           accept="image/jpeg,image/png,image/webp"
           aria-label="Choisir une image"
@@ -80,7 +83,7 @@ export function ChampImage({
           className="peer sr-only"
         />
         <label
-          htmlFor="p-image"
+          htmlFor={id}
           className={cn(
             buttonVariants({ variant: "outline", size: "sm" }),
             "w-fit cursor-pointer peer-focus-visible:ring-2 peer-focus-visible:ring-ring/30"

@@ -81,4 +81,11 @@ describe("ChampImage", () => {
     expect(label?.className).toContain("peer-focus-visible:ring-2")
     expect(label?.className).toContain("peer-focus-visible:ring-ring/30")
   })
+
+  it("accepte un id personnalisé pour cohabiter avec un autre champ image", () => {
+    render(<ChampImage id="v-image" value={null} onChange={vi.fn()} />)
+
+    const input = screen.getByLabelText("Choisir une image")
+    expect(input.getAttribute("id")).toBe("v-image")
+  })
 })

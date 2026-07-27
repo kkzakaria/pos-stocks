@@ -512,4 +512,79 @@ describe("POST /api/v1/products — création multipart", () => {
     expect(await db.select().from(schema.products)).toHaveLength(0)
     expect(await env.IMAGES.list()).toMatchObject({ objects: [] })
   })
+
+  it("refuse un code-barres déjà porté par une VARIANTE existante, pas seulement par un produit", async () => {
+    const { ownerCookie } = await bootstrapOwner()
+    // The barcode lives on a variant, not on a product row: unicity spans both
+    // tables, and the batched lookup must keep covering the variant side.
+    expect(
+      (
+        await creerMultipart(ownerCookie, {
+          name: "Câble témoin",
+          price: 1500,
+          variants: [
+            {
+              name: "1.5 mm²",
+              attributes: { section: "1.5" },
+              barcode: "3011110000777",
+            },
+          ],
+        })
+      ).status
+    ).toBe(201)
+
+    const res = await creerMultipart(ownerCookie, {
+      name: "Câble concurrent",
+      price: 1500,
+      variants: [
+        {
+          name: "2.5 mm²",
+          attributes: { section: "2.5" },
+          barcode: "3011110000777",
+        },
+      ],
+    })
+    expect(res.status).toBe(409)
+    expect((await res.json<{ code: string }>()).code).toBe("BARCODE_EXISTANT")
+
+    const db = drizzle(env.DB, { schema })
+    expect(await db.select().from(schema.products)).toHaveLength(1)
+  })
+
+  it("refuse une charge dépassant la borne de variantes", async () => {
+    const { ownerCookie } = await bootstrapOwner()
+    // MAX_VARIANTES_CREATION is 50: the 51st must be refused by the schema.
+    // That bound is what keeps the single D1 batch within its statement cap.
+    const res = await creerMultipart(ownerCookie, {
+      name: "Câble surchargé",
+      price: 1500,
+      variants: Array.from({ length: 51 }, (_, i) => ({
+        name: `V${i}`,
+        attributes: { indice: String(i) },
+      })),
+    })
+    expect(res.status).toBe(400)
+    expect((await res.json<{ code: string }>()).code).toBe("VALIDATION")
+
+    const db = drizzle(env.DB, { schema })
+    expect(await db.select().from(schema.products)).toHaveLength(0)
+  })
+
+  it("rend 400 et non 500 sur un corps multipart illisible", async () => {
+    const { ownerCookie } = await bootstrapOwner()
+    const res = await app.request(
+      "/api/v1/products",
+      {
+        method: "POST",
+        headers: {
+          cookie: ownerCookie,
+          "content-type": "multipart/form-data; boundary=----inexistante",
+        },
+        body: "ceci n'est pas un corps multipart",
+      },
+      env
+    )
+    expect(res.status).toBe(400)
+    expect((await res.json<{ code: string }>()).code).toBe("VALIDATION")
+  })
 })

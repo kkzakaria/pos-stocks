@@ -1,4 +1,5 @@
 import { useState } from "react"
+import { MAX_VARIANTES_CREATION } from "shared"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -56,13 +57,27 @@ export function FormulaireVariantes({
   const [erreur, setErreur] = useState<string | null>(null)
 
   const ajouter = () => {
+    if (value.length >= MAX_VARIANTES_CREATION) {
+      // Mirrors the API bound: past it the whole creation is refused, so the
+      // cap is enforced before the user keeps typing.
+      setErreur(`Maximum ${MAX_VARIANTES_CREATION} variantes par produit`)
+      return
+    }
     if (!nom.trim()) {
       setErreur("Donnez un nom à la variante")
       return
     }
     const attributes: Record<string, string> = {}
+    const clesVues = new Set<string>()
     for (const { cle, valeur } of attributs) {
-      if (cle.trim() && valeur.trim()) attributes[cle.trim()] = valeur.trim()
+      if (!cle.trim() || !valeur.trim()) continue
+      // Silently keeping the last value would drop what the user typed first.
+      if (clesVues.has(cle.trim())) {
+        setErreur(`L'attribut « ${cle.trim()} » est renseigné deux fois`)
+        return
+      }
+      clesVues.add(cle.trim())
+      attributes[cle.trim()] = valeur.trim()
     }
     if (Object.keys(attributes).length === 0) {
       // Without an attribute the API generates the same SKU as the implicit
@@ -178,6 +193,22 @@ export function FormulaireVariantes({
                 )
               }
             />
+            {/* Adding pairs without being able to remove one forced the user to
+                abandon the whole draft over a single mistyped key. The last
+                remaining pair stays, since a variant needs one attribute. */}
+            {attributs.length > 1 && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                aria-label={`Retirer l'attribut ${index + 1}`}
+                onClick={() =>
+                  setAttributs(attributs.filter((_, i) => i !== index))
+                }
+              >
+                Retirer
+              </Button>
+            )}
           </div>
         ))}
         <Button
