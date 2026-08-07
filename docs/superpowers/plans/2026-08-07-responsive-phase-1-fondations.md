@@ -28,7 +28,7 @@
 **Deux pièges constatés en exécution — ils valent pour tout écran migré vers `ListeAdaptative`, ici comme en phases 2 à 4 :**
 
 1. **Le test garde-fou « ne perd aucune donnée en mode carte » porte sur les colonnes `masquerEnCarte`, jamais sur les colonnes visibles.** Ces dernières passent par le mécanisme des paires quoi qu'il arrive : les asserter ne prouve rien. Les deux tables témoins ont commis l'erreur inverse avant correction, parce que les extraits de test de ce plan l'avaient eux-mêmes à l'envers.
-2. **`ListeAdaptative` ne transmet aucun `className` au `TableCell` généré** — uniquement `numeric`. Toute classe portée par l'ancien `<TableCell>` (`text-sm`, `text-right`…) doit être reposée sur le contenu rendu dans `cellule`, sinon la vue table régresse en silence et aucun test ne le voit. Comparer chaque colonne migrée au `<TableCell>` qu'elle remplace, et le dire dans le rapport.
+2. **`ListeAdaptative` transmet `classeCellule` au `TableCell` généré** (mode table) et au `<dd>` de la paire (mode carte), en plus de `numeric`. Toute classe portée par l'ancien `<TableCell>` (`text-sm`, `text-right`, `font-mono`…) se repose sur `classeCellule`, jamais en enveloppant le retour de `cellule` dans son propre `<span>`/`<div>` — un wrapper ne stylerait que la cellule de table et perdrait le style en mode carte. Comparer chaque colonne migrée au `<TableCell>` qu'elle remplace, et le dire dans le rapport.
 
 ---
 
@@ -374,9 +374,10 @@ Le point de bascule du chantier. Rend une `Table` à partir de `md`, une liste d
 **Interfaces:**
 - Consumes: `useEstLarge` (Task 1), `Table`/`TableHeader`/`TableBody`/`TableRow`/`TableHead`/`TableCell` et `TableSkeleton` (existants), `Skeleton` (existant), `cn`.
 - Produces:
-  - `type ColonneAdaptative<T> = { cle: string; entete: React.ReactNode; cellule: (ligne: T) => React.ReactNode; numeric?: boolean; libelle?: React.ReactNode; masquerEnCarte?: boolean }`
+  - `type ColonneAdaptative<T> = { cle: string; entete: React.ReactNode; cellule: (ligne: T) => React.ReactNode; numeric?: boolean; libelle?: React.ReactNode; masquerEnCarte?: boolean; classeCellule?: string }`
   - `ListeAdaptative<T>(props): JSX.Element` avec
-    `{ colonnes, lignes, cle, titre, valeur?, sousTitre?, chargement?, etatVide?, containerClassName?, actionCarte? }`
+    `{ colonnes, lignes, cleLigne, titre, valeur?, sousTitre?, chargement?, etatVide?, containerClassName?, actionCarte?, surClicLigne?, classeLigne? }`
+  - `cleLigne` est l'extracteur de clé de **ligne** (React key + identité) — à ne pas confondre avec `cle` sur `ColonneAdaptative`, qui nomme une **colonne**. `surClicLigne`/`classeLigne` (ajoutés lors de la vague de correctifs finale de la phase 1, hors TDD ci-dessous) rendent la ligne entière cliquable — voir `apps/web/src/components/ui/liste-adaptative.tsx` pour l'implémentation livrée (gestion clavier Entrée/Espace, garde anti-double-déclenchement sur un descendant interactif).
 
 - [ ] **Step 1: Écrire le test qui échoue**
 
@@ -406,7 +407,7 @@ function afficher(extra?: Partial<React.ComponentProps<typeof ListeAdaptative<Mo
     <ListeAdaptative<Mouvement>
       colonnes={COLONNES}
       lignes={LIGNES}
-      cle={(l) => l.id}
+      cleLigne={(l) => l.id}
       titre={(l) => l.article}
       valeur={(l) => l.delta}
       {...extra}
@@ -515,12 +516,15 @@ export type ColonneAdaptative<T> = {
   libelle?: ReactNode
   /** Already carried by the card head (titre/valeur/sousTitre): skip the pair. */
   masquerEnCarte?: boolean
+  /** Extra classes for the generated `TableCell` (table mode) and the card's `<dd>` (card mode). */
+  classeCellule?: string
 }
 
 type Props<T> = {
   colonnes: ColonneAdaptative<T>[]
   lignes: T[]
-  cle: (ligne: T) => string
+  /** Row key extractor (React key + identity) — distinct from `ColonneAdaptative.cle`, which names a column. */
+  cleLigne: (ligne: T) => string
   /** Card mode: the dominant identity line. */
   titre: (ligne: T) => ReactNode
   /** Card mode: trailing value on the title line (amount, delta). */
@@ -533,6 +537,10 @@ type Props<T> = {
   containerClassName?: string
   /** Card mode: trailing action (e.g. a details link). */
   actionCarte?: (ligne: T) => ReactNode
+  /** Makes the whole row clickable (table `<TableRow>` and card `<li>`), keyboard-reachable (Enter/Space). */
+  surClicLigne?: (ligne: T) => void
+  /** Extra classes for the row itself (table `<TableRow>` / card `<li>`). */
+  classeLigne?: (ligne: T) => string
 }
 
 /**
@@ -549,7 +557,7 @@ type Props<T> = {
 export function ListeAdaptative<T>({
   colonnes,
   lignes,
-  cle,
+  cleLigne,
   titre,
   valeur,
   sousTitre,
@@ -581,9 +589,13 @@ export function ListeAdaptative<T>({
             </TableRow>
           ) : (
             lignes.map((ligne) => (
-              <TableRow key={cle(ligne)}>
+              <TableRow key={cleLigne(ligne)}>
                 {colonnes.map((c) => (
-                  <TableCell key={c.cle} numeric={c.numeric}>
+                  <TableCell
+                    key={c.cle}
+                    numeric={c.numeric}
+                    className={c.classeCellule}
+                  >
                     {c.cellule(ligne)}
                   </TableCell>
                 ))}
@@ -617,7 +629,7 @@ export function ListeAdaptative<T>({
   return (
     <ul className={cn("flex flex-col gap-2", containerClassName)}>
       {lignes.map((ligne) => (
-        <li key={cle(ligne)} className="rounded-md border bg-card p-3">
+        <li key={cleLigne(ligne)} className="rounded-md border bg-card p-3">
           <div className="flex items-start justify-between gap-3">
             <p className="min-w-0 flex-1 font-medium break-words">
               {titre(ligne)}
@@ -641,7 +653,8 @@ export function ListeAdaptative<T>({
                   <dd
                     className={cn(
                       "min-w-0 text-right break-words",
-                      c.numeric && "tabular-nums"
+                      c.numeric && "tabular-nums",
+                      c.classeCellule
                     )}
                   >
                     {c.cellule(ligne)}
@@ -1063,7 +1076,7 @@ function afficher(largeur: number) {
     <ListeAdaptative<MouvementJournal>
       colonnes={COLONNES_MOUVEMENTS}
       lignes={[M]}
-      cle={(m) => m.id}
+      cleLigne={(m) => m.id}
       titre={titreMouvement}
       valeur={valeurMouvement}
       sousTitre={sousTitreMouvement}
@@ -1128,11 +1141,9 @@ export const COLONNES_MOUVEMENTS: ColonneAdaptative<MouvementJournal>[] = [
     cle: "date",
     entete: "Date",
     masquerEnCarte: true,
-    cellule: (m) => (
-      <span className="whitespace-nowrap">
-        {new Date(m.createdAt).toLocaleString("fr-FR")}
-      </span>
-    ),
+    // whitespace-nowrap is already the TableCell default — no wrapper needed.
+    classeCellule: "text-sm",
+    cellule: (m) => new Date(m.createdAt).toLocaleString("fr-FR"),
   },
   { cle: "entrepot", entete: "Entrepôt", cellule: (m) => m.warehouseName },
   {
@@ -1167,10 +1178,21 @@ export const COLONNES_MOUVEMENTS: ColonneAdaptative<MouvementJournal>[] = [
   {
     cle: "lot",
     entete: "Lot",
-    cellule: (m) => <span className="font-mono">{m.lotNumber ?? "—"}</span>,
+    classeCellule: "font-mono",
+    cellule: (m) => m.lotNumber ?? "—",
   },
-  { cle: "motif", entete: "Motif", cellule: (m) => m.reason ?? "—" },
-  { cle: "par", entete: "Par", cellule: (m) => m.userName },
+  {
+    cle: "motif",
+    entete: "Motif",
+    classeCellule: "text-sm",
+    cellule: (m) => m.reason ?? "—",
+  },
+  {
+    cle: "par",
+    entete: "Par",
+    classeCellule: "text-sm",
+    cellule: (m) => m.userName,
+  },
 ]
 
 /** Card mode: the product identifies the row. */
@@ -1209,7 +1231,7 @@ Remplacer le bloc `<Table …>…</Table>` (lignes 182-241) par :
 <ListeAdaptative<MouvementJournal>
   colonnes={COLONNES_MOUVEMENTS}
   lignes={liste}
-  cle={(m) => m.id}
+  cleLigne={(m) => m.id}
   titre={titreMouvement}
   valeur={valeurMouvement}
   sousTitre={sousTitreMouvement}
@@ -1318,7 +1340,7 @@ function afficher(largeur: number) {
     <ListeAdaptative<VenteListe>
       colonnes={COLONNES_VENTES}
       lignes={[V]}
-      cle={(v) => v.id}
+      cleLigne={(v) => v.id}
       titre={titreVente}
       valeur={valeurVente}
       sousTitre={sousTitreVente}
@@ -1442,7 +1464,7 @@ export function sousTitreVente(v: VenteListe) {
 <ListeAdaptative<VenteListe>
   colonnes={COLONNES_VENTES}
   lignes={liste}
-  cle={(v) => v.id}
+  cleLigne={(v) => v.id}
   titre={titreVente}
   valeur={valeurVente}
   sousTitre={sousTitreVente}

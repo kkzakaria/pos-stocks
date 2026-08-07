@@ -104,7 +104,7 @@ export function sousTitreVente(v: VenteListe) {
 }
 
 /** Sales history page: list paginated by store and period (presets or dates), filtered to the stores the account can read. */
-function HistoriqueVentes() {
+export function HistoriqueVentes() {
   const { me } = useRouteContext({ from: "/_app" })
   const destinations = useQuery({
     queryKey: ["destinations"],
@@ -230,7 +230,7 @@ function HistoriqueVentes() {
               titre={titreVente}
               valeur={valeurVente}
               sousTitre={sousTitreVente}
-              chargement={ventes.isPending}
+              chargement={ventes.isLoading}
               containerClassName="min-h-0 flex-1 overflow-y-auto"
               etatVide={
                 <EtatVide
