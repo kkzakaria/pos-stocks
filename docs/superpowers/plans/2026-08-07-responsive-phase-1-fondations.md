@@ -658,7 +658,7 @@ export function ListeAdaptative<T>({
 Run: `bun run --cwd apps/web test -- liste-adaptative`
 Expected: 7 cas PASS.
 
-Si `data-slot="skeleton"` ne correspond pas à l'attribut réel de `skeleton.tsx`, lire le composant et aligner l'assertion sur ce qu'il émet réellement — ne pas modifier `skeleton.tsx`.
+`data-slot="skeleton"` est l'attribut réellement émis par `skeleton.tsx` (vérifié). Ne pas modifier ce composant.
 
 - [ ] **Step 5: Commit**
 
@@ -807,7 +807,9 @@ function DrawerContent({
         {children}
         <DrawerPrimitive.Close
           data-slot="drawer-close"
-          render={<Button variant="ghost" size="icon-sm" className="absolute top-2 right-2" />}
+          // `icon` and not `icon-sm`: only `icon` carries
+          // `pointer-coarse:size-11`, and this button is touch-first.
+          render={<Button variant="ghost" size="icon" className="absolute top-2 right-2" />}
         >
           <XIcon />
           <span className="sr-only">Fermer</span>
@@ -852,7 +854,7 @@ export {
 }
 ```
 
-Si `size="icon-sm"` n'existe pas dans les variantes de `button.tsx`, lire le fichier et utiliser la variante de taille réellement disponible — ne pas en ajouter une.
+Les variantes de taille de `button.tsx` sont vérifiées : `default`, `xs`, `sm`, `lg`, `icon`, `icon-xs`, `icon-sm`, `icon-lg`. N'en ajouter aucune.
 
 - [ ] **Step 4: Lancer le test pour vérifier qu'il passe**
 
@@ -1251,13 +1253,113 @@ Forme différente : 6 colonnes, un montant, et une colonne d'action qui devient 
 
 - [ ] **Step 1: Écrire le test qui échoue**
 
-Créer `apps/web/src/routes/_app/ventes/index.test.tsx`, sur le même modèle que la Task 6 : extraire `COLONNES_VENTES`, `titreVente`, `valeurVente`, `sousTitreVente`, puis vérifier
-- que `COLONNES_VENTES` a **6 entrées** — les 5 colonnes de données plus la colonne d'action (en-tête vide), pour que la table conserve exactement ses 6 colonnes actuelles ;
-- qu'à 1280 px les en-têtes `N°`, `Date`, `Caissier`, `Articles`, `Total` sont présents ;
-- qu'à 375 px la carte porte `N° 42` en titre et le montant en valeur ;
-- qu'à 375 px le lien « Détail » est présent et pointe vers la bonne vente.
+Créer `apps/web/src/routes/_app/ventes/index.test.tsx`.
 
-**Pour l'assertion du montant, utiliser le helper `texteMontant` existant** — `formaterMontant` produit des espaces insécables étroites (U+202F) que `getByText` ne retrouve pas. Localiser le helper dans les tests POS existants et le réutiliser.
+Le composant `<Link>` de TanStack Router exige un contexte de routeur : le rendre nu lève une erreur. Le test le neutralise, la cible étant les colonnes, pas la navigation.
+
+```tsx
+import { render, screen } from "@testing-library/react"
+import { ListeAdaptative } from "@/components/ui/liste-adaptative"
+import { installerMatchMedia } from "@/test/media-query"
+import {
+  COLONNES_VENTES,
+  titreVente,
+  valeurVente,
+  sousTitreVente,
+} from "./index"
+import type { VenteListe } from "@/lib/pos-api"
+
+vi.mock("@tanstack/react-router", async () => {
+  const reel = await vi.importActual<Record<string, unknown>>(
+    "@tanstack/react-router"
+  )
+  return {
+    ...reel,
+    Link: ({
+      children,
+      params,
+    }: {
+      children: React.ReactNode
+      params?: { saleId?: string }
+    }) => <a href={`/ventes/${params?.saleId ?? ""}`}>{children}</a>,
+  }
+})
+
+const V: VenteListe = {
+  id: "s1",
+  ticketNumber: 42,
+  total: 12500,
+  currency: "XOF",
+  status: "completed",
+  createdAt: "2026-08-07T10:30:00.000Z",
+  cashierName: "Awa",
+  itemCount: 3,
+}
+
+/** fr-FR inserts U+202F narrow no-break spaces in amounts. */
+function texteMontant(valeur: number): RegExp {
+  return new RegExp(String(valeur).replace(/\B(?=(\d{3})+(?!\d))/g, "\\s?"))
+}
+
+function afficher(largeur: number) {
+  const nettoyer = installerMatchMedia(largeur)
+  render(
+    <ListeAdaptative<VenteListe>
+      colonnes={COLONNES_VENTES}
+      lignes={[V]}
+      cle={(v) => v.id}
+      titre={titreVente}
+      valeur={valeurVente}
+      sousTitre={sousTitreVente}
+      actionCarte={() => <a href="/ventes/s1">Détail</a>}
+    />
+  )
+  return nettoyer
+}
+
+describe("colonnes de l'historique des ventes", () => {
+  it("expose 6 entrées : 5 colonnes de données plus l'action", () => {
+    expect(COLONNES_VENTES).toHaveLength(6)
+    expect(COLONNES_VENTES.at(-1)!.cle).toBe("detail")
+  })
+
+  it("rend les en-têtes de données en table à 1280 px", () => {
+    const nettoyer = afficher(1280)
+    for (const entete of ["N°", "Date", "Caissier", "Articles", "Total"]) {
+      expect(screen.getByText(entete)).toBeTruthy()
+    }
+    nettoyer()
+  })
+
+  it("porte le numéro de ticket en titre et le montant en valeur à 375 px", () => {
+    const nettoyer = afficher(375)
+    const carte = screen.getAllByRole("listitem")[0]!
+    expect(carte.textContent).toContain("N° 42")
+    expect(carte.textContent).toMatch(texteMontant(12500))
+    nettoyer()
+  })
+
+  it("n'affiche le lien Détail qu'une seule fois en carte", () => {
+    const nettoyer = afficher(375)
+    const liens = screen.getAllByText("Détail")
+    expect(liens).toHaveLength(1)
+    expect(liens[0]!.getAttribute("href")).toBe("/ventes/s1")
+    nettoyer()
+  })
+
+  it("ne perd aucune donnée en mode carte", () => {
+    const nettoyer = afficher(375)
+    const carte = screen.getAllByRole("listitem")[0]!
+    expect(carte.textContent).toContain("Awa")
+    expect(carte.textContent).toContain("3")
+    nettoyer()
+  })
+})
+```
+
+`texteMontant` est redéfini ici plutôt qu'importé : si un helper équivalent existe déjà dans les tests POS, l'importer et supprimer la copie locale — vérifier avant d'écrire. Ce qui compte est de **ne jamais** écrire `getByText(formaterMontant(x))`, que les espaces insécables étroites (U+202F) font échouer.
+
+Le quatrième cas est le garde-fou anti-duplication : en carte, la colonne d'action est masquée et seul `actionCarte` rend le lien.
 
 - [ ] **Step 2: Lancer le test pour vérifier qu'il échoue**
 
@@ -1482,24 +1584,41 @@ Ouverture de caisse, fermeture de caisse et tickets du jour. Écrans simples, ma
 - Consumes: rien de nouveau.
 - Produces: rien.
 
-- [ ] **Step 1: Adapter les trois écrans**
+- [ ] **Step 1: Relever ce qui casse réellement à 375 px**
 
-Pour chacun, à 375 px : conteneurs en `w-full` avec `max-w-*` plutôt que largeurs fixes, `px-4` minimum, boutons d'action empilés en pleine largeur sous `sm`, et champs numériques conservant `inputMode="numeric"`. Aucun changement de logique métier, aucun changement de contrat.
+Avant toute modification, lire les trois fichiers et **lister** les endroits qui débordent ou deviennent inutilisables à 375 px. Chercher précisément :
 
-`tickets-du-jour.tsx` est une liste, pas une table : vérifier qu'elle tient à 375 px sans passer par `ListeAdaptative` — n'introduire le composant que si la liste est réellement tabulaire.
+```bash
+cd /home/pioupiou/codes/pos-stocks/apps/web/src/pos
+grep -n "w-\[\|w-9\|w-8\|w-7\|w-6\|min-w-\|max-w-\|grid-cols-\|flex " ouverture-caisse.tsx fermeture-caisse.tsx tickets-du-jour.tsx
+```
 
-- [ ] **Step 2: Lancer les tests**
+Produire la liste avant de corriger : c'est elle qui définit le périmètre de cette tâche, et elle évite de « moderniser » du code qui tient déjà.
+
+- [ ] **Step 2: Appliquer les corrections relevées**
+
+Règles à appliquer, et **uniquement** aux endroits relevés à l'étape 1 :
+
+- toute largeur fixe (`w-56`, `w-96`, `w-[…]`) sur un conteneur de formulaire devient `w-full sm:w-56` (ou l'équivalent) ;
+- tout conteneur de page sans padding horizontal reçoit `px-4` ;
+- une rangée de boutons d'action passe de `flex gap-2` à `flex flex-col gap-2 sm:flex-row` quand elle contient deux boutons ou plus ;
+- les champs de montant **conservent** `inputMode="numeric"` — ne pas y toucher ;
+- aucun changement de logique métier, aucun changement de contrat d'API, aucun libellé modifié.
+
+`tickets-du-jour.tsx` est une **liste, pas une table** : ne pas y introduire `ListeAdaptative`. Si la liste tient déjà à 375 px, la laisser strictement inchangée et le noter — une tâche qui ne modifie rien est un résultat valide ici.
+
+- [ ] **Step 3: Lancer les tests**
 
 ```bash
 bun run --cwd apps/web test
 ```
 Expected: suite entière verte, `tickets-du-jour.test.tsx` compris.
 
-- [ ] **Step 3: Vérification au navigateur**
+- [ ] **Step 4: Vérification au navigateur**
 
 Parcours caissier complet à 375 px : ouverture de caisse (fond de caisse) → vente → paiement → tickets du jour → fermeture de caisse (montant compté, écart). Aucun défilement horizontal, toutes les cibles ≥ 44 px.
 
-- [ ] **Step 4: Commit**
+- [ ] **Step 5: Commit**
 
 ```bash
 git add apps/web/src/pos/ouverture-caisse.tsx apps/web/src/pos/fermeture-caisse.tsx apps/web/src/pos/tickets-du-jour.tsx
