@@ -18,12 +18,12 @@ colors:
   chart-1: "oklch(0.809 0.105 251.813)"
   chart-3: "oklch(0.546 0.245 262.881)"
   chart-5: "oklch(0.424 0.199 265.638)"
-  ticket-comptoir: "oklch(0.26 0.03 158)"
+  ticket-comptoir: "oklch(0.937 0.002 197)"
   ticket-papier: "oklch(0.985 0.004 106)"
   ticket-rack: "oklch(0.55 0.19 38)"
 typography:
   display:
-    fontFamily: "Space Grotesk Variable, Inter Variable, sans-serif"
+    fontFamily: "DM Sans Variable, Inter Variable, sans-serif"
     fontSize: "1.5rem"
     fontWeight: 500
     lineHeight: 1.1
@@ -125,13 +125,13 @@ Le système visuel est un registre numérique : une page blanche, réglée de tr
 
 Ce que le système rejette explicitement : l'**ERP obèse** (écrans gris saturés, menus sans fin, codes cryptiques), le **POS grand public ludique** (arrondi, coloré, gamifié), le **template admin générique** (cartes grises anonymes sans point de vue) et le **clinquant marketing** (dégradés, hero-metrics, motion décoratif). La confiance ne vient pas d'un effet, elle vient de la lisibilité.
 
-Une exception assumée à la retenue : le monde du **ticket de caisse** — l'écran de connexion et le reçu 80 mm. Là, le registre laisse place au papier thermique : comptoir vert profond, encre sombre, accent orange « rack », Space Grotesk en display et JetBrains Mono pour les chiffres. C'est le seul endroit où le système a de la matière et de la chaleur ; ailleurs, il reste l'encre sur la page.
+Une exception assumée à la retenue : le monde du **ticket de caisse** — l'écran de connexion et le reçu 80 mm. Là, le registre laisse place au papier thermique : comptoir gris pâle hachuré, encre sombre, accent orange « rack », DM Sans en display et JetBrains Mono pour les chiffres. C'est le seul endroit où le système a de la matière et de la chaleur ; ailleurs, il reste l'encre sur la page.
 
 **Key Characteristics:**
 - Dense par défaut : contrôles compacts (28 px), échelle de type serrée, information au premier plan.
 - Plat et tonal : pas d'ombres portées dans l'app ; la profondeur vient de traits fins (`ring-1`) et de couches de gris.
 - Une seule voix chromatique : l'indigo pour l'action, la sélection, l'état — jamais pour décorer.
-- Inter partout dans l'app ; Space Grotesk et JetBrains Mono réservés au monde du ticket.
+- Inter partout dans l'app ; DM Sans et JetBrains Mono réservés au monde du ticket.
 - Le chiffre est l'élément le plus lisible de chaque écran.
 
 ## 2. Colors
@@ -153,25 +153,25 @@ Une page d'encre et de papier, ponctuée d'un seul indigo — plus un monde chau
 - **Rampe indigo des graphiques** (`chart-1` `oklch(0.809 0.105 251.813)` → `chart-5` `oklch(0.424 0.199 265.638)`) : cinq pas dans la même famille bleue pour la data-viz. Même hue que le primaire : la donnée reste dans la voix de la marque.
 
 ### Signature — Le ticket
-- **Comptoir** (`#14261d`) : vert profond, fond de l'écran de connexion et cadre du reçu.
+- **Comptoir** (`#eceded`) : gris pâle neutre, fond de l'écran de connexion, hachuré à 45° (`rgb(0 0 0 / 0.014)`, 2 px pleins tous les 7 px) pour donner du grain sans devenir un motif.
 - **Papier thermique** (`#fcfcf8`) : le corps du ticket, blanc cassé chaud.
 - **Rack** (`#c2410c` / vif `#e8590c`) : l'unique accent orange, réservé au monde du ticket. **Il ne migre jamais dans l'app.**
 
 ### Named Rules
 **La règle d'une seule voix.** L'indigo n'apparaît que pour l'action, la sélection et l'état — jamais en décor ni en aplat décoratif. Les aplats pleins d'action et d'état (bouton primaire, badge `default`) sont, eux, légitimes : c'est leur rôle. Sur un écran donné, l'indigo touche moins de 10 % de la surface. Sa rareté fait sa lisibilité.
 
-**La règle du monde clos.** L'orange « rack », le vert comptoir, Space Grotesk et JetBrains Mono appartiennent au ticket (connexion + reçu 80 mm). Ils ne franchissent jamais la frontière vers l'app. Inversement, l'app ne pose jamais d'indigo sur le ticket.
+**La règle du monde clos.** L'orange « rack », le comptoir hachuré, DM Sans et JetBrains Mono appartiennent au ticket (connexion + reçu 80 mm). Ils ne franchissent jamais la frontière vers l'app. Inversement, l'app ne pose jamais d'indigo sur le ticket.
 
 ## 3. Typography
 
-**Display Font:** Space Grotesk Variable (fallback Inter Variable) — *réservé au monde du ticket*
+**Display Font:** DM Sans Variable (fallback Inter Variable) — *réservé au monde du ticket*
 **Body Font:** Inter Variable (fallback sans-serif) — *toute l'app*
 **Label/Mono Font:** JetBrains Mono Variable — *chiffres du reçu, numéros de ticket*
 
-**Character:** Inter porte seule l'app — titres, boutons, libellés, données, corps — parce qu'un outil produit n'a pas besoin d'un couple display/texte ; il a besoin d'une graisse bien réglée. La respiration typographique vient du poids (400 vs 500) et de la taille, pas d'une seconde fonte. Space Grotesk et JetBrains Mono n'existent que là où le papier thermique existe.
+**Character:** Inter porte seule l'app — titres, boutons, libellés, données, corps — parce qu'un outil produit n'a pas besoin d'un couple display/texte ; il a besoin d'une graisse bien réglée. La respiration typographique vient du poids (400 vs 500) et de la taille, pas d'une seconde fonte. DM Sans et JetBrains Mono n'existent que là où le papier thermique existe.
 
 ### Hierarchy
-- **Display** (Space Grotesk, 500, ~1,5 rem, LH 1.1) : titres du ticket de connexion uniquement.
+- **Display** (DM Sans, 500, ~1,5 rem, LH 1.1) : titres du ticket de connexion uniquement.
 - **Headline** (Inter, 500, 1 rem, LH 1.4) : titres de page, en-têtes de section.
 - **Title** (Inter, 500, 0,875 rem `text-sm`) : titres de carte (`font-heading` = Inter), en-têtes de bloc.
 - **Body** (Inter, 400, 0,75 rem `text-xs/relaxed`, LH ~1.55) : le corps de l'app, la plupart des libellés et des cellules. Prose plafonnée à 65–75 ch ; les tables denses peuvent courir plus large.
@@ -189,7 +189,7 @@ Le système est **plat par défaut**. Aucune ombre portée dans l'app : la profo
 
 ### Shadow Vocabulary
 - **Aucune ombre d'app.** Les surfaces sont plates au repos et à l'état actif. La séparation vient du filet et du gris.
-- **Ombre du ticket** (`box-shadow: 0 1px 2px rgb(0 0 0 / 0.25), 0 24px 48px -16px rgb(0 0 0 / 0.5)`) : la seule ombre du système, portée par le reçu posé sur le comptoir. Elle appartient au monde du ticket.
+- **Ombre du ticket** (`filter: drop-shadow(0 24px 48px rgb(60 50 35 / 0.16))`) : la seule ombre du système, portée par le reçu posé sur le comptoir. Un `drop-shadow` et non un `box-shadow` — elle épouse la découpe en zigzag au lieu d'encadrer le ticket dans un rectangle. Elle appartient au monde du ticket.
 
 ### Named Rules
 **La règle du filet.** Une surface se distingue par un trait, pas par une ombre. Si l'on est tenté d'ajouter un `box-shadow` pour « détacher » une carte dans l'app, c'est le mauvais outil : renforcer le filet ou décaler le fond d'un pas de gris.
@@ -237,7 +237,7 @@ Le reçu 80 mm et l'écran de connexion forment un composant à part, imprimé :
 - **Do** garder l'indigo pour l'action, la sélection et l'état — moins de 10 % de la surface (la règle d'une seule voix).
 - **Do** distinguer les surfaces par un filet (`ring-1 ring-foreground/10`) et des couches de gris, jamais par une ombre.
 - **Do** rester dense : contrôles `h-7`, corps `text-xs`, tables serrées là où le gestionnaire en a besoin.
-- **Do** utiliser Inter pour tout dans l'app ; réserver Space Grotesk / JetBrains Mono au monde du ticket.
+- **Do** utiliser Inter pour tout dans l'app ; réserver DM Sans / JetBrains Mono au monde du ticket.
 - **Do** rendre le focus toujours visible (`ring/30`) — l'app se pilote au clavier, surtout au POS.
 - **Do** teinter les états destructifs (`destructive/10`), pas les remplir de rouge plein.
 - **Do** formater les montants en entiers XOF via `formaterMontant` ; le chiffre est l'élément le plus lisible de la ligne.
@@ -248,6 +248,6 @@ Le reçu 80 mm et l'écran de connexion forment un composant à part, imprimé :
 - **Don't** faire un **template admin générique** : pas de cartes grises anonymes empilées sans hiérarchie.
 - **Don't** faire du **clinquant marketing** : pas de dégradés, de texte en dégradé, de hero-metrics, de motion décoratif.
 - **Don't** ajouter d'ombre portée dans l'app pour « détacher » un élément — renforcer le filet ou décaler le gris.
-- **Don't** laisser fuir l'orange « rack », le vert comptoir ou les fontes du ticket dans l'app (la règle du monde clos).
+- **Don't** laisser fuir l'orange « rack », le comptoir hachuré ou les fontes du ticket dans l'app (la règle du monde clos).
 - **Don't** poser de bordure latérale colorée (`border-left`/`border-right` > 1 px) en guise d'accent sur une carte ou une alerte — filet complet ou fond teinté.
 - **Don't** mettre un gris trop pâle sous le seuil AA sur les placeholders et le texte « muted ».
