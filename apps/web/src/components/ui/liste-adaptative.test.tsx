@@ -110,4 +110,78 @@ describe("ListeAdaptative", () => {
       nettoyer()
     }
   })
+
+  it("affiche le sous-titre en carte quand il est fourni", () => {
+    const nettoyer = installerMatchMedia(375)
+    afficher({ sousTitre: (l) => `Motif : ${l.motif}` })
+    expect(screen.getByText("Motif : Réception")).toBeTruthy()
+    nettoyer()
+  })
+
+  it("n'affiche aucun sous-titre en carte quand la prop est omise", () => {
+    const nettoyer = installerMatchMedia(375)
+    afficher()
+    const carte = screen.getAllByRole("listitem")[0]
+    expect(carte.textContent).not.toContain("Motif :")
+    nettoyer()
+  })
+
+  it("affiche une action par carte quand actionCarte est fourni", () => {
+    const nettoyer = installerMatchMedia(375)
+    afficher({ actionCarte: (l) => <button>Détails {l.article}</button> })
+    expect(
+      screen.getByRole("button", { name: "Détails Ciment 50kg" })
+    ).toBeTruthy()
+    expect(
+      screen.getByRole("button", { name: "Détails Sable fin" })
+    ).toBeTruthy()
+    nettoyer()
+  })
+
+  it("n'affiche aucune action en carte quand actionCarte est omis", () => {
+    const nettoyer = installerMatchMedia(375)
+    afficher()
+    expect(screen.queryAllByRole("button")).toHaveLength(0)
+    nettoyer()
+  })
+
+  it("utilise libelle comme dt de la paire quand il est fourni, sinon entete", () => {
+    const nettoyer = installerMatchMedia(375)
+    const colonnesAvecLibelle: ColonneAdaptative<Mouvement>[] = [
+      ...COLONNES.slice(0, 2),
+      {
+        cle: "motif",
+        entete: "Motif",
+        cellule: (l) => l.motif,
+        libelle: "Raison",
+      },
+    ]
+    afficher({ colonnes: colonnesAvecLibelle })
+    const carte = screen.getAllByRole("listitem")[0]
+    expect(carte.textContent).toContain("Raison")
+    expect(carte.textContent).not.toContain("Motif")
+    nettoyer()
+  })
+
+  it("transmet containerClassName au conteneur de la table à partir de md", () => {
+    const nettoyer = installerMatchMedia(1280)
+    const { container } = afficher({
+      containerClassName: "ma-classe-conteneur",
+    })
+    expect(
+      container.querySelector(
+        '[data-slot="table-container"].ma-classe-conteneur'
+      )
+    ).toBeTruthy()
+    nettoyer()
+  })
+
+  it("transmet containerClassName à la liste de cartes sous md", () => {
+    const nettoyer = installerMatchMedia(375)
+    const { container } = afficher({
+      containerClassName: "ma-classe-conteneur",
+    })
+    expect(container.querySelector("ul.ma-classe-conteneur")).toBeTruthy()
+    nettoyer()
+  })
 })

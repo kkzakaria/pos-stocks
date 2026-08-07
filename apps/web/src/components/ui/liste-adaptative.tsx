@@ -21,7 +21,15 @@ export type ColonneAdaptative<T> = {
   numeric?: boolean
   /** Label used in card mode; falls back to `entete`. */
   libelle?: ReactNode
-  /** Already carried by the card head (titre/valeur/sousTitre): skip the pair. */
+  /**
+   * Marks this column's data as already carried by `titre`/`valeur`/`sousTitre`,
+   * so the card omits its label/value pair. Setting it on a column that is NOT
+   * actually rendered by one of those three render props hides that data by
+   * screen width — forbidden by this project's no-data-loss constraint.
+   * `ListeAdaptative` cannot enforce this itself (`titre`/`valeur`/`sousTitre`
+   * are opaque render functions); enforcement lives in each consuming screen's
+   * own "ne perd aucune donnée en mode carte" test.
+   */
   masquerEnCarte?: boolean
 }
 
@@ -143,7 +151,7 @@ export function ListeAdaptative<T>({
             <dl className="mt-2 flex flex-col gap-1">
               {paires.map((c) => (
                 <div key={c.cle} className="flex justify-between gap-3">
-                  <dt className="shrink-0 text-muted-foreground">
+                  <dt className="min-w-0 shrink-0 break-words text-muted-foreground">
                     {c.libelle ?? c.entete}
                   </dt>
                   <dd
