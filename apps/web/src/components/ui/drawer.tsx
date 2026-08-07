@@ -1,6 +1,5 @@
 "use client"
 
-import * as React from "react"
 import { XIcon } from "lucide-react"
 import { Drawer as DrawerPrimitive } from "@base-ui/react/drawer"
 
@@ -43,6 +42,10 @@ function DrawerOverlay({
   )
 }
 
+function DrawerViewport({ ...props }: DrawerPrimitive.Viewport.Props) {
+  return <DrawerPrimitive.Viewport data-slot="drawer-viewport" {...props} />
+}
+
 function DrawerContent({
   className,
   children,
@@ -51,34 +54,36 @@ function DrawerContent({
   return (
     <DrawerPortal>
       <DrawerOverlay />
-      <DrawerPrimitive.Popup
-        data-slot="drawer-content"
-        className={cn(
-          // Portalled onto <body>: it escapes any ancestor `print:hidden`,
-          // hence its own. Anchoring is written here because base-ui exposes
-          // no side/anchor prop.
-          "fixed inset-y-0 left-0 z-50 flex w-72 max-w-[85vw] flex-col gap-2 overflow-y-auto overscroll-contain border-r bg-sidebar p-4 text-sidebar-foreground duration-100 outline-none print:hidden data-open:animate-in data-open:slide-in-from-left data-closed:animate-out data-closed:slide-out-to-left",
-          className
-        )}
-        {...props}
-      >
-        {children}
-        <DrawerPrimitive.Close
-          data-slot="drawer-close"
-          // `icon` and not `icon-sm`: only `icon` carries
-          // `pointer-coarse:size-11`, and this button is touch-first.
-          render={
-            <Button
-              variant="ghost"
-              size="icon"
-              className="absolute top-2 right-2"
-            />
-          }
+      <DrawerViewport>
+        <DrawerPrimitive.Popup
+          data-slot="drawer-content"
+          className={cn(
+            // Portalled onto <body>: it escapes any ancestor `print:hidden`,
+            // hence its own. Anchoring is written here because base-ui exposes
+            // no side/anchor prop.
+            "fixed inset-y-0 left-0 z-50 flex w-72 max-w-[85vw] flex-col gap-2 overflow-y-auto overscroll-contain border-r bg-sidebar p-4 text-sidebar-foreground duration-100 outline-none print:hidden data-open:animate-in data-open:slide-in-from-left data-closed:animate-out data-closed:slide-out-to-left",
+            className
+          )}
+          {...props}
         >
-          <XIcon />
-          <span className="sr-only">Fermer</span>
-        </DrawerPrimitive.Close>
-      </DrawerPrimitive.Popup>
+          {children}
+          <DrawerPrimitive.Close
+            data-slot="drawer-close"
+            // `icon` and not `icon-sm`: only `icon` carries
+            // `pointer-coarse:size-11`, and this button is touch-first.
+            render={
+              <Button
+                variant="ghost"
+                size="icon"
+                className="absolute top-2 right-2"
+              />
+            }
+          >
+            <XIcon />
+            <span className="sr-only">Fermer</span>
+          </DrawerPrimitive.Close>
+        </DrawerPrimitive.Popup>
+      </DrawerViewport>
     </DrawerPortal>
   )
 }
