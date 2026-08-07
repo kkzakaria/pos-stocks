@@ -42,7 +42,9 @@ Les deux transformations ne basculent donc pas au même palier : les **tables** 
 
 La sidebar de 240 px (`apps/web/src/routes/_app.tsx`) reste identique à partir de `lg`. En dessous, elle est masquée et remplacée par un **tiroir** ouvert depuis un bouton hamburger placé dans un en-tête mobile.
 
-**Le tiroir s'appuie sur le composant `Drawer` de `@base-ui/react` (1.6.0), déjà installé** — il fournit nativement le piège de focus, la fermeture au `Escape`, la fermeture au clic extérieur et le glissement pour fermer. Pas de nouvelle dépendance, et pas de wrapper de positionnement à écrire, contrairement à `Dialog` dont le centrage est codé en dur (`dialog.tsx:56`). Reste à la charge du chantier : `overscroll-behavior: contain`, la fermeture automatique à la navigation, et le respect de `prefers-reduced-motion` sur l'animation d'ouverture.
+**Le tiroir s'appuie sur le composant `Drawer` de `@base-ui/react` (1.6.0), déjà installé** — il fournit nativement le piège de focus, la fermeture au `Escape`, la fermeture au clic extérieur et le glissement pour fermer (`swipeDirection`). Pas de nouvelle dépendance.
+
+Attention : `Drawer` **n'a aucune prop `side`/`anchor`** — l'ancrage à gauche s'écrit intégralement en CSS sur le `Popup` (`fixed inset-y-0 left-0`), exactement comme `Dialog` code son centrage. `swipeDirection="left"` ne pilote que le geste de fermeture, pas la position. Un wrapper `drawer.tsx` est donc à écrire dans le style de la maison, au même titre que `dialog.tsx`. Reste aussi à la charge du chantier : `overscroll-behavior: contain`, la fermeture automatique à la navigation, et le respect de `prefers-reduced-motion`.
 
 **Règle transversale : tout nouveau portail porte `print:hidden`.** Un composant portalé sur `body` échappe au `print:hidden` de ses ancêtres — voir §3 pour la conséquence concrète au POS.
 
@@ -54,7 +56,11 @@ Le lien d'évitement « Aller au contenu » existant est conservé et doit reste
 
 Les tables denses (stock, mouvements, ventes, produits, réceptions, transferts, inventaires…) deviennent une **liste de cartes empilées** sous `md`. La table la plus large du produit est `stock/mouvements.tsx` avec **8 colonnes** (Date, Entrepôt, Article, Type, Delta, Lot, Motif, Par) : c'est la borne haute que le composant doit tenir.
 
-**Bascule par `matchMedia`, pas par CSS.** Un hook de breakpoint rend soit la table, soit les cartes — jamais les deux. Deux raisons : rendre deux fois des centaines de lignes contredit « matériel modeste » de `PRODUCT.md`, et un DOM dupliqué fait lire deux fois le même contenu aux lecteurs d'écran. Coût assumé : jsdom n'implémente pas `matchMedia`, un mock doit être posé **une fois** dans la configuration de test (voir Vérification).
+**Bascule par `matchMedia`, pas par CSS.** Un hook de breakpoint rend soit la table, soit les cartes — jamais les deux. Deux raisons : rendre deux fois des centaines de lignes contredit « matériel modeste » de `PRODUCT.md`, et un DOM dupliqué fait lire deux fois le même contenu aux lecteurs d'écran.
+
+**Règle générale du chantier** : le hook gouverne les bascules **structurelles** (quel arbre de composants est monté — table/cartes, sidebar/tiroir, panier en colonne/en panneau) ; le CSS gouverne les ajustements **dimensionnels** (largeurs, espacements — par exemple `w-72 lg:w-96` pour le panier). Le critère est simple : si la bascule dupliquerait du contenu dans le DOM, elle passe par le hook.
+
+Coût assumé : jsdom n'implémente pas `matchMedia`. Le hook **dégrade explicitement vers le palier desktop quand `matchMedia` est absent** — de sorte que les tests d'écran existants continuent de voir des tables sans aucune modification, et que seuls les nouveaux tests en mode carte installent un stub. C'est délibérément préféré à un mock global dans `test-setup.ts`, qui casserait le test existant de `theme.test.tsx` reposant sur l'absence de `matchMedia` en jsdom.
 
 Cette transformation passe par **un composant générique unique**, pas par une réécriture écran par écran — c'est la condition pour que 23 écrans restent cohérents et maintenables. Le composant s'articule avec `table.tsx` et `table-skeleton.tsx` existants, et l'état de chargement doit avoir sa variante carte (le register `product` impose des squelettes, pas des spinners).
 
@@ -126,7 +132,7 @@ Le correctif passe donc par **une redéfinition de `--text-xs` sous 768 px** dan
 
 Il n'existe **aucune infrastructure E2E automatisée** dans ce dépôt (ni Playwright, ni job navigateur en CI) ; les rapports E2E existants sont des sessions manuelles pilotées via `agent-browser`. Ce chantier n'en crée pas non plus — ce serait un chantier à part entière.
 
-- **Mock `matchMedia`** posé une fois dans la configuration de test web : jsdom ne l'implémente pas, et la bascule table/carte en dépend. Les tests d'écran choisissent explicitement leur palier.
+- **Pas de mock `matchMedia` global.** Le hook dégrade vers le palier desktop en son absence, donc les tests d'écran existants sont inchangés. Un helper de test dédié permet aux nouveaux tests de simuler explicitement une largeur ; `theme.test.tsx`, qui repose sur l'absence de `matchMedia` en jsdom, n'est pas touché.
 - **Tests unitaires** (Vitest + Testing Library, existants) : le composant générique table→carte a ses tests, aux deux paliers. Les tests d'écran existants ne doivent pas régresser. Rappel du piège documenté : espaces insécables étroites (U+202F) dans les montants `fr-FR` — utiliser les helpers regex existants (`texteMontant`), jamais `getByText(formaterMontant(x))`.
 - **Vérification navigateur manuelle** par palier, à 375 px, 768 px et 1280 px, sur les écrans touchés par la phase. Points de contrôle systématiques : aucun défilement horizontal du corps de page, cibles tactiles ≥ 44 px, focus visible au clavier, aucune donnée tronquée sans échappatoire.
 - **Mode sombre** vérifié à chaque palier : la bascule est par classe (`@custom-variant dark`), et l'en-tête mobile, le tiroir et les cartes doivent rester sur les tokens (`bg-sidebar`, `bg-card`) — pas de couleur en dur.
