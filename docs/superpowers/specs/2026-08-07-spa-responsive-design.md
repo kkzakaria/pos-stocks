@@ -27,9 +27,11 @@ Pilotés par le contenu, pas par des tailles d'appareils. Tailwind 4 est utilis�
 
 | Palier | Largeur | Comportement |
 |---|---|---|
-| base | < 768 px | Colonne unique, tables en cartes, POS en barre de synthèse |
-| `md` | ≥ 768 px | Tables réelles, POS à deux colonnes (panier 288 px) |
+| base | < 768 px | Navigation en tiroir, colonne unique, tables en cartes, POS en barre de synthèse |
+| `md` | ≥ 768 px | Navigation **toujours en tiroir**, tables réelles, POS à deux colonnes (panier 288 px) |
 | `lg` | ≥ 1024 px | Sidebar permanente, POS panier 384 px — l'écran actuel, inchangé |
+
+Les deux transformations ne basculent donc pas au même palier : les **tables** redeviennent des tables dès `md`, la **navigation** ne redevient une sidebar qu'à `lg`. C'est délibéré — une table de 6 colonnes tient dans 768 px, une sidebar de 240 px en plus n'y tient pas.
 
 Écriture **mobile-first** : styles de base pour le petit écran, `min-width` pour enrichir. Pas de `max-width`.
 
