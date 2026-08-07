@@ -2,7 +2,7 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 @import "@fontsource-variable/inter";
-@import "@fontsource-variable/space-grotesk";
+@import "@fontsource-variable/dm-sans";
 @import "@fontsource-variable/jetbrains-mono";
 
 @custom-variant dark (&:is(.dark *));
@@ -144,38 +144,34 @@
 /* ─── Page de connexion : ticket de caisse ─────────────────────────────── */
 
 .login-comptoir {
-  --comptoir: #14261d;
-  --comptoir-clair: #1c3428;
+  --comptoir: #eceded;
   --papier: #fcfcf8;
   --encre: #1a2019;
   --encre-pale: #6b7268;
   --rack: #c2410c;
   --rack-vif: #e8590c;
   --ligne: #d9d6c8;
-  background:
-    radial-gradient(
-      ellipse 120% 80% at 50% -20%,
-      var(--comptoir-clair),
-      transparent 60%
-    ),
-    var(--comptoir);
+  background: var(--comptoir);
+  /* Hairline hatch: gives the surface a grain without reading as a pattern. */
+  background-image: repeating-linear-gradient(
+    45deg,
+    rgb(0 0 0 / 0.014) 0 2px,
+    transparent 2px 7px
+  );
 }
 
 .login-display {
-  font-family: "Space Grotesk Variable", "Inter Variable", sans-serif;
+  font-family: "DM Sans Variable", "Inter Variable", sans-serif;
 }
 
 .login-mono {
   font-family: "JetBrains Mono Variable", monospace;
 }
 
-/* Corps du ticket : papier thermique, ombre portée sur le comptoir */
+/* Corps du ticket : papier thermique */
 .ticket {
   background: var(--papier);
   color: var(--encre);
-  box-shadow:
-    0 1px 2px rgb(0 0 0 / 0.25),
-    0 24px 48px -16px rgb(0 0 0 / 0.5);
 }
 
 /* Bords perforés haut/bas (zigzag de déchirure) */
@@ -222,8 +218,11 @@
   }
 }
 
+/* Drop-shadow, not box-shadow: it follows the torn zigzag silhouette instead
+   of boxing the ticket body in a rectangle the pale counter would reveal. */
 .ticket-sortie {
   animation: ticket-imprimer 0.55s cubic-bezier(0.22, 1, 0.36, 1) both;
+  filter: drop-shadow(0 24px 48px rgb(60 50 35 / 0.16));
 }
 
 @media (prefers-reduced-motion: reduce) {
