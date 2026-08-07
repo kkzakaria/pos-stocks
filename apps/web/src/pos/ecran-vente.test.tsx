@@ -1101,3 +1101,92 @@ describe("EcranVente — panneau panier mobile (< md)", () => {
     expect(screen.getByRole("button", { name: /Vérifier/ })).toBeTruthy()
   })
 })
+
+// Closes the last a11y finding on PR #33: dialog semantics + focus
+// management on the mobile cart panel, WITHOUT touching the global keydown
+// listener (barcode scan buffer, F2/Delete/`/`) — a deliberate product
+// decision the cashier relies on to scan while the panel is open.
+describe("EcranVente — panneau panier mobile : sémantique et piège de focus", () => {
+  let nettoyerMatchMedia: () => void
+
+  beforeEach(() => {
+    nettoyerMatchMedia = installerMatchMedia(375)
+    vi.spyOn(posApi, "fetchCataloguePos").mockResolvedValue({
+      categories: [],
+      articles: [article],
+    })
+    vi.spyOn(posApi, "fetchReglagesTicket").mockResolvedValue({
+      name: "Org",
+      currency: "XOF",
+      receiptHeader: "",
+      receiptFooter: "",
+    })
+  })
+
+  afterEach(() => {
+    nettoyerMatchMedia()
+    vi.restoreAllMocks()
+  })
+
+  it("expose un nom accessible sur le panneau ouvert", async () => {
+    renderEcran()
+    await screen.findByRole("button", { name: /Coca 50cl/ })
+    fireEvent.click(screen.getByRole("button", { name: "Voir le panier" }))
+
+    // `role="region"`, not `role="dialog"`: this panel is deliberately not a
+    // blocking modal (scan/shortcuts stay live), and `role="dialog"` here
+    // would collide with `getByRole("dialog")` queries aimed at ModalePaiement
+    // when both are mounted at once (checkout triggered from inside the cart).
+    expect(screen.getByRole("region", { name: "Panier" })).toBeTruthy()
+  })
+
+  it("place le focus initial sur « Fermer » à l'ouverture", async () => {
+    renderEcran()
+    await screen.findByRole("button", { name: /Coca 50cl/ })
+    fireEvent.click(screen.getByRole("button", { name: "Voir le panier" }))
+
+    expect(document.activeElement).toBe(
+      screen.getByRole("button", { name: "Fermer" })
+    )
+  })
+
+  it("restaure le focus sur « Voir le panier » à la fermeture", async () => {
+    renderEcran()
+    await screen.findByRole("button", { name: /Coca 50cl/ })
+    const declencheur = screen.getByRole("button", { name: "Voir le panier" })
+    // Mirrors what a real browser does on click (focus the target BEFORE the
+    // handler runs): `usePiegeFocus` captures `document.activeElement` at
+    // open time, so the trigger must already be focused for it to have
+    // anything to restore focus to on close.
+    declencheur.focus()
+    fireEvent.click(declencheur)
+    fireEvent.click(screen.getByRole("button", { name: "Fermer" }))
+
+    expect(document.activeElement).toBe(declencheur)
+  })
+
+  it("le scan et F2 restent actifs alors que le piège de focus retient le focus dans le panneau", async () => {
+    renderEcran()
+    await screen.findByRole("button", { name: /Coca 50cl/ })
+    fireEvent.click(screen.getByRole("button", { name: "Voir le panier" }))
+
+    const fermer = screen.getByRole("button", { name: "Fermer" })
+    expect(document.activeElement).toBe(fermer)
+    // Dispatched on the FOCUSED element (inside the trap), not on `window`
+    // directly, so the events genuinely bubble through the trap's own
+    // `onKeyDown` before reaching the global listener — proving the trap's
+    // Tab-only handler does not swallow them (no `stopPropagation`).
+    for (const touche of ["1", "2", "3"])
+      fireEvent.keyDown(fermer, { key: touche })
+    fireEvent.keyDown(fermer, { key: "Enter" })
+
+    expect(
+      await screen.findByRole("button", {
+        name: "Diminuer la quantité de Coca 50cl",
+      })
+    ).toBeTruthy()
+
+    fireEvent.keyDown(fermer, { key: "F2" })
+    expect(screen.getByRole("dialog")).toBeTruthy()
+  })
+})

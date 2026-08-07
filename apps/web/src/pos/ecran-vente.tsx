@@ -35,6 +35,7 @@ import type { SessionCaisse, VenteDetail } from "@/lib/pos-api"
 import { BarreSynthese } from "@/pos/barre-synthese"
 import { GrilleArticles } from "@/pos/grille-articles"
 import { Panier, cleLigne } from "@/pos/panier"
+import { PanneauPanierMobile } from "@/pos/panneau-panier-mobile"
 import { ModalePaiement } from "@/pos/modale-paiement"
 import { ModaleConfirmation } from "@/pos/modale-confirmation"
 import { DialogueDepannage } from "@/pos/dialogue-depannage"
@@ -654,27 +655,16 @@ export function EcranVente({ me, boutique, session, onSessionFermee }: Props) {
             onEncaisser={() => setPaiementOuvert(true)}
           />
           {panierOuvert && (
-            // Inline overlay, NOT a portal: the whole POS screen sits under
-            // `print:hidden`, and a portalled panel would escape it and print
-            // over the 80mm receipt. `z-20` (below ModalePaiement's `z-30`)
-            // keeps the payment modal opened from here in front of it; `main`
-            // carries `relative` above to anchor this `absolute`.
-            <div
-              data-slot="panneau-panier"
-              className="absolute inset-0 z-20 flex flex-col overscroll-contain bg-card print:hidden"
-            >
-              {/* No own "Panier" heading here: `<Panier>` renders its own
-                  header just below — a second one would be a visible
-                  duplicate for no reason. */}
-              <div className="flex items-center justify-end border-b px-3 py-2">
-                <Button variant="ghost" onClick={() => setPanierOuvert(false)}>
-                  Fermer
-                </Button>
-              </div>
-              <div className="min-h-0 flex-1 overflow-y-auto">
-                {panneauPanier}
-              </div>
-            </div>
+            // Inline component, NOT a portal: the whole POS screen sits
+            // under `print:hidden`, and a portalled panel would escape it
+            // and print over the 80mm receipt. `z-20` (below ModalePaiement's
+            // `z-30`) keeps the payment modal opened from here in front of
+            // it; `main` carries `relative` above to anchor its `absolute`.
+            // Dialog semantics (accessible name, initial focus, Tab
+            // containment, focus restoration) live in the component itself.
+            <PanneauPanierMobile onFermer={() => setPanierOuvert(false)}>
+              {panneauPanier}
+            </PanneauPanierMobile>
           )}
         </>
       )}

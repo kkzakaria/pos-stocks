@@ -25,6 +25,17 @@ type Options = {
   // action évidente, ex. paiement) ; passer un bouton pour offrir un défaut
   // clavier (ex. « Nouvelle vente » sur la confirmation).
   focusInitial?: CibleFocus
+  /**
+   * Whether to reclaim focus that escapes the container via a pointer click
+   * on a non-inert background (the fix documented above). Defaults to true.
+   * Set to false for a container that can legitimately stay mounted while
+   * ANOTHER `usePiegeFocus` consumer opens on top of it as a sibling (the
+   * POS cart panel, which stays open while checkout or the depannage dialog
+   * is triggered from inside it) — otherwise the two document-wide
+   * `focusin` catches fight over focus and the higher stacked modal never
+   * keeps it.
+   */
+  rattraperEchappees?: boolean
 }
 
 export function usePiegeFocus<TConteneur extends HTMLElement>(
@@ -55,8 +66,10 @@ export function usePiegeFocus<TConteneur extends HTMLElement>(
   }, [])
 
   // Rattrapage : tout focus qui atterrit HORS de la modale (échappée
-  // pointeur) est ramené sur le conteneur.
+  // pointeur) est ramené sur le conteneur. Skipped when a sibling modal must
+  // be allowed to hold focus outside this container (see `rattraperEchappees`).
   useEffect(() => {
+    if (options?.rattraperEchappees === false) return
     const rattraper = (e: FocusEvent) => {
       const conteneur = conteneurRef.current
       if (!conteneur) return
