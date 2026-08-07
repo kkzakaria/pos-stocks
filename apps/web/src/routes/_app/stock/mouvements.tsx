@@ -33,7 +33,7 @@ export const COLONNES_MOUVEMENTS: ColonneAdaptative<MouvementJournal>[] = [
     entete: "Date",
     masquerEnCarte: true,
     cellule: (m) => (
-      <span className="whitespace-nowrap">
+      <span className="text-sm whitespace-nowrap">
         {new Date(m.createdAt).toLocaleString("fr-FR")}
       </span>
     ),
@@ -46,7 +46,7 @@ export const COLONNES_MOUVEMENTS: ColonneAdaptative<MouvementJournal>[] = [
     cellule: (m) => (
       <>
         <span className="font-medium">{m.productName}</span>{" "}
-        <span className="text-muted-foreground">
+        <span className="text-sm text-muted-foreground">
           {m.variantName} ({m.sku})
         </span>
       </>
@@ -79,8 +79,16 @@ export const COLONNES_MOUVEMENTS: ColonneAdaptative<MouvementJournal>[] = [
     entete: "Lot",
     cellule: (m) => <span className="font-mono">{m.lotNumber ?? "—"}</span>,
   },
-  { cle: "motif", entete: "Motif", cellule: (m) => m.reason ?? "—" },
-  { cle: "par", entete: "Par", cellule: (m) => m.userName },
+  {
+    cle: "motif",
+    entete: "Motif",
+    cellule: (m) => <span className="text-sm">{m.reason ?? "—"}</span>,
+  },
+  {
+    cle: "par",
+    entete: "Par",
+    cellule: (m) => <span className="text-sm">{m.userName}</span>,
+  },
 ]
 
 /** Card mode: the product identifies the row. */

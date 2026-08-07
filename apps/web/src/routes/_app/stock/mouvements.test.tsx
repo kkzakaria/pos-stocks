@@ -20,11 +20,11 @@ const M: MouvementJournal = {
   sku: "CIM-50",
   delta: 12,
   type: "purchase",
-  reason: null,
+  reason: "Casse",
   refType: null,
   refId: null,
   userName: "Awa",
-  lotNumber: null,
+  lotNumber: "LOT-042",
 }
 
 function afficher(largeur: number) {
@@ -72,12 +72,26 @@ describe("colonnes du journal des mouvements", () => {
     nettoyer()
   })
 
-  it("ne perd aucune donnée en mode carte", () => {
+  it("ne perd aucune donnée en mode carte : les 3 colonnes masquées resurgissent, les 5 autres restent en paires", () => {
     const nettoyer = afficher(375)
     const carte = screen.getAllByRole("listitem")[0]
-    // Toutes les valeurs restent lisibles : rien n'est masqué par la largeur.
+
+    // Colonnes masquerEnCarte: true — doivent resurgir via titre/valeur/sous-titre,
+    // sans quoi cette donnée serait masquée par la largeur d'écran.
+    // "date" → sousTitreMouvement : fragment stable de la locale fr-FR (l'année).
+    expect(carte.textContent).toContain("2026")
+    // "article" → titreMouvement : le nom du produit ET le fragment variante/SKU.
+    expect(carte.textContent).toContain("Ciment 50kg")
+    expect(carte.textContent).toContain("Sac (CIM-50)")
+    // "delta" → valeurMouvement : le delta signé en tête de carte.
+    expect(carte.textContent).toContain("+12")
+
+    // Colonnes non masquées — passent par `paires`, jamais masquées par construction,
+    // mais toujours vérifiées pour garder la couverture explicite.
     expect(carte.textContent).toContain("Boutique Centre")
     expect(carte.textContent).toContain("Réception")
+    expect(carte.textContent).toContain("LOT-042")
+    expect(carte.textContent).toContain("Casse")
     expect(carte.textContent).toContain("Awa")
     nettoyer()
   })
