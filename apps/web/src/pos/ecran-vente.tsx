@@ -4,6 +4,7 @@ import type { SalePaymentInput } from "shared"
 import type { Me } from "@/lib/me"
 import { ApiError } from "@/lib/api"
 import { formaterMontant } from "@/lib/format"
+import { useEstLarge } from "@/lib/use-media-query"
 import {
   ajouterArticle,
   changerPrix,
@@ -31,6 +32,7 @@ import {
   fetchVenteParCleRequete,
 } from "@/lib/pos-api"
 import type { SessionCaisse, VenteDetail } from "@/lib/pos-api"
+import { BarreSynthese } from "@/pos/barre-synthese"
 import { GrilleArticles } from "@/pos/grille-articles"
 import { Panier, cleLigne } from "@/pos/panier"
 import { ModalePaiement } from "@/pos/modale-paiement"
@@ -109,6 +111,10 @@ export function EcranVente({ me, boutique, session, onSessionFermee }: Props) {
   const [confirmation, setConfirmation] = useState<VenteDetail | null>(null)
   const [vue, setVue] = useState<"vente" | "tickets" | "fermeture">("vente")
   const [reimpression, setReimpression] = useState<VenteDetail | null>(null)
+  // Structural: governs whether the cart is a permanent column or a
+  // collapsed summary bar with an expandable panel — never purely dimensional.
+  const estLarge = useEstLarge()
+  const [panierOuvert, setPanierOuvert] = useState(false)
   const reglages = useQuery({
     queryKey: ["reglages-ticket"],
     queryFn: fetchReglagesTicket,
@@ -212,6 +218,10 @@ export function EcranVente({ me, boutique, session, onSessionFermee }: Props) {
   // while a modal is open (otherwise `/` would focus the search behind the
   // overlay, and a scan would add an invisible item).
   const panierNonVide = lignes.length > 0
+  // `panierOuvert` (the collapsed cart panel, below `md`) is deliberately NOT
+  // included here. It is an expansion of the screen, not a blocking modal —
+  // the cashier scans while looking at the running total, so the scan buffer
+  // and the shortcuts must stay live while the panel is open.
   const modaleOuverte =
     paiementOuvert ||
     viderOuvert ||
@@ -381,8 +391,99 @@ export function EcranVente({ me, boutique, session, onSessionFermee }: Props) {
     },
   })
 
+  // Shared between the permanent desktop column and the mobile overlay panel
+  // (Step 4) — mounted by exactly ONE of the two branches per render, never
+  // both, so the cart never appears twice in the DOM at once.
+  const panneauPanier = (
+    <>
+      {resumeRestauration && (
+        <div
+          role="status"
+          className="mb-2 flex items-start justify-between gap-2 rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-xs"
+        >
+          <p>
+            Panier restauré
+            {resumeRestauration.retirees > 0 &&
+              ` — ${resumeRestauration.retirees} article(s) retiré(s)`}
+            {resumeRestauration.prixModifies > 0 &&
+              ` — ${resumeRestauration.prixModifies} prix modifié(s)`}
+          </p>
+          <button
+            type="button"
+            className="shrink-0 font-medium underline"
+            onClick={() => setResumeRestauration(null)}
+          >
+            Fermer
+          </button>
+        </div>
+      )}
+      <Panier
+        lignes={lignes}
+        verrouille={panierVerrouille}
+        erreurPrix={erreurPrix}
+        onQuantite={(ligne, quantite) => {
+          if (panierVerrouille) return
+          setLignes((l) =>
+            changerQuantite(
+              l,
+              ligne.variantId,
+              ligne.sourceWarehouseId,
+              quantite
+            )
+          )
+        }}
+        onPrix={(ligne, prix) => {
+          if (panierVerrouille) return
+          const resultat = changerPrix(
+            lignes,
+            ligne.variantId,
+            ligne.sourceWarehouseId,
+            prix
+          )
+          if (!resultat.ok) {
+            setErreurPrix({
+              cle: cleLigne(ligne),
+              message:
+                resultat.raison === "SOUS_PLANCHER"
+                  ? `Refusé : minimum ${formaterMontant(resultat.minimum)}`
+                  : "Prix non négociable pour cet article",
+            })
+            return
+          }
+          setErreurPrix(null)
+          setLignes(resultat.lignes)
+        }}
+        onSupprimer={(ligne) => {
+          if (panierVerrouille) return
+          setLignes((l) =>
+            supprimerLigne(l, ligne.variantId, ligne.sourceWarehouseId)
+          )
+          // Only clear the error attached to THIS line: removing another
+          // line must not hide a still-valid price rejection.
+          setErreurPrix((e) => (e?.cle === cleLigne(ligne) ? null : e))
+        }}
+        onDepanner={(ligne) => {
+          if (panierVerrouille) return
+          setDepannagePour({
+            variantId: ligne.variantId,
+            source: ligne.sourceWarehouseId,
+          })
+        }}
+        onVider={() => {
+          if (panierVerrouille) return
+          setLignes([])
+          setErreurPrix(null)
+          setErreurVente(null)
+        }}
+        viderOuvert={viderOuvert}
+        onViderOuvertChange={setViderOuvert}
+        onEncaisser={() => setPaiementOuvert(true)}
+      />
+    </>
+  )
+
   return (
-    <main className="flex h-screen flex-col bg-muted print:hidden">
+    <main className="relative flex h-screen flex-col bg-muted print:hidden">
       <header className="flex items-center gap-3 border-b bg-card px-4 py-2">
         <h1 className="text-lg font-semibold whitespace-nowrap">
           {boutique.name}
@@ -488,92 +589,40 @@ export function EcranVente({ me, boutique, session, onSessionFermee }: Props) {
             <GrilleArticles articles={filtres} onChoisir={ajouterAuPanier} />
           )}
         </section>
-        <div className="flex min-h-0 w-96 shrink-0 flex-col">
-          {resumeRestauration && (
-            <div
-              role="status"
-              className="mb-2 flex items-start justify-between gap-2 rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-xs"
-            >
-              <p>
-                Panier restauré
-                {resumeRestauration.retirees > 0 &&
-                  ` — ${resumeRestauration.retirees} article(s) retiré(s)`}
-                {resumeRestauration.prixModifies > 0 &&
-                  ` — ${resumeRestauration.prixModifies} prix modifié(s)`}
-              </p>
-              <button
-                type="button"
-                className="shrink-0 font-medium underline"
-                onClick={() => setResumeRestauration(null)}
-              >
-                Fermer
-              </button>
-            </div>
-          )}
-          <Panier
+        {estLarge && (
+          <div className="flex min-h-0 w-72 shrink-0 flex-col lg:w-96">
+            {panneauPanier}
+          </div>
+        )}
+      </div>
+      {!estLarge && (
+        <>
+          <BarreSynthese
             lignes={lignes}
             verrouille={panierVerrouille}
-            erreurPrix={erreurPrix}
-            onQuantite={(ligne, quantite) => {
-              if (panierVerrouille) return
-              setLignes((l) =>
-                changerQuantite(
-                  l,
-                  ligne.variantId,
-                  ligne.sourceWarehouseId,
-                  quantite
-                )
-              )
-            }}
-            onPrix={(ligne, prix) => {
-              if (panierVerrouille) return
-              const resultat = changerPrix(
-                lignes,
-                ligne.variantId,
-                ligne.sourceWarehouseId,
-                prix
-              )
-              if (!resultat.ok) {
-                setErreurPrix({
-                  cle: cleLigne(ligne),
-                  message:
-                    resultat.raison === "SOUS_PLANCHER"
-                      ? `Refusé : minimum ${formaterMontant(resultat.minimum)}`
-                      : "Prix non négociable pour cet article",
-                })
-                return
-              }
-              setErreurPrix(null)
-              setLignes(resultat.lignes)
-            }}
-            onSupprimer={(ligne) => {
-              if (panierVerrouille) return
-              setLignes((l) =>
-                supprimerLigne(l, ligne.variantId, ligne.sourceWarehouseId)
-              )
-              // Only clear the error attached to THIS line: removing another
-              // line must not hide a still-valid price rejection.
-              setErreurPrix((e) => (e?.cle === cleLigne(ligne) ? null : e))
-            }}
-            onDepanner={(ligne) => {
-              if (panierVerrouille) return
-              setDepannagePour({
-                variantId: ligne.variantId,
-                source: ligne.sourceWarehouseId,
-              })
-            }}
-            onVider={() => {
-              if (panierVerrouille) return
-              setLignes([])
-              setErreurPrix(null)
-              setErreurVente(null)
-            }}
-            viderOuvert={viderOuvert}
-            onViderOuvertChange={setViderOuvert}
+            onOuvrirPanier={() => setPanierOuvert(true)}
             onEncaisser={() => setPaiementOuvert(true)}
           />
-        </div>
-      </div>
+          {panierOuvert && (
+            // Inline overlay, NOT a portal: the whole POS screen sits under
+            // `print:hidden`, and a portalled panel would escape it and print
+            // over the 80mm receipt. `z-20` (below ModalePaiement's `z-30`)
+            // keeps the payment modal opened from here in front of it; `main`
+            // carries `relative` above to anchor this `absolute`.
+            <div className="absolute inset-0 z-20 flex flex-col overscroll-contain bg-card print:hidden">
+              <div className="flex items-center justify-between border-b px-3 py-2">
+                <h2 className="font-medium">Panier</h2>
+                <Button variant="ghost" onClick={() => setPanierOuvert(false)}>
+                  Fermer
+                </Button>
+              </div>
+              <div className="min-h-0 flex-1 overflow-y-auto">
+                {panneauPanier}
+              </div>
+            </div>
+          )}
+        </>
+      )}
 
       {ligneDepannage && depannagePour && (
         <DialogueDepannage
