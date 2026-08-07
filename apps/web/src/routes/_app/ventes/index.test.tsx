@@ -87,9 +87,23 @@ describe("colonnes de l'historique des ventes", () => {
     nettoyer()
   })
 
-  it("ne perd aucune donnée en mode carte", () => {
+  it("ne perd aucune donnée en mode carte : les 4 colonnes masquées resurgissent, les 2 autres restent en paires", () => {
     const nettoyer = afficher(375)
     const carte = screen.getAllByRole("listitem")[0]
+
+    // Colonnes masquerEnCarte: true — doivent resurgir via titre/valeur/sous-titre/actionCarte,
+    // sans quoi cette donnée serait masquée par la largeur d'écran.
+    // "numero" → titreVente.
+    expect(carte.textContent).toContain("N° 42")
+    // "date" → sousTitreVente : fragment stable de la locale fr-FR (l'année).
+    expect(carte.textContent).toContain("2026")
+    // "total" → valeurVente : montant formaté en tête de carte.
+    expect(carte.textContent).toMatch(texteMontant(12500))
+    // "detail" → actionCarte uniquement, jamais dans les paires ni dupliqué.
+    expect(screen.getAllByText("Détail")).toHaveLength(1)
+
+    // Colonnes non masquées — passent par `paires`, jamais masquées par construction,
+    // mais toujours vérifiées pour garder la couverture explicite.
     expect(carte.textContent).toContain("Awa")
     expect(carte.textContent).toContain("3")
     nettoyer()

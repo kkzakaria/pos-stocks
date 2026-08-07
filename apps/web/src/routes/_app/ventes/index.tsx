@@ -72,13 +72,15 @@ export const COLONNES_VENTES: ColonneAdaptative<VenteListe>[] = [
     entete: "",
     masquerEnCarte: true,
     cellule: (v) => (
-      <Link
-        to="/ventes/$saleId"
-        params={{ saleId: v.id }}
-        className="text-primary hover:underline"
-      >
-        Détail
-      </Link>
+      <div className="text-right">
+        <Link
+          to="/ventes/$saleId"
+          params={{ saleId: v.id }}
+          className="text-primary hover:underline"
+        >
+          Détail
+        </Link>
+      </div>
     ),
   },
 ]
