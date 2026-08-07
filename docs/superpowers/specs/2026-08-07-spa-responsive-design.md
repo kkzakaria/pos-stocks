@@ -2,10 +2,11 @@
 
 Date : 2026-08-07
 Statut : validé (brainstorming), en attente de plan d'implémentation détaillé
+Révision : 2 — amendée après revue critique contre le code (mécanisme typographique, empilement et impression du POS, bascule table/carte, `Drawer` base-ui, phasage)
 
 ## Contexte et objectif
 
-La SPA `apps/web` est aujourd'hui **desktop-only de fait** : sidebar fixe de 240 px sans repli, panneau panier POS fixe de 384 px, et seulement 4 écrans sur 23 portent la moindre classe responsive (des ajustements de grille isolés). Aucun motif de navigation mobile n'existe, même dormant. Le `<meta viewport>` est en revanche correct, et la variante `pointer-coarse:` est déjà utilisée à 21 endroits pour porter les cibles tactiles à 44 px — c'est le seul acquis réel.
+La SPA `apps/web` est aujourd'hui **desktop-only de fait** : sidebar fixe de 240 px sans repli, panneau panier POS fixe de 384 px, et seulement 4 écrans sur 23 portent la moindre classe responsive (des ajustements de grille isolés). Aucun motif de navigation mobile n'existe, même dormant. Le `<meta viewport>` est correct, et la variante `pointer-coarse:` est déjà utilisée à 17 endroits pour porter les cibles tactiles à 44 px — c'est le seul acquis réel.
 
 `PRODUCT.md` énonce depuis le début une intention jamais opérationnalisée : les caissiers travaillent « souvent sur un écran fixe ou une tablette tactile », et la section Accessibilité demande explicitement « matériel modeste : tablettes et portables plus anciens, petits écrans » et « cibles tactiles confortables ». Ce chantier tient cette promesse.
 
@@ -17,7 +18,7 @@ Trois références ont été consultées avant d'arbitrer, et elles convergent :
 
 - **Register `product` (impeccable)** : « Responsive behavior is structural (collapse sidebar, responsive table, breakpoint-driven columns), **not fluid typography** ». Également : « Modal as first thought. Modals are usually laziness. Exhaust inline / progressive alternatives first. »
 - **frontend-design** : quand le brief fixe la direction visuelle, on la suit. `DESIGN.md` et `PRODUCT.md` la fixent (« familiarité gagnante », anti-référence « template d'admin générique »).
-- **Web Interface Guidelines** : `touch-action: manipulation`, `overscroll-behavior: contain` dans les tiroirs et panneaux, `env(safe-area-inset-*)` pour les encoches, `min-w-0` sur les enfants flex, `tabular-nums` sur les colonnes de chiffres, `prefers-reduced-motion` honoré.
+- **Web Interface Guidelines** : `touch-action: manipulation`, `overscroll-behavior: contain` dans les tiroirs et panneaux, `min-w-0` sur les enfants flex, `tabular-nums` sur les colonnes de chiffres, `prefers-reduced-motion` honoré.
 
 **Conséquence cadrante : aucun changement d'identité visuelle.** Pas de nouvelle palette, pas de nouvelle typographie, pas de typo fluide (`clamp()`), pas de nouveau composant décoratif. Le chantier est **structurel** : ce qui change, c'est la disposition, pas l'apparence. Les seules exceptions sont les deux correctifs de lisibilité ci-dessous, qui traitent des défauts avérés.
 
@@ -41,17 +42,23 @@ Les deux transformations ne basculent donc pas au même palier : les **tables** 
 
 La sidebar de 240 px (`apps/web/src/routes/_app.tsx`) reste identique à partir de `lg`. En dessous, elle est masquée et remplacée par un **tiroir** ouvert depuis un bouton hamburger placé dans un en-tête mobile.
 
-Contraintes : `overscroll-behavior: contain` sur le tiroir ; fermeture au `Escape` et au clic sur le fond ; piège de focus pendant l'ouverture et restitution du focus au bouton à la fermeture ; fermeture automatique à la navigation. Le lien d'évitement « Aller au contenu » existant est conservé et doit rester le premier élément focusable.
+**Le tiroir s'appuie sur le composant `Drawer` de `@base-ui/react` (1.6.0), déjà installé** — il fournit nativement le piège de focus, la fermeture au `Escape`, la fermeture au clic extérieur et le glissement pour fermer. Pas de nouvelle dépendance, et pas de wrapper de positionnement à écrire, contrairement à `Dialog` dont le centrage est codé en dur (`dialog.tsx:56`). Reste à la charge du chantier : `overscroll-behavior: contain`, la fermeture automatique à la navigation, et le respect de `prefers-reduced-motion` sur l'animation d'ouverture.
 
-Le tiroir réutilise le composant `Dialog` (base-ui) déjà présent — **pas de nouvelle primitive**. Rappel du piège documenté : `<DialogTrigger render={…}>`, jamais `asChild`.
+**Règle transversale : tout nouveau portail porte `print:hidden`.** Un composant portalé sur `body` échappe au `print:hidden` de ses ancêtres — voir §3 pour la conséquence concrète au POS.
+
+Le lien d'évitement « Aller au contenu » existant est conservé et doit rester le premier élément focusable.
+
+**Portée réelle** : `routes/pos.tsx` et `routes/login.tsx` vivent **hors** de la coquille `_app` et ne sont donc pas concernés par cette décision — le POS n'a pas de sidebar à replier, et l'écran de connexion est déjà `max-w-sm` centré avec `px-4`, donc quasi conforme à 375 px. La recette du POS mobile se fait **sans** tiroir.
 
 ### 2. Tables — cartes empilées sous `md`
 
-Les tables denses (stock, ventes, produits, mouvements, réceptions, transferts, inventaires…) deviennent une **liste de cartes empilées** sous `md` : une carte par ligne, paires libellé/valeur en vertical.
+Les tables denses (stock, mouvements, ventes, produits, réceptions, transferts, inventaires…) deviennent une **liste de cartes empilées** sous `md`. La table la plus large du produit est `stock/mouvements.tsx` avec **8 colonnes** (Date, Entrepôt, Article, Type, Delta, Lot, Motif, Par) : c'est la borne haute que le composant doit tenir.
+
+**Bascule par `matchMedia`, pas par CSS.** Un hook de breakpoint rend soit la table, soit les cartes — jamais les deux. Deux raisons : rendre deux fois des centaines de lignes contredit « matériel modeste » de `PRODUCT.md`, et un DOM dupliqué fait lire deux fois le même contenu aux lecteurs d'écran. Coût assumé : jsdom n'implémente pas `matchMedia`, un mock doit être posé **une fois** dans la configuration de test (voir Vérification).
 
 Cette transformation passe par **un composant générique unique**, pas par une réécriture écran par écran — c'est la condition pour que 23 écrans restent cohérents et maintenables. Le composant s'articule avec `table.tsx` et `table-skeleton.tsx` existants, et l'état de chargement doit avoir sa variante carte (le register `product` impose des squelettes, pas des spinners).
 
-Aucune colonne n'est supprimée en passant en carte : « tout se lit, tout se prouve » — masquer une donnée à l'auditeur sur mobile contredit le positionnement du produit. Les colonnes de chiffres portent `tabular-nums`.
+**La carte impose une hiérarchie, pas une liste plate.** À 8 colonnes, un empilement uniforme de paires libellé/valeur devient un mur illisible. Le composant exige une **ligne de titre** (l'identifiant de la ligne — date, article, référence selon la table) visuellement dominante, puis les paires restantes en dessous. Aucune colonne n'est supprimée : « tout se lit, tout se prouve » — masquer une donnée à l'auditeur sur mobile contredit le positionnement du produit. Les colonnes de chiffres portent `tabular-nums`.
 
 Rappel du piège documenté : `TableHeader sticky` n'a d'effet que si le conteneur de la table est lui-même la boîte de défilement vertical (`containerClassName="min-h-0 flex-1 overflow-y-auto"`).
 
@@ -60,58 +67,86 @@ Rappel du piège documenté : `TableHeader sticky` n'a d'effet que si le contene
 L'écran de vente (`apps/web/src/pos/ecran-vente.tsx`) est aujourd'hui `catalogue (flex-1) + panier (w-96 fixe)`.
 
 - **≥ `lg`** : inchangé.
-- **`md` → `lg`** : deux colonnes conservées, panier réduit de 384 px à 288 px. Les vignettes du catalogue ont besoin d'environ 480 px pour rester lisibles ; c'est la largeur qui dicte le palier, pas le format d'un appareil.
-- **< `md`** : catalogue en pleine largeur, et une **barre de synthèse persistante en bas** — nombre d'articles · total · action « Encaisser » — qui se déplie en panier plein écran au tap.
+- **`md` → `lg`** : deux colonnes conservées, panier réduit de 384 px à 288 px.
+- **< `md`** : catalogue en pleine largeur, et une **barre de synthèse persistante en bas** — nombre d'articles · total · action « Encaisser » — qui se déplie en panneau panier plein écran au tap.
 
 Justification de l'arbitrage, car deux options plus évidentes ont été écartées :
 
-- L'**empilement vertical** (catalogue puis panier dessous) fait sortir le total du champ de vision pendant qu'on parcourt le catalogue. Il contredit « le chiffre est sacré » : le montant doit être l'élément le plus lisible de l'écran.
-- La **bascule par onglets** masque le panier entièrement et impose un aller-retour d'onglet à chaque contrôle. Elle contredit « vite sans bâcler » : on optimise le nombre de gestes.
+- L'**empilement vertical** (catalogue puis panier dessous) fait sortir le total du champ de vision pendant qu'on parcourt le catalogue. Il contredit « le chiffre est sacré ».
+- La **bascule par onglets** masque le panier entièrement et impose un aller-retour d'onglet à chaque contrôle. Elle contredit « vite sans bâcler ».
 
-La barre de synthèse tient les deux : le total ne quitte jamais l'écran, l'action principale est dans la zone du pouce, un tap suffit pour vérifier, un autre pour payer. C'est de la divulgation progressive — ce que le register `product` demande d'épuiser avant toute modale.
+La barre de synthèse tient les deux : le total ne quitte jamais l'écran, l'action principale est dans la zone du pouce, un tap suffit pour vérifier, un autre pour payer.
 
-Contraintes : la barre respecte `env(safe-area-inset-bottom)` ; le panneau déplié porte `overscroll-behavior: contain` ; le total porte `tabular-nums` et reste formaté par `formaterMontant`.
+L'état du panier vit déjà dans `EcranVente` et `Panier` est purement présentationnel : le démonter sous `md` ne perd rien.
 
-**Le clavier reste prioritaire au POS** (`PRODUCT.md` : « le caissier encaisse sans souris »). Les raccourcis existants (buffer de scan code-barres, `/`, `F2`) et la navigation clavier de l'écran de vente ne doivent subir aucune régression à aucun palier — c'est un critère de recette, pas un détail.
+#### Contraintes d'intégration (vérifiées contre le code, non négociables)
+
+Le panneau panier déplié **n'est pas un portail**. C'est un overlay **inline**, enfant de `<main>`, sur le modèle de `modale-confirmation.tsx`. Trois raisons vérifiées :
+
+1. **Impression.** Tout l'écran POS est sous `<main className="… print:hidden">`. Un composant portalé sur `body` échappe à cette classe. Or le panneau sera précisément **ouvert** au moment de l'encaissement, et `ImpressionTicket` déclenche `window.print()` après la vente : un panneau portalé s'imprimerait par-dessus le ticket 80 mm. Le panneau reste inline, et porte de toute façon `print:hidden` en propre.
+2. **Empilement.** `ModalePaiement` est un `fixed z-30` enfant de `main`. Le panneau panier doit rester **sous** cette strate, sinon il passe devant la modale de paiement ouverte depuis lui.
+3. **Sûreté du geste.** Un overlay inline hérite du contexte d'empilement du POS et ne peut pas surgir au-dessus d'une confirmation de vente.
+
+#### Comportement clavier
+
+`PRODUCT.md` impose « le caissier encaisse sans souris ». Le garde global de l'écran de vente désactive aujourd'hui le buffer de scan et les raccourcis dès qu'un overlay est ouvert.
+
+**Décision : le panneau panier déplié ne compte pas comme un overlay bloquant.** Le buffer de scan code-barres et les raccourcis restent **actifs** panneau ouvert — c'est l'usage réel : le caissier scanne en regardant le total. Le panneau est un dépliement, pas une modale.
+
+Aucune régression n'est tolérée sur les raccourcis existants à aucun palier : buffer de scan, `/`, `F2` et **`Delete`** (vider le panier). C'est un critère de recette, pas un détail.
+
+Contraintes complémentaires : le panneau porte `overscroll-behavior: contain` ; le total porte `tabular-nums` et reste formaté par `formaterMontant`.
 
 ### 4. Deux correctifs de lisibilité
 
-Ce sont des défauts avérés, pas des préférences :
+Ce sont des défauts avérés, pas des préférences.
 
-- **Zoom iOS sur les champs.** `input.tsx` et `textarea.tsx` sont en `text-sm` (14 px) sous `md`. Safari iOS zoome la page à la prise de focus dès qu'un champ fait moins de 16 px — l'utilisateur est décalé à chaque saisie, sur **tous** les formulaires. Correctif : `text-base` (16 px) sous `md`, `md:text-xs` conservé au-delà.
-- **Corps de texte à 12 px.** `DESIGN.md` fixe `body: 0.75rem`, assumé sur desktop pour la densité des tables. À 375 px c'est sous le seuil de confort. Correctif : 14 px sous `md`, 12 px à partir de `md` — la densité reste là où les gestionnaires en ont besoin, sans l'imposer au comptoir.
+**a. Zoom au focus sur les champs de saisie.** `input.tsx` et `textarea.tsx` portent `text-sm … md:text-xs/relaxed`, soit 14 px sous `md`. Safari iOS **et iPadOS** zooment la page à la prise de focus dès qu'un champ fait moins de 16 px.
 
-`DESIGN.md` doit être mis à jour pour refléter ces deux paliers, sinon le document ment sur le système réel.
+Le correctif est piloté par **la capacité du pointeur, pas par la largeur** : `pointer-coarse:text-base` sur `input` et `textarea`. Un iPad portrait fait 768–834 px et tombe donc dans `md` : un correctif basé sur la largeur l'aurait laissé exposé, alors que `PRODUCT.md` désigne explicitement la tablette tactile comme le matériel du caissier. Ce choix prolonge la stratégie `pointer-coarse:` déjà en place (17 occurrences). Le suffixe `/relaxed` de `md:text-xs/relaxed` doit survivre au correctif.
+
+**b. Taille de texte à 12 px sur petit écran.** Il n'existe **aucune taille de corps centralisée** dans le projet : `styles.css` ne pose pas de `font-size` sur `body` et ne redéfinit aucun token `--text-*`. Le « corps à 12 px » est en réalité **~96 occurrences de `text-xs` codées en dur**, primitives comprises (`table.tsx`, `dialog.tsx`).
+
+Le correctif passe donc par **une redéfinition de `--text-xs` sous 768 px** dans `styles.css` : les utilitaires Tailwind 4 lisent `var(--text-xs)`, donc toutes les occurrences remontent en un seul point. C'est un **instrument volontairement large** : les libellés délibérément petits (libellés de section de la nav, horodatages, badges) grossissent aussi. C'est souhaitable sur mobile, mais c'est précisément pourquoi la vérification visuelle de la phase 1 doit être large et non limitée aux écrans réécrits.
+
+`DESIGN.md` doit être mis à jour pour refléter ce palier, sinon le document ment sur le système réel.
 
 ## Ce qui ne change pas
 
 - Aucune modification de l'API, d'un schéma Zod, ou d'une règle d'autorisation. Chantier strictement front.
 - Aucune donnée masquée selon la largeur d'écran. Le front masque déjà selon le **rôle** ; il ne masquera jamais selon la **taille**.
-- Aucune nouvelle dépendance. Le tiroir s'appuie sur `Dialog` (base-ui) déjà présent.
+- Aucune nouvelle dépendance : le tiroir s'appuie sur `Drawer` de `@base-ui/react` déjà installé.
 - Aucun breakpoint personnalisé ajouté à `styles.css`.
-- Le ticket 80 mm et son `createPortal(document.body)` ne sont pas touchés — rappel du piège : un ancêtre `print:hidden` rendrait la page blanche.
+- Le ticket 80 mm et son `createPortal(document.body)` ne sont pas touchés.
+- **`index.html` n'est pas modifié.** La contrainte `env(safe-area-inset-bottom)` envisagée initialement est abandonnée : sans `viewport-fit=cover`, `env()` vaut 0 et le navigateur insète déjà la zone sûre. Ajouter `cover` aurait des conséquences bord-à-bord sur tous les écrans, pour un bénéfice nul ici.
+- Aucune route nouvelle, donc aucun impact sur `routeTree.gen.ts`.
+- Les dialogues existants tiennent déjà à 375 px (`DialogContent` porte `max-w-[calc(100%-2rem)]`, `DialogFooter` un empilement `sm:`) : on n'y touche pas.
 
 ## Vérification
 
 Il n'existe **aucune infrastructure E2E automatisée** dans ce dépôt (ni Playwright, ni job navigateur en CI) ; les rapports E2E existants sont des sessions manuelles pilotées via `agent-browser`. Ce chantier n'en crée pas non plus — ce serait un chantier à part entière.
 
-- **Tests unitaires** (Vitest + Testing Library, existants) : le composant générique table→carte a ses tests ; les tests d'écran existants ne doivent pas régresser. Rappel du piège documenté : espaces insécables étroites (U+202F) dans les montants `fr-FR` — utiliser les helpers regex existants (`texteMontant`), jamais `getByText(formaterMontant(x))`.
+- **Mock `matchMedia`** posé une fois dans la configuration de test web : jsdom ne l'implémente pas, et la bascule table/carte en dépend. Les tests d'écran choisissent explicitement leur palier.
+- **Tests unitaires** (Vitest + Testing Library, existants) : le composant générique table→carte a ses tests, aux deux paliers. Les tests d'écran existants ne doivent pas régresser. Rappel du piège documenté : espaces insécables étroites (U+202F) dans les montants `fr-FR` — utiliser les helpers regex existants (`texteMontant`), jamais `getByText(formaterMontant(x))`.
 - **Vérification navigateur manuelle** par palier, à 375 px, 768 px et 1280 px, sur les écrans touchés par la phase. Points de contrôle systématiques : aucun défilement horizontal du corps de page, cibles tactiles ≥ 44 px, focus visible au clavier, aucune donnée tronquée sans échappatoire.
-- **Non-régression clavier du POS** vérifiée explicitement à chaque palier.
+- **Mode sombre** vérifié à chaque palier : la bascule est par classe (`@custom-variant dark`), et l'en-tête mobile, le tiroir et les cartes doivent rester sur les tokens (`bg-sidebar`, `bg-card`) — pas de couleur en dur.
+- **Paysage téléphone** (812×375, donc palier `md`) : au POS, c'est la **hauteur** qui devient critique, pas la largeur (`h-screen` + en-tête + onglets de catégories). À vérifier explicitement.
+- **Non-régression clavier du POS** vérifiée à chaque palier, raccourci `Delete` compris.
 
 ## Phasage
 
 Une PR par phase, chacune livrable et vérifiable au navigateur indépendamment.
 
-1. **Fondations + POS** — tiroir de navigation, composant générique table→carte, les deux correctifs de lisibilité, mise à jour de `DESIGN.md`, et l'écran de vente POS complet (barre de synthèse, paliers 288/384 px, ouverture et fermeture de caisse, tickets du jour).
-2. **Ventes et Catalogue** — historique, détail de vente, rapports, produits (liste, fiche, création), catégories, fournisseurs.
-3. **Stock** — niveaux, mouvements, réceptions, transferts, inventaires (les écrans les plus denses, ceux qui éprouveront le plus le composant carte).
-4. **Administration** — entrepôts, utilisateurs, paramètres, tableau de bord, mon compte, connexion.
+1. **Fondations + POS + deux tables témoins** — tiroir de navigation, composant générique table→carte, mock `matchMedia`, les deux correctifs de lisibilité, mise à jour de `DESIGN.md`, l'écran de vente POS complet (barre de synthèse, paliers 288/384 px, ouverture et fermeture de caisse, tickets du jour), **plus `stock/mouvements.tsx` (8 colonnes, la plus large) et `ventes/index.tsx`**.
+2. **Ventes et Catalogue** — détail de vente, rapports, produits (liste, fiche, création), catégories, fournisseurs.
+3. **Stock** — niveaux, réceptions, transferts, inventaires.
+4. **Administration** — entrepôts, utilisateurs, paramètres, tableau de bord, mon compte. L'écran de connexion est déjà quasi conforme et ne demande qu'une vérification.
 
-La phase 1 porte les fondations parce que tout le reste en dépend : sans le tiroir et le composant carte, chaque écran suivant réinventerait sa propre solution.
+Les deux tables témoins sont **dans** la phase 1 délibérément : le POS n'utilise aucune `Table`, donc sans elles le composant carte serait figé sans avoir jamais été éprouvé, et les phases 2 à 4 accumuleraient des contournements. `stock/mouvements.tsx` fixe la borne haute à 8 colonnes ; `ventes/index.tsx` fournit une forme différente.
 
 ## Risques
 
-- **Le composant table→carte est le point de bascule du chantier.** S'il est mal découpé en phase 1, les phases 2 à 4 accumulent des contournements. Il doit être éprouvé sur au moins deux tables de formes différentes avant d'être figé.
+- **Le composant table→carte est le point de bascule du chantier.** Il est éprouvé en phase 1 sur deux tables de formes différentes avant d'être figé — c'est la raison d'être des deux tables témoins.
 - **Régression clavier au POS** : le risque fonctionnel le plus élevé. Le POS est l'écran où l'ergonomie est la plus contrainte et le plus utilisé en production.
-- **Le passage du corps à 14 px sous `md` déplace des choses partout.** Il touche les 23 écrans par les primitives partagées — c'est voulu, mais la vérification visuelle de la phase 1 doit être large, pas limitée aux écrans réécrits.
+- **La redéfinition de `--text-xs` déplace des choses partout.** Elle touche ~96 occurrences en un point unique — c'est voulu, mais la vérification visuelle de la phase 1 doit couvrir des écrans non réécrits, pas seulement ceux de la phase.
+- **Le panneau panier POS a trois contraintes d'intégration vérifiées** (impression, empilement, geste). Les ignorer produirait un défaut visible en production : un ticket imprimé barré par le panneau.
