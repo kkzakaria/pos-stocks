@@ -115,6 +115,19 @@ export function EcranVente({ me, boutique, session, onSessionFermee }: Props) {
   // collapsed summary bar with an expandable panel — never purely dimensional.
   const estLarge = useEstLarge()
   const [panierOuvert, setPanierOuvert] = useState(false)
+  // Crossing the breakpoint stales `panierOuvert`: without this, rotating a
+  // phone from a state where the panel was open (or would have been) makes
+  // it reappear unprompted next time the screen drops back under `md`.
+  useEffect(() => {
+    setPanierOuvert(false)
+  }, [estLarge])
+  // The ambiguity banner (MESSAGE_AMBIGU + "Vérifier", the only way out of
+  // the lock) lives above the catalogue/cart split — the mobile overlay
+  // panel would cover it. Force it closed the moment the lock engages so the
+  // cashier always sees why ENCAISSER went inert.
+  useEffect(() => {
+    if (panierVerrouille) setPanierOuvert(false)
+  }, [panierVerrouille])
   const reglages = useQuery({
     queryKey: ["reglages-ticket"],
     queryFn: fetchReglagesTicket,
@@ -255,12 +268,21 @@ export function EcranVente({ me, boutique, session, onSessionFermee }: Props) {
       if (e.key === "Delete") {
         if (!dansSaisie && panierNonVide && !panierVerrouille) {
           e.preventDefault()
+          // Below `md` the cart — and the confirmation dialog it hosts — is
+          // only mounted while the panel is open: expand it, or the dialog
+          // would never render and `modaleOuverte` would silently kill the
+          // shortcuts with no way back on screen.
+          if (!estLarge) setPanierOuvert(true)
           setViderOuvert(true)
         }
         return
       }
       if (e.key === "/" && !dansSaisie) {
         e.preventDefault()
+        // Same reasoning: the search field lives in the header, hidden under
+        // the mobile overlay. Close the panel first, or focus lands on an
+        // invisible input and the subsequent typing is blind.
+        if (!estLarge) setPanierOuvert(false)
         rechercheRef.current?.focus()
         return
       }
@@ -273,13 +295,16 @@ export function EcranVente({ me, boutique, session, onSessionFermee }: Props) {
     }
     window.addEventListener("keydown", handler)
     return () => window.removeEventListener("keydown", handler)
-  }, [scanner, panierNonVide, modaleOuverte, panierVerrouille])
+  }, [scanner, panierNonVide, modaleOuverte, panierVerrouille, estLarge])
 
   // Extracted from the mutation's onSuccess so the ambiguity resolution can
   // replay the exact same completion path when it finds the sale server-side.
   const finaliserVente = useCallback(
     (sale: VenteDetail) => {
       setPaiementOuvert(false)
+      // Below `md`, the panel expanded over an emptied cart would hide the
+      // catalogue behind a now-pointless overlay.
+      setPanierOuvert(false)
       setLignes([])
       setErreurVente(null)
       // Without this, a later cart reusing the same line key would replay the
@@ -419,6 +444,11 @@ export function EcranVente({ me, boutique, session, onSessionFermee }: Props) {
       )}
       <Panier
         lignes={lignes}
+        // `panneauPanier` is shared between the desktop column and the
+        // mobile overlay: `estLarge` at render time tells which one is
+        // actually mounted this render, so the divider only shows beside
+        // the catalogue column.
+        pleineLargeur={!estLarge}
         verrouille={panierVerrouille}
         erreurPrix={erreurPrix}
         onQuantite={(ligne, quantite) => {
@@ -610,8 +640,10 @@ export function EcranVente({ me, boutique, session, onSessionFermee }: Props) {
             // keeps the payment modal opened from here in front of it; `main`
             // carries `relative` above to anchor this `absolute`.
             <div className="absolute inset-0 z-20 flex flex-col overscroll-contain bg-card print:hidden">
-              <div className="flex items-center justify-between border-b px-3 py-2">
-                <h2 className="font-medium">Panier</h2>
+              {/* No own "Panier" heading here: `<Panier>` renders its own
+                  header just below — a second one would be a visible
+                  duplicate for no reason. */}
+              <div className="flex items-center justify-end border-b px-3 py-2">
                 <Button variant="ghost" onClick={() => setPanierOuvert(false)}>
                   Fermer
                 </Button>

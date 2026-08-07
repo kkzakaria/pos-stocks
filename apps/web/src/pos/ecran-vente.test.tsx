@@ -3,6 +3,7 @@ import { render, screen, waitFor, fireEvent } from "@testing-library/react"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { EcranVente } from "@/pos/ecran-vente"
 import * as posApi from "@/lib/pos-api"
+import { installerMatchMedia } from "@/test/media-query"
 import type { ArticlePos } from "@/lib/pos"
 import type { Me } from "@/lib/me"
 import type { SessionCaisse, VenteDetail } from "@/lib/pos-api"
@@ -954,5 +955,77 @@ describe("EcranVente — levée de l'ambiguïté après réponse perdue", () => 
         name: "Diminuer la quantité de Coca 50cl",
       }).disabled
     ).toBe(true)
+  })
+})
+
+// Fix round 1: the three integration constraints (inline overlay, below
+// ModalePaiement, scan/shortcuts stay live) were previously only checked
+// manually in a browser. Pin the ones a jsdom test CAN observe.
+describe("EcranVente — panneau panier mobile (< md)", () => {
+  let nettoyerMatchMedia: () => void
+
+  beforeEach(() => {
+    nettoyerMatchMedia = installerMatchMedia(375)
+    vi.spyOn(posApi, "fetchCataloguePos").mockResolvedValue({
+      categories: [],
+      articles: [article],
+    })
+    vi.spyOn(posApi, "fetchReglagesTicket").mockResolvedValue({
+      name: "Org",
+      currency: "XOF",
+      receiptHeader: "",
+      receiptFooter: "",
+    })
+  })
+
+  afterEach(() => {
+    nettoyerMatchMedia()
+    vi.restoreAllMocks()
+  })
+
+  it("le panneau ouvert est un descendant DOM de <main>, jamais un portail (contrainte 1)", async () => {
+    const { container } = renderEcran()
+    await screen.findByRole("button", { name: /Coca 50cl/ })
+    fireEvent.click(screen.getByRole("button", { name: "Voir le panier" }))
+
+    const main = container.querySelector("main")
+    const panneau = container.querySelector(".absolute.inset-0")
+    expect(main).not.toBeNull()
+    expect(panneau).not.toBeNull()
+    // A portalled panel would render as a sibling of <main> at document.body,
+    // not inside it — this would fail if `panneauPanier` were ever moved
+    // behind `createPortal`.
+    expect(main?.contains(panneau)).toBe(true)
+  })
+
+  it("le scan reste actif panneau panier ouvert (contrainte 3)", async () => {
+    renderEcran()
+    await screen.findByRole("button", { name: /Coca 50cl/ })
+    fireEvent.click(screen.getByRole("button", { name: "Voir le panier" }))
+
+    // Barcode "123" (article.barcode) via the global rapid-keys + Enter
+    // buffer — currently protected only by a comment on `modaleOuverte`.
+    for (const touche of ["1", "2", "3"])
+      fireEvent.keyDown(window, { key: touche })
+    fireEvent.keyDown(window, { key: "Enter" })
+
+    expect(
+      await screen.findByRole("button", {
+        name: "Diminuer la quantité de Coca 50cl",
+      })
+    ).toBeTruthy()
+  })
+
+  it("Suppr panneau fermé ouvre le panneau et affiche la confirmation (régression verrou clavier)", async () => {
+    renderEcran()
+    const tuile = await screen.findByRole("button", { name: /Coca 50cl/ })
+    fireEvent.click(tuile)
+    // Panel starts closed: the dialog it hosts is not mounted at all, so a
+    // naive fix that only sets `viderOuvert` would leave it invisible.
+    expect(screen.queryByText("Vider le panier ?")).toBeNull()
+
+    fireEvent.keyDown(window, { key: "Delete" })
+
+    expect(await screen.findByText("Vider le panier ?")).toBeTruthy()
   })
 })
