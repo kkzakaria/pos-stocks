@@ -1252,7 +1252,7 @@ Forme différente : 6 colonnes, un montant, et une colonne d'action qui devient 
 - [ ] **Step 1: Écrire le test qui échoue**
 
 Créer `apps/web/src/routes/_app/ventes/index.test.tsx`, sur le même modèle que la Task 6 : extraire `COLONNES_VENTES`, `titreVente`, `valeurVente`, `sousTitreVente`, puis vérifier
-- que `COLONNES_VENTES` a 5 colonnes de données (la 6e, l'action, est portée par `actionCarte` / une colonne dédiée) ;
+- que `COLONNES_VENTES` a **6 entrées** — les 5 colonnes de données plus la colonne d'action (en-tête vide), pour que la table conserve exactement ses 6 colonnes actuelles ;
 - qu'à 1280 px les en-têtes `N°`, `Date`, `Caissier`, `Articles`, `Total` sont présents ;
 - qu'à 375 px la carte porte `N° 42` en titre et le montant en valeur ;
 - qu'à 375 px le lien « Détail » est présent et pointe vers la bonne vente.
@@ -1313,7 +1313,7 @@ export function sousTitreVente(v: VenteListe) {
   sousTitre={sousTitreVente}
   chargement={ventes.isPending}
   containerClassName="min-h-0 flex-1 overflow-y-auto"
-  etatVide={<EtatVide icon={Receipt} titre="Aucune vente" message="…" />}
+  etatVide={<EtatVide icon={Receipt} titre="Aucune vente" message={MESSAGE_VIDE} />}
   actionCarte={(v) => (
     <Link
       to="/ventes/$saleId"
@@ -1326,7 +1326,9 @@ export function sousTitreVente(v: VenteListe) {
 />
 ```
 
-En mode table, la colonne d'action doit rester présente : ajouter une 6e entrée à `COLONNES_VENTES` avec `entete: ""`, `masquerEnCarte: true` et le même `Link` en `cellule`, pour que la table conserve exactement ses 6 colonnes actuelles. Adapter le test de l'étape 1 en conséquence (6 entrées, dont une d'action).
+`MESSAGE_VIDE` reprend **mot pour mot** le `message` de l'`EtatVide` existant du fichier — le relire, ne pas en inventer un.
+
+La 6e entrée de `COLONNES_VENTES` est la colonne d'action : `{ cle: "detail", entete: "", masquerEnCarte: true, cellule: (v) => <Link …>Détail</Link> }`. En carte, cette colonne est masquée et l'action est portée par `actionCarte` — le lien n'existe donc jamais en double.
 
 Adapter la barre de filtres pour 375 px comme en Task 6, et **normaliser au passage les deux champs de date** qui utilisent un `<label>` nu au lieu du motif `Label` + `div` du reste du dépôt.
 
