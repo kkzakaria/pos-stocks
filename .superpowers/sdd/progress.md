@@ -550,3 +550,46 @@ Task 7: complete (commits de730e0..b41c8ab, E2E local validé). Niveaux 691/15/0
 Revue finale (opus): shippable, 0 Critical. Corrigé: Important 1 (ORDER BY lecture inventaire -> reprise déterministe), Important 2 (garde référence lot reçu -> ferme la fenêtre receive/journal, validé E2E: journal supprimé -> 0 re-semé, niveaux 691/15 inchangés), Minor 1 (garde pagination), Minor 3 (validation --taille-lot). Commit c5a1811.
   Minors acceptés: M2 fail-fast storeId non mappé (voulu, 3 magasins toujours créés); M4 brouillons orphelins sur échec (sans effet stock); M5 pas de test unitaire recupererProduits (mitige par garde M1 + E2E).
 BRANCHE PRÊTE. Reste: run PROD (magasins -> catalogue -> inventaire) lancé par l utilisateur via ! avec identifiants owner prod.
+
+## SPA responsive — Phase 1/4 : fondations + POS + 2 tables témoins (branche feat/web-responsive)
+Spec: docs/superpowers/specs/2026-08-07-spa-responsive-design.md
+Plan: docs/superpowers/plans/2026-08-07-responsive-phase-1-fondations.md
+9 tâches, exécution par subagents avec revue par tâche + revue finale opus + vague de fix unique.
+Suite web 253 -> 260 tests. Recette navigateur réelle (CDP) à 375/768/1280px, thèmes clair et sombre.
+
+Livré: hook useMediaQuery (dégrade vers desktop sans matchMedia -> les ~30 suites d'écran
+préexistantes restent intactes) · ListeAdaptative (table >= md, cartes hiérarchisées en dessous,
+UN SEUL arbre monté) · drawer.tsx sur Drawer base-ui · coquille _app sidebar<->tiroir à lg ·
+stock/mouvements + ventes/index migrés · POS: barre de synthèse + panneau panier inline ·
+--text-xs remonté à 0.875rem sous 48rem · pointer-coarse:text-base (anti-zoom iOS/iPadOS).
+
+Décisions durables (ne pas défaire sans relire la spec):
+- Le hook gouverne les bascules STRUCTURELLES (quel arbre est monté), le CSS les ajustements
+  DIMENSIONNELS (largeurs). Critère: si la bascule dupliquerait du DOM, elle passe par le hook.
+- Le correctif anti-zoom est piloté par pointer-coarse, PAS par la largeur: un iPad portrait
+  fait 768-834px et tomberait dans md. Vérifié au navigateur: 16px/44px à 768px tactile.
+- POS: le panneau panier est un overlay INLINE enfant de <main> (jamais un portail), z-20 sous
+  le z-30 de ModalePaiement, et panierOuvert n'est PAS dans modaleOuverte (le caissier scanne
+  en regardant son total). Les trois sont désormais verrouillées par des tests.
+- Le test garde-fou "ne perd aucune donnée en mode carte" porte sur les colonnes masquerEnCarte,
+  JAMAIS sur les colonnes visibles (elles passent par les paires quoi qu'il arrive).
+- ListeAdaptative ne transmet au TableCell que numeric et classeCellule: toute autre classe de
+  l'ancien <TableCell> doit être reposée dans cellule, sinon régression silencieuse en vue table.
+
+Différés pour les phases suivantes:
+- [phase 2, avant migration] role="button" sur <tr>/<li> de ListeAdaptative retire les rôles
+  natifs row/listitem. Non actif (aucun consommateur ne passe surClicLigne aujourd'hui) mais
+  4 écrans de phase 2 l'utiliseront. Trancher la sémantique ARIA AVANT de les migrer.
+  Idem: le onKeyDown remonte, donc un <Link> dans une cellule d'une ligne cliquable
+  déclencherait aussi surClicLigne.
+- [phase 2] Écrans à filtres: les contrôles en w-full sm:w-56 s'empilent sur ~700px avant la
+  première donnée à 375px. Un repli derrière un <details> sous md serait le motif adapté.
+  Concerne 10 écrans.
+- [phase 4] Tableau de bord (_app/index.tsx): débordement horizontal de 13px à 375px, cause
+  min-width:auto des éléments de grille (manque min-w-0). PROUVÉ non-régression (mesuré
+  identique avec --text-xs rétabli à 0.75rem). Liens "Historique →" etc. à 20px de haut.
+- [transversal] Propager reglages.data.currency à Panier + ModalePaiement + BarreSynthese en UN
+  SEUL passage. L'app n'est PAS mono-devise (réglage d'organisation). Câbler BarreSynthese seule
+  afficherait une barre en EUR au-dessus d'un panier en XOF.
+- [mineur] Nom de boutique long tronqué (~13 car.) dans MenuPos sous md, le <h1> étant masqué.
+- [mineur] window.print() appelé 2x sur une vente en dev — probablement StrictMode, à confirmer.
