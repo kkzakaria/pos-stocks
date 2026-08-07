@@ -9,6 +9,7 @@ import {
   fetchVentesPeriode,
   periodePreset,
 } from "@/lib/rapports"
+import type { VenteListe } from "@/lib/pos-api"
 import { ErreurChargement } from "@/components/erreur-chargement"
 import { EtatVide } from "@/components/etat-vide"
 import { Button } from "@/components/ui/button"
@@ -21,15 +22,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
-import { TableSkeleton } from "@/components/ui/table-skeleton"
+import { ListeAdaptative } from "@/components/ui/liste-adaptative"
+import type { ColonneAdaptative } from "@/components/ui/liste-adaptative"
 import { Pagination } from "@/components/ui/pagination"
 
 export const Route = createFileRoute("/_app/ventes/")({
@@ -41,6 +35,67 @@ const PRESETS = [
   { id: "semaine", libelle: "7 jours" },
   { id: "mois", libelle: "Ce mois" },
 ] as const
+
+const MESSAGE_VIDE =
+  "Aucune vente sur cette période. Élargissez la période ou changez de boutique."
+
+export const COLONNES_VENTES: ColonneAdaptative<VenteListe>[] = [
+  {
+    cle: "numero",
+    entete: "N°",
+    numeric: true,
+    masquerEnCarte: true,
+    cellule: (v) => v.ticketNumber,
+  },
+  {
+    cle: "date",
+    entete: "Date",
+    masquerEnCarte: true,
+    cellule: (v) => new Date(v.createdAt).toLocaleString("fr-FR"),
+  },
+  { cle: "caissier", entete: "Caissier", cellule: (v) => v.cashierName },
+  {
+    cle: "articles",
+    entete: "Articles",
+    numeric: true,
+    cellule: (v) => v.itemCount,
+  },
+  {
+    cle: "total",
+    entete: "Total",
+    numeric: true,
+    masquerEnCarte: true,
+    cellule: (v) => formaterMontant(v.total, v.currency),
+  },
+  {
+    cle: "detail",
+    entete: "",
+    masquerEnCarte: true,
+    cellule: (v) => (
+      <Link
+        to="/ventes/$saleId"
+        params={{ saleId: v.id }}
+        className="text-primary hover:underline"
+      >
+        Détail
+      </Link>
+    ),
+  },
+]
+
+/** Card mode: the ticket number identifies the row. */
+export function titreVente(v: VenteListe) {
+  return `N° ${v.ticketNumber}`
+}
+
+/** Card mode: the total is the headline figure. */
+export function valeurVente(v: VenteListe) {
+  return formaterMontant(v.total, v.currency)
+}
+
+export function sousTitreVente(v: VenteListe) {
+  return new Date(v.createdAt).toLocaleString("fr-FR")
+}
 
 /** Sales history page: list paginated by store and period (presets or dates), filtered to the stores the account can read. */
 function HistoriqueVentes() {
@@ -81,7 +136,7 @@ function HistoriqueVentes() {
     <div className="flex h-[calc(100dvh-3rem)] flex-col">
       <h1 className="text-xl font-semibold">Historique des ventes</h1>
       <div className="mt-4 flex flex-wrap items-end gap-3">
-        <div className="flex flex-col gap-1.5">
+        <div className="flex w-full flex-col gap-1.5 sm:w-56">
           <Label htmlFor="v-boutique">Boutique</Label>
           <Select
             value={boutiqueId ?? ""}
@@ -90,7 +145,7 @@ function HistoriqueVentes() {
               setPage(1)
             }}
           >
-            <SelectTrigger id="v-boutique" className="w-56">
+            <SelectTrigger id="v-boutique" className="w-full">
               <SelectValue placeholder="Choisir une boutique">
                 {(valeur: string) =>
                   boutiques.find((b) => b.id === valeur)?.name
@@ -106,30 +161,30 @@ function HistoriqueVentes() {
             </SelectContent>
           </Select>
         </div>
-        <label className="text-sm">
-          Du
+        <div className="flex w-full flex-col gap-1.5 sm:w-auto">
+          <Label htmlFor="v-du">Du</Label>
           <Input
+            id="v-du"
             type="date"
-            className="mt-1"
             value={periode.du}
             onChange={(e) => {
               setPeriode((p) => ({ ...p, du: e.target.value }))
               setPage(1)
             }}
           />
-        </label>
-        <label className="text-sm">
-          Au
+        </div>
+        <div className="flex w-full flex-col gap-1.5 sm:w-auto">
+          <Label htmlFor="v-au">Au</Label>
           <Input
+            id="v-au"
             type="date"
-            className="mt-1"
             value={periode.au}
             onChange={(e) => {
               setPeriode((p) => ({ ...p, au: e.target.value }))
               setPage(1)
             }}
           />
-        </label>
+        </div>
         {PRESETS.map((preset) => (
           <Button
             key={preset.id}
@@ -162,56 +217,32 @@ function HistoriqueVentes() {
           />
         ) : (
           <>
-            <Table containerClassName="min-h-0 flex-1 overflow-y-auto">
-              <TableHeader sticky>
-                <TableRow>
-                  <TableHead numeric>N°</TableHead>
-                  <TableHead>Date</TableHead>
-                  <TableHead>Caissier</TableHead>
-                  <TableHead numeric>Articles</TableHead>
-                  <TableHead numeric>Total</TableHead>
-                  <TableHead />
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {ventes.isPending ? (
-                  <TableSkeleton colonnes={6} />
-                ) : liste.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={6}>
-                      <EtatVide
-                        icon={Receipt}
-                        titre="Aucune vente"
-                        message="Aucune vente sur cette période. Élargissez la période ou changez de boutique."
-                      />
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  liste.map((vente) => (
-                    <TableRow key={vente.id}>
-                      <TableCell numeric>{vente.ticketNumber}</TableCell>
-                      <TableCell>
-                        {new Date(vente.createdAt).toLocaleString("fr-FR")}
-                      </TableCell>
-                      <TableCell>{vente.cashierName}</TableCell>
-                      <TableCell numeric>{vente.itemCount}</TableCell>
-                      <TableCell numeric>
-                        {formaterMontant(vente.total, vente.currency)}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <Link
-                          to="/ventes/$saleId"
-                          params={{ saleId: vente.id }}
-                          className="text-primary hover:underline"
-                        >
-                          Détail
-                        </Link>
-                      </TableCell>
-                    </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
+            <ListeAdaptative<VenteListe>
+              colonnes={COLONNES_VENTES}
+              lignes={liste}
+              cle={(v) => v.id}
+              titre={titreVente}
+              valeur={valeurVente}
+              sousTitre={sousTitreVente}
+              chargement={ventes.isPending}
+              containerClassName="min-h-0 flex-1 overflow-y-auto"
+              etatVide={
+                <EtatVide
+                  icon={Receipt}
+                  titre="Aucune vente"
+                  message={MESSAGE_VIDE}
+                />
+              }
+              actionCarte={(v) => (
+                <Link
+                  to="/ventes/$saleId"
+                  params={{ saleId: v.id }}
+                  className="text-primary hover:underline"
+                >
+                  Détail
+                </Link>
+              )}
+            />
             {liste.length > 0 && (
               <Pagination
                 className="mt-3"
