@@ -47,7 +47,7 @@ describe("ListeAdaptative", () => {
     const nettoyer = installerMatchMedia(1280)
     afficher()
     expect(screen.getByRole("table")).toBeTruthy()
-    expect(screen.getAllByRole("row")).toHaveLength(3) // en-tête + 2 lignes
+    expect(screen.getAllByRole("row")).toHaveLength(3) // header + 2 rows
     nettoyer()
   })
 
@@ -72,7 +72,7 @@ describe("ListeAdaptative", () => {
     const carte = screen.getAllByRole("listitem")[0]
     expect(carte.textContent).toContain("Ciment 50kg")
     expect(carte.textContent).toContain("12")
-    // `motif` n'est pas masqué : il apparaît en paire libellé/valeur.
+    // `motif` is not hidden: it appears as a label/value pair.
     expect(carte.textContent).toContain("Motif")
     expect(carte.textContent).toContain("Réception")
     nettoyer()
@@ -245,6 +245,63 @@ describe("ListeAdaptative", () => {
       unmount()
       nettoyer()
     }
+  })
+
+  it("un lien dans une cellule ne déclenche pas surClicLigne, en mode table", () => {
+    const nettoyer = installerMatchMedia(1280)
+    const clics: string[] = []
+    const colonnesAvecLien: ColonneAdaptative<Mouvement>[] = [
+      ...COLONNES.slice(0, 2),
+      {
+        cle: "lien",
+        entete: "Lien",
+        // preventDefault avoids jsdom's "not implemented: navigation" noise —
+        // irrelevant here, only the click's propagation is under test.
+        cellule: () => (
+          <a href="/detail" onClick={(e) => e.preventDefault()}>
+            Détail
+          </a>
+        ),
+      },
+    ]
+    afficher({
+      colonnes: colonnesAvecLien,
+      surClicLigne: (l) => clics.push(l.id),
+    })
+
+    fireEvent.click(screen.getAllByRole("link", { name: "Détail" })[0])
+    expect(clics).toEqual([])
+
+    // Activating the row itself still works. `role="button"` overrides the
+    // native `row` role here (tracked phase-2 decision, untouched by this
+    // fix), so the rows are queried as buttons, as the existing
+    // surClicLigne tests above already do.
+    fireEvent.click(screen.getAllByRole("button")[0])
+    expect(clics).toEqual(["1"])
+    nettoyer()
+  })
+
+  it("actionCarte ne déclenche pas surClicLigne, en mode carte", () => {
+    const nettoyer = installerMatchMedia(375)
+    const clics: string[] = []
+    const { container } = afficher({
+      surClicLigne: (l) => clics.push(l.id),
+      actionCarte: () => <button>Détails</button>,
+    })
+
+    const boutons = screen.getAllByRole("button", { name: "Détails" })
+    fireEvent.click(boutons[0])
+    fireEvent.keyDown(boutons[0], { key: "Enter" })
+    expect(clics).toEqual([])
+
+    // Activating the card itself still works. `role="button"` overrides the
+    // native `listitem` role here (tracked phase-2 decision, untouched by
+    // this fix), so the card is queried directly as an `<li>`.
+    const carte = container.querySelector("li")
+    expect(carte).not.toBeNull()
+    fireEvent.click(carte as Element)
+    expect(clics).toEqual(["1"])
+    nettoyer()
   })
 
   it("classeCellule applique une classe additionnelle à la cellule, en table et en carte", () => {

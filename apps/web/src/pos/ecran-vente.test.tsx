@@ -1073,4 +1073,31 @@ describe("EcranVente — panneau panier mobile (< md)", () => {
 
     expect(await screen.findByText("Vider le panier ?")).toBeTruthy()
   })
+
+  it("panier verrouillé : « Voir le panier » ne rouvre pas le panneau (il recouvrirait « Vérifier »)", async () => {
+    vi.spyOn(posApi, "envoyerVente").mockRejectedValue(
+      new Error("Failed to fetch")
+    )
+    vi.spyOn(posApi, "fetchVenteParCleRequete").mockRejectedValue(
+      new Error("Failed to fetch")
+    )
+    renderEcran()
+
+    const tuile = await screen.findByRole("button", { name: /Coca 50cl/ })
+    fireEvent.click(tuile)
+    fireEvent.click(screen.getByRole("button", { name: "Encaisser" }))
+    fireEvent.click(screen.getByRole("button", { name: "Montant exact" }))
+    fireEvent.click(screen.getByRole("button", { name: "Valider la vente" }))
+
+    // The lock engages: the "Vérifier" button is the only exit and the panel
+    // auto-closes so the banner carrying it stays visible.
+    await screen.findByRole("button", { name: /Vérifier/ })
+    expect(document.querySelector('[data-slot="panneau-panier"]')).toBeNull()
+
+    fireEvent.click(screen.getByRole("button", { name: "Voir le panier" }))
+
+    // Tapping the summary bar must not re-cover the banner while locked.
+    expect(document.querySelector('[data-slot="panneau-panier"]')).toBeNull()
+    expect(screen.getByRole("button", { name: /Vérifier/ })).toBeTruthy()
+  })
 })

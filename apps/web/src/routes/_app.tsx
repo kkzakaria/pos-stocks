@@ -112,7 +112,7 @@ export function AppLayout({ me }: { me: Me }) {
         Aller au contenu
       </a>
       {estDesktop ? (
-        // h-screen + flex justify-between : bloc déconnexion ancré en bas. Premier div scrolle en interne.
+        // h-screen + flex justify-between: sign-out block anchored at the bottom. First div scrolls internally.
         <aside className="sticky top-0 flex h-screen w-60 flex-col justify-between border-r bg-sidebar p-4 text-sidebar-foreground">
           <div className="min-h-0 overflow-y-auto">
             <h2 className="text-base font-semibold">pos-stocks</h2>

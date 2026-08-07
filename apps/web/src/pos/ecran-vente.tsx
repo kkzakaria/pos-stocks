@@ -645,7 +645,12 @@ export function EcranVente({ me, boutique, session, onSessionFermee }: Props) {
           <BarreSynthese
             lignes={lignes}
             verrouille={panierVerrouille}
-            onOuvrirPanier={() => setPanierOuvert(true)}
+            onOuvrirPanier={() => {
+              // Reopening while locked would re-cover the ambiguity banner,
+              // the only exit from the anti-double-sale lock ("Vérifier").
+              if (panierVerrouille) return
+              setPanierOuvert(true)
+            }}
             onEncaisser={() => setPaiementOuvert(true)}
           />
           {panierOuvert && (

@@ -97,8 +97,8 @@ describe("AppLayout — bascule structurelle sidebar/tiroir", () => {
     expect(document.querySelector("aside")).toBeNull()
     const bouton = screen.getByRole("button", { name: "Ouvrir le menu" })
     expect(bouton).toBeTruthy()
-    // Fermé, le tiroir ne monte pas son contenu (voir drawer.test.tsx) :
-    // la nav n'existe donc qu'après ouverture.
+    // Closed, the drawer does not mount its content (see drawer.test.tsx):
+    // the nav only exists once it's open.
     expect(screen.queryByRole("navigation")).toBeNull()
 
     fireEvent.click(bouton)

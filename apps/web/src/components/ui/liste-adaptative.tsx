@@ -1,4 +1,4 @@
-import type { KeyboardEvent, ReactNode } from "react"
+import type { KeyboardEvent, MouseEvent, ReactNode } from "react"
 import { useEstLarge } from "@/lib/use-media-query"
 import { cn } from "@/lib/utils"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -81,6 +81,25 @@ type Props<T> = {
  * title line, its headline figure sits opposite it, and only the remaining
  * columns become pairs underneath.
  */
+// A row click/keydown must not also fire an interactive descendant's own
+// action — a `<Link>` in a cell, or `actionCarte`'s button, both bubble up
+// to the row. `closest()` from the event target finds the nearest
+// interactive ancestor; if it sits strictly inside the row boundary (not the
+// row itself, which also carries `role="button"`), the event originates from
+// that descendant and the row handler stands down.
+const SELECTEUR_INTERACTIF =
+  'a[href], button, input, select, textarea, [role="button"], [role="link"], [tabindex]'
+
+function depuisDescendantInteractif(e: MouseEvent | KeyboardEvent): boolean {
+  const cible = e.target
+  const limite = e.currentTarget
+  if (!(cible instanceof Element) || !(limite instanceof Element)) return false
+  const interactif = cible.closest(SELECTEUR_INTERACTIF)
+  return (
+    interactif !== null && interactif !== limite && limite.contains(interactif)
+  )
+}
+
 export function ListeAdaptative<T>({
   colonnes,
   lignes,
@@ -97,11 +116,19 @@ export function ListeAdaptative<T>({
 }: Props<T>) {
   const estLarge = useEstLarge()
 
+  function gererClicLigne(ligne: T) {
+    return (e: MouseEvent) => {
+      if (depuisDescendantInteractif(e)) return
+      surClicLigne?.(ligne)
+    }
+  }
+
   // Enter/Space activates the row the same way a click would — the same
   // handler powers both table and card mode so the two never drift apart.
   function gererClavierLigne(ligne: T) {
     return (e: KeyboardEvent) => {
       if (e.key !== "Enter" && e.key !== " ") return
+      if (depuisDescendantInteractif(e)) return
       e.preventDefault()
       surClicLigne?.(ligne)
     }
@@ -134,7 +161,7 @@ export function ListeAdaptative<T>({
                   surClicLigne && "cursor-pointer",
                   classeLigne?.(ligne)
                 )}
-                onClick={surClicLigne ? () => surClicLigne(ligne) : undefined}
+                onClick={surClicLigne ? gererClicLigne(ligne) : undefined}
                 onKeyDown={surClicLigne ? gererClavierLigne(ligne) : undefined}
                 tabIndex={surClicLigne ? 0 : undefined}
                 role={surClicLigne ? "button" : undefined}
@@ -185,7 +212,7 @@ export function ListeAdaptative<T>({
             surClicLigne && "cursor-pointer",
             classeLigne?.(ligne)
           )}
-          onClick={surClicLigne ? () => surClicLigne(ligne) : undefined}
+          onClick={surClicLigne ? gererClicLigne(ligne) : undefined}
           onKeyDown={surClicLigne ? gererClavierLigne(ligne) : undefined}
           tabIndex={surClicLigne ? 0 : undefined}
           role={surClicLigne ? "button" : undefined}

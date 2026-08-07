@@ -76,18 +76,18 @@ describe("colonnes du journal des mouvements", () => {
     const nettoyer = afficher(375)
     const carte = screen.getAllByRole("listitem")[0]
 
-    // Colonnes masquerEnCarte: true — doivent resurgir via titre/valeur/sous-titre,
-    // sans quoi cette donnée serait masquée par la largeur d'écran.
-    // "date" → sousTitreMouvement : fragment stable de la locale fr-FR (l'année).
+    // masquerEnCarte: true columns — must resurface via titre/valeur/sousTitre,
+    // otherwise this data would be hidden by screen width.
+    // "date" → sousTitreMouvement: stable fr-FR locale fragment (the year).
     expect(carte.textContent).toContain("2026")
-    // "article" → titreMouvement : le nom du produit ET le fragment variante/SKU.
+    // "article" → titreMouvement: the product name AND the variant/SKU fragment.
     expect(carte.textContent).toContain("Ciment 50kg")
     expect(carte.textContent).toContain("Sac (CIM-50)")
-    // "delta" → valeurMouvement : le delta signé en tête de carte.
+    // "delta" → valeurMouvement: the signed delta at the top of the card.
     expect(carte.textContent).toContain("+12")
 
-    // Colonnes non masquées — passent par `paires`, jamais masquées par construction,
-    // mais toujours vérifiées pour garder la couverture explicite.
+    // Non-hidden columns — go through `paires`, never hidden by construction,
+    // but still checked to keep coverage explicit.
     expect(carte.textContent).toContain("Boutique Centre")
     expect(carte.textContent).toContain("Réception")
     expect(carte.textContent).toContain("LOT-042")

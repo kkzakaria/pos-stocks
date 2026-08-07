@@ -34,6 +34,9 @@ export function BarreSynthese({
   onEncaisser,
 }: Props) {
   const total = totalPanier(lignes)
+  // Physical item count, not line count: a single line with quantite 3 is
+  // 3 articles to the cashier, not 1.
+  const nombreArticles = lignes.reduce((somme, l) => somme + l.quantite, 0)
   return (
     <div className="flex items-center justify-between gap-3 border-t bg-card px-3 py-2 print:hidden">
       <button
@@ -43,7 +46,7 @@ export function BarreSynthese({
         className="flex min-h-11 flex-1 items-center gap-2 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring/30"
       >
         <span className="text-sm text-muted-foreground">
-          {lignes.length} article{lignes.length > 1 ? "s" : ""}
+          {nombreArticles} article{nombreArticles > 1 ? "s" : ""}
         </span>
         <span aria-hidden="true" className="text-muted-foreground">
           ·

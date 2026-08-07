@@ -1406,6 +1406,21 @@ export const COLONNES_VENTES: ColonneAdaptative<VenteListe>[] = [
     masquerEnCarte: true,
     cellule: (v) => formaterMontant(v.total, v.currency),
   },
+  {
+    cle: "detail",
+    entete: "",
+    masquerEnCarte: true,
+    classeCellule: "text-right",
+    cellule: (v) => (
+      <Link
+        to="/ventes/$saleId"
+        params={{ saleId: v.id }}
+        className="text-primary hover:underline"
+      >
+        Détail
+      </Link>
+    ),
+  },
 ]
 
 export function titreVente(v: VenteListe) {

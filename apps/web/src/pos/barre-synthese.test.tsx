@@ -33,10 +33,34 @@ describe("BarreSynthese", () => {
         onEncaisser={() => undefined}
       />
     )
-    expect(screen.getByText("2 articles")).toBeTruthy()
+    expect(screen.getByText("4 articles")).toBeTruthy()
     expect(
       screen.getByRole("button", { name: "Voir le panier" }).textContent
     ).toMatch(texteMontant(6000))
+  })
+
+  it("compte les quantités, pas les lignes : une ligne à quantité 3 affiche 3 articles", () => {
+    render(
+      <BarreSynthese
+        lignes={[ligne({ quantite: 3 })]}
+        verrouille={false}
+        onOuvrirPanier={() => undefined}
+        onEncaisser={() => undefined}
+      />
+    )
+    expect(screen.getByText("3 articles")).toBeTruthy()
+  })
+
+  it("affiche '0 article' au singulier quand le panier est vide", () => {
+    render(
+      <BarreSynthese
+        lignes={[]}
+        verrouille={false}
+        onOuvrirPanier={() => undefined}
+        onEncaisser={() => undefined}
+      />
+    )
+    expect(screen.getByText("0 article")).toBeTruthy()
   })
 
   it("désactive Encaisser quand le panier est vide", () => {
