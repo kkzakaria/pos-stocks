@@ -25,6 +25,11 @@
 - Fichiers générés, jamais édités à la main : `apps/web/src/routeTree.gen.ts`.
 - Spec de référence : `docs/superpowers/specs/2026-08-07-spa-responsive-design.md`.
 
+**Deux pièges constatés en exécution — ils valent pour tout écran migré vers `ListeAdaptative`, ici comme en phases 2 à 4 :**
+
+1. **Le test garde-fou « ne perd aucune donnée en mode carte » porte sur les colonnes `masquerEnCarte`, jamais sur les colonnes visibles.** Ces dernières passent par le mécanisme des paires quoi qu'il arrive : les asserter ne prouve rien. Les deux tables témoins ont commis l'erreur inverse avant correction, parce que les extraits de test de ce plan l'avaient eux-mêmes à l'envers.
+2. **`ListeAdaptative` ne transmet aucun `className` au `TableCell` généré** — uniquement `numeric`. Toute classe portée par l'ancien `<TableCell>` (`text-sm`, `text-right`…) doit être reposée sur le contenu rendu dans `cellule`, sinon la vue table régresse en silence et aucun test ne le voit. Comparer chaque colonne migrée au `<TableCell>` qu'elle remplace, et le dire dans le rapport.
+
 ---
 
 ## Structure de fichiers
@@ -1090,8 +1095,14 @@ describe("colonnes du journal des mouvements", () => {
 
   it("ne perd aucune donnée en mode carte", () => {
     const nettoyer = afficher(375)
-    const carte = screen.getAllByRole("listitem")[0]!
-    // Toutes les valeurs restent lisibles : rien n'est masqué par la largeur.
+    const carte = screen.getAllByRole("listitem")[0]
+    // Les colonnes masquerEnCarte : c'est ELLES qu'il faut prouver, car ce
+    // sont les seules qui pourraient disparaître avec la largeur.
+    expect(carte.textContent).toContain("2026") // date → sousTitre
+    expect(carte.textContent).toContain("Ciment 50kg") // article → titre
+    expect(carte.textContent).toContain("Sac (CIM-50)") // variante/SKU → titre
+    expect(carte.textContent).toContain("+12") // delta → valeur
+    // Les colonnes visibles, garanties par le mécanisme des paires.
     expect(carte.textContent).toContain("Boutique Centre")
     expect(carte.textContent).toContain("Réception")
     expect(carte.textContent).toContain("Awa")
@@ -1100,7 +1111,7 @@ describe("colonnes du journal des mouvements", () => {
 })
 ```
 
-Le dernier cas est le garde-fou du principe « tout se lit, tout se prouve ».
+**Ce test est l'enforcement du contrat `masquerEnCarte`, et il doit porter sur les colonnes MASQUÉES.** Une version qui n'asserte que les colonnes visibles ne garde rien : celles-ci passent par les paires quoi qu'il arrive. La date est le cas le plus fragile — asserter un fragment stable (`"2026"`), jamais la chaîne localisée entière, qui dépend de la version d'ICU.
 
 - [ ] **Step 2: Lancer le test pour vérifier qu'il échoue**
 
@@ -1349,13 +1360,20 @@ describe("colonnes de l'historique des ventes", () => {
 
   it("ne perd aucune donnée en mode carte", () => {
     const nettoyer = afficher(375)
-    const carte = screen.getAllByRole("listitem")[0]!
+    const carte = screen.getAllByRole("listitem")[0]
+    // Colonnes masquerEnCarte — les seules réellement à risque.
+    expect(carte.textContent).toContain("N° 42") // numero → titre
+    expect(carte.textContent).toContain("2026") // date → sousTitre
+    expect(carte.textContent).toMatch(texteMontant(12500)) // total → valeur
+    // Colonnes visibles, garanties par les paires.
     expect(carte.textContent).toContain("Awa")
     expect(carte.textContent).toContain("3")
     nettoyer()
   })
 })
 ```
+
+Même règle que sur la table témoin 1 : **le garde-fou porte sur les colonnes masquées**, pas sur celles que le mécanisme des paires protège déjà. La colonne d'action est couverte séparément par le test de non-duplication.
 
 `texteMontant` est redéfini ici plutôt qu'importé : si un helper équivalent existe déjà dans les tests POS, l'importer et supprimer la copie locale — vérifier avant d'écrire. Ce qui compte est de **ne jamais** écrire `getByText(formaterMontant(x))`, que les espaces insécables étroites (U+202F) font échouer.
 
