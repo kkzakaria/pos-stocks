@@ -97,7 +97,14 @@ export function AppLayout({ me }: { me: Me }) {
   }
 
   return (
-    <div className="flex min-h-screen flex-col lg:flex-row">
+    // h-dvh (not min-h-screen): bounds this container to exactly one viewport,
+    // so <main>'s flex-1 below resolves to a DEFINITE height (viewport minus
+    // the mobile header's natural height, computed by flexbox — not a
+    // hardcoded constant that would drift the moment the header's own height
+    // changes, e.g. pointer-coarse growing its button to 44px). Content
+    // taller than that still overflows visibly and scrolls the document
+    // exactly as it did under min-h-screen: nothing here clips overflow.
+    <div className="flex h-dvh flex-col lg:flex-row">
       <a
         href="#contenu"
         className="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-50 focus:rounded-md focus:bg-primary focus:px-3 focus:py-2 focus:text-sm focus:text-primary-foreground focus:ring-2 focus:ring-ring/30"
@@ -136,11 +143,19 @@ export function AppLayout({ me }: { me: Me }) {
         </>
       )}
       {/* min-w-0: without it, a wide table widens the whole document
-          instead of scrolling inside its overflow-x-auto container. */}
+          instead of scrolling inside its overflow-x-auto container.
+          flex flex-col + min-h-0 + flex-1: makes THIS element's own
+          resolved height definite (see the h-dvh comment above), so a
+          screen that wants full-height internal scrolling can just use
+          `h-full` on its root instead of reverse-engineering a magic
+          `calc(100dvh-…)` that silently drifts whenever the chrome above
+          it (mobile header, padding) changes. Screens that don't need
+          that (the majority) are unaffected: their content still simply
+          overflows and the document scrolls, exactly as before. */}
       <main
         id="contenu"
         tabIndex={-1}
-        className="min-w-0 flex-1 p-4 outline-none lg:p-6"
+        className="flex min-h-0 min-w-0 flex-1 flex-col p-4 outline-none lg:p-6"
       >
         <Outlet />
       </main>

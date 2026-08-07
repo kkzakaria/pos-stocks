@@ -128,6 +128,16 @@ export function EcranVente({ me, boutique, session, onSessionFermee }: Props) {
   useEffect(() => {
     if (panierVerrouille) setPanierOuvert(false)
   }, [panierVerrouille])
+  // Same reasoning for the sale-error banner (e.g. STOCK_INSUFFISANT): it
+  // renders in the very same region, right above the catalogue/cart split,
+  // and is just as covered by the open panel. Without this, a rejected sale
+  // closes the payment modal, leaves the panel open, and the cashier sees
+  // nothing to explain why — checked: no other banner in that region has
+  // this problem, the only other one is the restored-cart notice, which
+  // lives INSIDE the panel itself and is never covered by it.
+  useEffect(() => {
+    if (erreurVente !== null) setPanierOuvert(false)
+  }, [erreurVente])
   const reglages = useQuery({
     queryKey: ["reglages-ticket"],
     queryFn: fetchReglagesTicket,
@@ -515,7 +525,12 @@ export function EcranVente({ me, boutique, session, onSessionFermee }: Props) {
   return (
     <main className="relative flex h-screen flex-col bg-muted print:hidden">
       <header className="flex items-center gap-3 border-b bg-card px-4 py-2">
-        <h1 className="text-lg font-semibold whitespace-nowrap">
+        {/* Hidden below `md`: `MenuPos` already shows `boutiqueNom` (truncated
+            at 160px), so keeping this too doubled the name AND its
+            whitespace-nowrap width (141px) crushed the search field — the one
+            "/" focuses and a cashier types a barcode into by hand when the
+            scanner fails — down to 23px. Desktop layout (>= md) is untouched. */}
+        <h1 className="hidden text-lg font-semibold whitespace-nowrap md:block">
           {boutique.name}
         </h1>
         <Input
@@ -639,7 +654,10 @@ export function EcranVente({ me, boutique, session, onSessionFermee }: Props) {
             // over the 80mm receipt. `z-20` (below ModalePaiement's `z-30`)
             // keeps the payment modal opened from here in front of it; `main`
             // carries `relative` above to anchor this `absolute`.
-            <div className="absolute inset-0 z-20 flex flex-col overscroll-contain bg-card print:hidden">
+            <div
+              data-slot="panneau-panier"
+              className="absolute inset-0 z-20 flex flex-col overscroll-contain bg-card print:hidden"
+            >
               {/* No own "Panier" heading here: `<Panier>` renders its own
                   header just below — a second one would be a visible
                   duplicate for no reason. */}

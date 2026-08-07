@@ -63,6 +63,11 @@
     --text-xs: 0.875rem;
 }
 
+/* 48rem = Tailwind's default `md` breakpoint (768px) — the only place in the
+   repo where a breakpoint is duplicated in raw CSS instead of a `md:`
+   utility, because this is a bare `@media` block, not a class. Keep it in
+   sync if `md` is ever redefined (it is not, today — no `--breakpoint-*` is
+   set anywhere in this file). */
 @media (width >= 48rem) {
     :root {
         --text-xs: 0.75rem;

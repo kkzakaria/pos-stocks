@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react"
+import { render, screen, fireEvent } from "@testing-library/react"
 import { ListeAdaptative } from "./liste-adaptative"
 import type { ColonneAdaptative } from "./liste-adaptative"
 import { installerMatchMedia } from "@/test/media-query"
@@ -34,7 +34,7 @@ function afficher(
     <ListeAdaptative<Mouvement>
       colonnes={COLONNES}
       lignes={LIGNES}
-      cle={(l) => l.id}
+      cleLigne={(l) => l.id}
       titre={(l) => l.article}
       valeur={(l) => l.delta}
       {...extra}
@@ -183,5 +183,92 @@ describe("ListeAdaptative", () => {
     })
     expect(container.querySelector("ul.ma-classe-conteneur")).toBeTruthy()
     nettoyer()
+  })
+
+  it("surClicLigne rend les lignes cliquables et activables au clavier en mode table", () => {
+    const nettoyer = installerMatchMedia(1280)
+    const clics: string[] = []
+    afficher({ surClicLigne: (l) => clics.push(l.id) })
+
+    const lignes = screen.getAllByRole("button")
+    expect(lignes).toHaveLength(2)
+    expect(lignes[0].tabIndex).toBe(0)
+
+    fireEvent.click(lignes[0])
+    fireEvent.keyDown(lignes[1], { key: "Enter" })
+    fireEvent.keyDown(lignes[1], { key: " " })
+
+    expect(clics).toEqual(["1", "2", "2"])
+    nettoyer()
+  })
+
+  it("surClicLigne rend les cartes cliquables et activables au clavier en mode carte", () => {
+    const nettoyer = installerMatchMedia(375)
+    const clics: string[] = []
+    afficher({ surClicLigne: (l) => clics.push(l.id) })
+
+    const cartes = screen.getAllByRole("button")
+    expect(cartes).toHaveLength(2)
+    expect(cartes[0].tabIndex).toBe(0)
+
+    fireEvent.click(cartes[0])
+    fireEvent.keyDown(cartes[1], { key: "Enter" })
+    fireEvent.keyDown(cartes[1], { key: " " })
+
+    expect(clics).toEqual(["1", "2", "2"])
+    nettoyer()
+  })
+
+  it("sans surClicLigne, ni la ligne ni la carte ne portent de sémantique cliquable", () => {
+    for (const largeur of [1280, 375]) {
+      const nettoyer = installerMatchMedia(largeur)
+      const { unmount } = afficher()
+      expect(screen.queryAllByRole("button")).toHaveLength(0)
+      unmount()
+      nettoyer()
+    }
+  })
+
+  it("classeLigne applique une classe additionnelle à la ligne, en table et en carte", () => {
+    for (const largeur of [1280, 375]) {
+      const nettoyer = installerMatchMedia(largeur)
+      const { container, unmount } = afficher({
+        classeLigne: () => "ma-classe-ligne",
+      })
+      const ligne =
+        largeur === 1280
+          ? container.querySelector(
+              '[data-slot="table-body"] [data-slot="table-row"]'
+            )
+          : container.querySelector("li")
+      expect(ligne?.className).toContain("ma-classe-ligne")
+      unmount()
+      nettoyer()
+    }
+  })
+
+  it("classeCellule applique une classe additionnelle à la cellule, en table et en carte", () => {
+    const colonnesAvecClasse: ColonneAdaptative<Mouvement>[] = [
+      ...COLONNES.slice(0, 2),
+      {
+        cle: "motif",
+        entete: "Motif",
+        cellule: (l) => l.motif,
+        classeCellule: "font-mono",
+      },
+    ]
+    for (const largeur of [1280, 375]) {
+      const nettoyer = installerMatchMedia(largeur)
+      const { container, unmount } = afficher({ colonnes: colonnesAvecClasse })
+      const cellule =
+        largeur === 1280
+          ? Array.from(
+              container.querySelectorAll('[data-slot="table-cell"]')
+            ).find((td) => td.textContent === "Réception")
+          : container.querySelector("dd")
+      expect(cellule?.className).toContain("font-mono")
+      unmount()
+      nettoyer()
+    }
   })
 })

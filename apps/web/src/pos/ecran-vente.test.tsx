@@ -989,13 +989,58 @@ describe("EcranVente — panneau panier mobile (< md)", () => {
     fireEvent.click(screen.getByRole("button", { name: "Voir le panier" }))
 
     const main = container.querySelector("main")
-    const panneau = container.querySelector(".absolute.inset-0")
+    // Stable selector: `.absolute.inset-0` is an implementation detail that
+    // would silently stop matching if the panel's positioning classes ever
+    // changed for an unrelated reason.
+    const panneau = container.querySelector('[data-slot="panneau-panier"]')
     expect(main).not.toBeNull()
     expect(panneau).not.toBeNull()
     // A portalled panel would render as a sibling of <main> at document.body,
     // not inside it — this would fail if `panneauPanier` were ever moved
     // behind `createPortal`.
     expect(main?.contains(panneau)).toBe(true)
+    // Pins constraint 1 (print) and half of constraint 2 (stacking) — the
+    // other half (actually AHEAD of ModalePaiement) needs elementFromPoint,
+    // impossible in jsdom, so it stays a manual browser check.
+    expect(panneau?.className).toContain("print:hidden")
+    expect(panneau?.className).toContain("z-20")
+  })
+
+  it("ModalePaiement reste au-dessus du panneau panier (contrainte 2, symétrique)", async () => {
+    renderEcran()
+    const tuile = await screen.findByRole("button", { name: /Coca 50cl/ })
+    fireEvent.click(tuile)
+    fireEvent.click(screen.getByRole("button", { name: "Voir le panier" }))
+    fireEvent.click(screen.getByRole("button", { name: /^ENCAISSER/ }))
+
+    // `z-30` lives on ModalePaiement's own fixed positioning wrapper, the
+    // direct parent of the `role="dialog"` element.
+    const modale = screen.getByRole("dialog")
+    // A future z-40 on the panel would put it in front of the payment modal
+    // with no test failing unless z-30 stays pinned here too.
+    expect(modale.parentElement?.className).toContain("z-30")
+  })
+
+  it("ferme le panneau quand le serveur rejette la vente (même défaut que la bannière d'ambiguïté)", async () => {
+    const { ApiError } = await import("@/lib/api")
+    vi.spyOn(posApi, "envoyerVente").mockRejectedValue(
+      new ApiError("Stock insuffisant", 409, "STOCK_INSUFFISANT", [
+        { variantId: "v1" },
+      ])
+    )
+    renderEcran()
+
+    const tuile = await screen.findByRole("button", { name: /Coca 50cl/ })
+    fireEvent.click(tuile)
+    fireEvent.click(screen.getByRole("button", { name: "Voir le panier" }))
+    fireEvent.click(screen.getByRole("button", { name: /^ENCAISSER/ }))
+    fireEvent.click(screen.getByRole("button", { name: "Montant exact" }))
+    fireEvent.click(screen.getByRole("button", { name: "Valider la vente" }))
+
+    // The error banner is rendered above the catalogue/cart split — the
+    // panel, still open at this point, would otherwise cover it entirely.
+    await screen.findByRole("alert")
+    expect(document.querySelector('[data-slot="panneau-panier"]')).toBeNull()
   })
 
   it("le scan reste actif panneau panier ouvert (contrainte 3)", async () => {

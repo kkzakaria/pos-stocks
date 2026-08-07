@@ -39,6 +39,19 @@ const PRESETS = [
 const MESSAGE_VIDE =
   "Aucune vente sur cette période. Élargissez la période ou changez de boutique."
 
+/** Shared between the table's "detail" column and the card's trailing action — the pattern phases 2–4 should copy instead of duplicating the JSX. */
+function lienDetail(v: VenteListe) {
+  return (
+    <Link
+      to="/ventes/$saleId"
+      params={{ saleId: v.id }}
+      className="text-primary hover:underline"
+    >
+      Détail
+    </Link>
+  )
+}
+
 export const COLONNES_VENTES: ColonneAdaptative<VenteListe>[] = [
   {
     cle: "numero",
@@ -71,17 +84,8 @@ export const COLONNES_VENTES: ColonneAdaptative<VenteListe>[] = [
     cle: "detail",
     entete: "",
     masquerEnCarte: true,
-    cellule: (v) => (
-      <div className="text-right">
-        <Link
-          to="/ventes/$saleId"
-          params={{ saleId: v.id }}
-          className="text-primary hover:underline"
-        >
-          Détail
-        </Link>
-      </div>
-    ),
+    classeCellule: "text-right",
+    cellule: lienDetail,
   },
 ]
 
@@ -135,7 +139,7 @@ function HistoriqueVentes() {
   const aucuneBoutique = destinations.isSuccess && boutiques.length === 0
 
   return (
-    <div className="flex h-[calc(100dvh-3rem)] flex-col">
+    <div className="flex h-full flex-col">
       <h1 className="text-xl font-semibold">Historique des ventes</h1>
       <div className="mt-4 flex flex-wrap items-end gap-3">
         <div className="flex w-full flex-col gap-1.5 sm:w-56">
@@ -222,7 +226,7 @@ function HistoriqueVentes() {
             <ListeAdaptative<VenteListe>
               colonnes={COLONNES_VENTES}
               lignes={liste}
-              cle={(v) => v.id}
+              cleLigne={(v) => v.id}
               titre={titreVente}
               valeur={valeurVente}
               sousTitre={sousTitreVente}
@@ -235,15 +239,7 @@ function HistoriqueVentes() {
                   message={MESSAGE_VIDE}
                 />
               }
-              actionCarte={(v) => (
-                <Link
-                  to="/ventes/$saleId"
-                  params={{ saleId: v.id }}
-                  className="text-primary hover:underline"
-                >
-                  Détail
-                </Link>
-              )}
+              actionCarte={lienDetail}
             />
             {liste.length > 0 && (
               <Pagination

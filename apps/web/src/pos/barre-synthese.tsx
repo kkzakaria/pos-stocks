@@ -5,6 +5,14 @@ import type { LignePanier } from "@/lib/pos"
 
 type Props = {
   lignes: LignePanier[]
+  /**
+   * Deliberately unwired for now: no caller passes it, so this always
+   * renders XOF. The app is NOT mono-currency (an organization setting;
+   * each sale carries its own) — a tracked deferral will propagate
+   * `reglages.data.currency` through `Panier`, `ModalePaiement` and
+   * `BarreSynthese` together, in one pass, since wiring this alone would
+   * show a XOF cart under a EUR summary bar.
+   */
   devise?: string
   /** Cart locked after an ambiguous submission: checkout stays disabled. */
   verrouille: boolean

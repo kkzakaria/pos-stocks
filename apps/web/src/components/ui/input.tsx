@@ -6,7 +6,9 @@ import { cn } from "@/lib/utils"
 /**
  * DS input field: shared hairline, translucent background and focus ring.
  * Flags errors via `aria-invalid` and keeps a 44px touch height under
- * `pointer-coarse`.
+ * `pointer-coarse`, plus `pointer-coarse:text-base` (16px) — the anti-zoom
+ * half of the fix: Safari iOS/iPadOS zooms the page on focus for any field
+ * under 16px, so do not drop this half while simplifying the touch-target one.
  */
 function Input({ className, type, ...props }: React.ComponentProps<"input">) {
   return (

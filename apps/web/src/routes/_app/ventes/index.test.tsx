@@ -47,7 +47,7 @@ function afficher(largeur: number) {
     <ListeAdaptative<VenteListe>
       colonnes={COLONNES_VENTES}
       lignes={[V]}
-      cle={(v) => v.id}
+      cleLigne={(v) => v.id}
       titre={titreVente}
       valeur={valeurVente}
       sousTitre={sousTitreVente}

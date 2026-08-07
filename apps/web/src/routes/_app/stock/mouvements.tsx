@@ -32,11 +32,9 @@ export const COLONNES_MOUVEMENTS: ColonneAdaptative<MouvementJournal>[] = [
     cle: "date",
     entete: "Date",
     masquerEnCarte: true,
-    cellule: (m) => (
-      <span className="text-sm whitespace-nowrap">
-        {new Date(m.createdAt).toLocaleString("fr-FR")}
-      </span>
-    ),
+    // whitespace-nowrap is already the TableCell default — no wrapper needed.
+    classeCellule: "text-sm",
+    cellule: (m) => new Date(m.createdAt).toLocaleString("fr-FR"),
   },
   { cle: "entrepot", entete: "Entrepôt", cellule: (m) => m.warehouseName },
   {
@@ -77,17 +75,20 @@ export const COLONNES_MOUVEMENTS: ColonneAdaptative<MouvementJournal>[] = [
   {
     cle: "lot",
     entete: "Lot",
-    cellule: (m) => <span className="font-mono">{m.lotNumber ?? "—"}</span>,
+    classeCellule: "font-mono",
+    cellule: (m) => m.lotNumber ?? "—",
   },
   {
     cle: "motif",
     entete: "Motif",
-    cellule: (m) => <span className="text-sm">{m.reason ?? "—"}</span>,
+    classeCellule: "text-sm",
+    cellule: (m) => m.reason ?? "—",
   },
   {
     cle: "par",
     entete: "Par",
-    cellule: (m) => <span className="text-sm">{m.userName}</span>,
+    classeCellule: "text-sm",
+    cellule: (m) => m.userName,
   },
 ]
 
@@ -169,7 +170,7 @@ function MouvementsPage() {
   const liste = mouvements.data?.movements ?? []
 
   return (
-    <div className="flex h-[calc(100dvh-3rem)] flex-col">
+    <div className="flex h-full flex-col">
       <h1 className="mb-6 text-xl font-semibold">Journal des mouvements</h1>
 
       <div className="mb-4 flex flex-wrap items-end gap-3">
@@ -264,7 +265,7 @@ function MouvementsPage() {
           <ListeAdaptative<MouvementJournal>
             colonnes={COLONNES_MOUVEMENTS}
             lignes={liste}
-            cle={(m) => m.id}
+            cleLigne={(m) => m.id}
             titre={titreMouvement}
             valeur={valeurMouvement}
             sousTitre={sousTitreMouvement}

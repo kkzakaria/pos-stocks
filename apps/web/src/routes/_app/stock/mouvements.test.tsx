@@ -33,7 +33,7 @@ function afficher(largeur: number) {
     <ListeAdaptative<MouvementJournal>
       colonnes={COLONNES_MOUVEMENTS}
       lignes={[M]}
-      cle={(m) => m.id}
+      cleLigne={(m) => m.id}
       titre={titreMouvement}
       valeur={valeurMouvement}
       sousTitre={sousTitreMouvement}

@@ -1,4 +1,4 @@
-import type { ReactNode } from "react"
+import type { KeyboardEvent, ReactNode } from "react"
 import { useEstLarge } from "@/lib/use-media-query"
 import { cn } from "@/lib/utils"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -31,12 +31,21 @@ export type ColonneAdaptative<T> = {
    * own "ne perd aucune donnée en mode carte" test.
    */
   masquerEnCarte?: boolean
+  /**
+   * Extra classes applied to the generated `TableCell` (table mode) and to
+   * the card's `<dd>` (card mode), merged through `cn()`. Use it instead of
+   * wrapping `cellule`'s return value in its own `<span>`/`<div>` for a
+   * uniform style (e.g. `font-mono`, `text-right`) — a wrapper only styles
+   * the table cell, silently losing the style in card mode.
+   */
+  classeCellule?: string
 }
 
 type Props<T> = {
   colonnes: ColonneAdaptative<T>[]
   lignes: T[]
-  cle: (ligne: T) => string
+  /** Row key extractor (React key + identity) — distinct from `ColonneAdaptative.cle`, which names a column. */
+  cleLigne: (ligne: T) => string
   /** Card mode: the dominant identity line. */
   titre: (ligne: T) => ReactNode
   /** Card mode: trailing value on the title line (amount, delta). */
@@ -49,6 +58,16 @@ type Props<T> = {
   containerClassName?: string
   /** Card mode: trailing action (e.g. a details link). */
   actionCarte?: (ligne: T) => ReactNode
+  /**
+   * Makes the whole row clickable (e.g. navigate to a detail page), applied
+   * to `<TableRow>` in table mode and to `<li>` in card mode. Both get
+   * `role="button"`, `tabIndex={0}` and an Enter/Space `onKeyDown` handler
+   * so a clickable row is reachable and activatable by keyboard in either
+   * mode, matching the click behavior exactly.
+   */
+  surClicLigne?: (ligne: T) => void
+  /** Extra classes for the row itself (table `<TableRow>` / card `<li>`), merged through `cn()`. */
+  classeLigne?: (ligne: T) => string
 }
 
 /**
@@ -65,7 +84,7 @@ type Props<T> = {
 export function ListeAdaptative<T>({
   colonnes,
   lignes,
-  cle,
+  cleLigne,
   titre,
   valeur,
   sousTitre,
@@ -73,8 +92,20 @@ export function ListeAdaptative<T>({
   etatVide,
   containerClassName,
   actionCarte,
+  surClicLigne,
+  classeLigne,
 }: Props<T>) {
   const estLarge = useEstLarge()
+
+  // Enter/Space activates the row the same way a click would — the same
+  // handler powers both table and card mode so the two never drift apart.
+  function gererClavierLigne(ligne: T) {
+    return (e: KeyboardEvent) => {
+      if (e.key !== "Enter" && e.key !== " ") return
+      e.preventDefault()
+      surClicLigne?.(ligne)
+    }
+  }
 
   if (estLarge) {
     return (
@@ -97,9 +128,23 @@ export function ListeAdaptative<T>({
             </TableRow>
           ) : (
             lignes.map((ligne) => (
-              <TableRow key={cle(ligne)}>
+              <TableRow
+                key={cleLigne(ligne)}
+                className={cn(
+                  surClicLigne && "cursor-pointer",
+                  classeLigne?.(ligne)
+                )}
+                onClick={surClicLigne ? () => surClicLigne(ligne) : undefined}
+                onKeyDown={surClicLigne ? gererClavierLigne(ligne) : undefined}
+                tabIndex={surClicLigne ? 0 : undefined}
+                role={surClicLigne ? "button" : undefined}
+              >
                 {colonnes.map((c) => (
-                  <TableCell key={c.cle} numeric={c.numeric}>
+                  <TableCell
+                    key={c.cle}
+                    numeric={c.numeric}
+                    className={c.classeCellule}
+                  >
                     {c.cellule(ligne)}
                   </TableCell>
                 ))}
@@ -133,7 +178,18 @@ export function ListeAdaptative<T>({
   return (
     <ul className={cn("flex flex-col gap-2", containerClassName)}>
       {lignes.map((ligne) => (
-        <li key={cle(ligne)} className="rounded-md border bg-card p-3">
+        <li
+          key={cleLigne(ligne)}
+          className={cn(
+            "rounded-md border bg-card p-3",
+            surClicLigne && "cursor-pointer",
+            classeLigne?.(ligne)
+          )}
+          onClick={surClicLigne ? () => surClicLigne(ligne) : undefined}
+          onKeyDown={surClicLigne ? gererClavierLigne(ligne) : undefined}
+          tabIndex={surClicLigne ? 0 : undefined}
+          role={surClicLigne ? "button" : undefined}
+        >
           <div className="flex items-start justify-between gap-3">
             <p className="min-w-0 flex-1 font-medium break-words">
               {titre(ligne)}
@@ -157,7 +213,8 @@ export function ListeAdaptative<T>({
                   <dd
                     className={cn(
                       "min-w-0 text-right break-words",
-                      c.numeric && "tabular-nums"
+                      c.numeric && "tabular-nums",
+                      c.classeCellule
                     )}
                   >
                     {c.cellule(ligne)}
