@@ -42,10 +42,11 @@ typography:
     letterSpacing: "normal"
   body:
     fontFamily: "Inter Variable, sans-serif"
-    fontSize: "0.75rem"
+    fontSize: "0.875rem (mobile) / 0.75rem (≥48rem)"
     fontWeight: 400
     lineHeight: 1.55
     letterSpacing: "normal"
+    note: "fontSize is responsive, defined via `--text-xs` CSS variable in `src/styles.css`. Mobile-first: 0.875rem is the default, restores to 0.75rem at 48rem breakpoint for desktop density."
   label:
     fontFamily: "Inter Variable, sans-serif"
     fontSize: "0.625rem"
