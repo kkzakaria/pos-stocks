@@ -6,7 +6,9 @@ import { cn } from "@/lib/utils"
 /**
  * DS input field: shared hairline, translucent background and focus ring.
  * Flags errors via `aria-invalid` and keeps a 44px touch height under
- * `pointer-coarse`.
+ * `pointer-coarse`, plus `pointer-coarse:text-base` (16px) — the anti-zoom
+ * half of the fix: Safari iOS/iPadOS zooms the page on focus for any field
+ * under 16px, so do not drop this half while simplifying the touch-target one.
  */
 function Input({ className, type, ...props }: React.ComponentProps<"input">) {
   return (
@@ -14,7 +16,7 @@ function Input({ className, type, ...props }: React.ComponentProps<"input">) {
       type={type}
       data-slot="input"
       className={cn(
-        "h-7 w-full min-w-0 rounded-md border border-input bg-input/20 px-2 py-0.5 text-sm transition-colors outline-none file:inline-flex file:h-6 file:border-0 file:bg-transparent file:text-xs/relaxed file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30 disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-2 aria-invalid:ring-destructive/20 md:text-xs/relaxed dark:bg-input/30 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 pointer-coarse:min-h-11",
+        "h-7 w-full min-w-0 rounded-md border border-input bg-input/20 px-2 py-0.5 text-sm transition-colors outline-none file:inline-flex file:h-6 file:border-0 file:bg-transparent file:text-xs/relaxed file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30 disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-2 aria-invalid:ring-destructive/20 md:text-xs/relaxed dark:bg-input/30 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 pointer-coarse:min-h-11 pointer-coarse:text-base",
         className
       )}
       {...props}

@@ -28,6 +28,12 @@ export function cleLigne(
 
 type Props = {
   lignes: LignePanier[]
+  /**
+   * True when the cart fills its container's width by itself (mobile
+   * overlay panel) — the left divider only makes sense beside the catalogue
+   * column on desktop, and reads as a stray line on a full-width panel.
+   */
+  pleineLargeur?: boolean
   /** Cart locked after an ambiguous submission: editing is frozen. */
   verrouille?: boolean
   /** Price-change error, attached to the line it concerns. */
@@ -59,6 +65,7 @@ type Props = {
  */
 export function Panier({
   lignes,
+  pleineLargeur = false,
   verrouille = false,
   erreurPrix,
   onQuantite,
@@ -109,7 +116,12 @@ export function Panier({
   }
 
   return (
-    <aside className="flex min-h-0 w-full flex-1 flex-col border-l bg-card">
+    <aside
+      className={cn(
+        "flex min-h-0 w-full flex-1 flex-col bg-card",
+        !pleineLargeur && "border-l"
+      )}
+    >
       <div className="flex items-center justify-between border-b px-4 py-2">
         <h2 className="text-sm font-semibold text-muted-foreground">Panier</h2>
         <AlertDialog open={viderOuvert} onOpenChange={onViderOuvertChange}>

@@ -18,21 +18,104 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
-import { TableSkeleton } from "@/components/ui/table-skeleton"
+import { ListeAdaptative } from "@/components/ui/liste-adaptative"
+import type { ColonneAdaptative } from "@/components/ui/liste-adaptative"
 
 export const Route = createFileRoute("/_app/stock/mouvements")({
   component: MouvementsPage,
 })
 
 const LIMITE = 50
+
+export const COLONNES_MOUVEMENTS: ColonneAdaptative<MouvementJournal>[] = [
+  {
+    cle: "date",
+    entete: "Date",
+    masquerEnCarte: true,
+    // whitespace-nowrap is already the TableCell default — no wrapper needed.
+    classeCellule: "text-sm",
+    cellule: (m) => new Date(m.createdAt).toLocaleString("fr-FR"),
+  },
+  { cle: "entrepot", entete: "Entrepôt", cellule: (m) => m.warehouseName },
+  {
+    cle: "article",
+    entete: "Article",
+    masquerEnCarte: true,
+    cellule: (m) => (
+      <>
+        <span className="font-medium">{m.productName}</span>{" "}
+        <span className="text-sm text-muted-foreground">
+          {m.variantName} ({m.sku})
+        </span>
+      </>
+    ),
+  },
+  {
+    cle: "type",
+    entete: "Type",
+    cellule: (m) => LIBELLES_TYPE_MOUVEMENT[m.type] ?? m.type,
+  },
+  {
+    cle: "delta",
+    entete: "Delta",
+    numeric: true,
+    masquerEnCarte: true,
+    cellule: (m) => (
+      <span
+        className={
+          m.delta > 0
+            ? "font-medium text-success"
+            : "font-medium text-destructive"
+        }
+      >
+        {m.delta > 0 ? `+${m.delta}` : m.delta}
+      </span>
+    ),
+  },
+  {
+    cle: "lot",
+    entete: "Lot",
+    classeCellule: "font-mono",
+    cellule: (m) => m.lotNumber ?? "—",
+  },
+  {
+    cle: "motif",
+    entete: "Motif",
+    classeCellule: "text-sm",
+    cellule: (m) => m.reason ?? "—",
+  },
+  {
+    cle: "par",
+    entete: "Par",
+    classeCellule: "text-sm",
+    cellule: (m) => m.userName,
+  },
+]
+
+/** Card mode: the product identifies the row. */
+export function titreMouvement(m: MouvementJournal) {
+  return (
+    <>
+      {m.productName}{" "}
+      <span className="font-normal text-muted-foreground">
+        {m.variantName} ({m.sku})
+      </span>
+    </>
+  )
+}
+
+/** Card mode: the signed delta is the headline figure. */
+export function valeurMouvement(m: MouvementJournal) {
+  return (
+    <span className={m.delta > 0 ? "text-success" : "text-destructive"}>
+      {m.delta > 0 ? `+${m.delta}` : m.delta}
+    </span>
+  )
+}
+
+export function sousTitreMouvement(m: MouvementJournal) {
+  return new Date(m.createdAt).toLocaleString("fr-FR")
+}
 
 /**
  * Stock movements journal: paginated list filterable by warehouse,
@@ -87,17 +170,17 @@ function MouvementsPage() {
   const liste = mouvements.data?.movements ?? []
 
   return (
-    <div className="flex h-[calc(100dvh-3rem)] flex-col">
+    <div className="flex h-full flex-col">
       <h1 className="mb-6 text-xl font-semibold">Journal des mouvements</h1>
 
       <div className="mb-4 flex flex-wrap items-end gap-3">
-        <div className="flex flex-col gap-1.5">
+        <div className="flex w-full flex-col gap-1.5 sm:w-56">
           <Label htmlFor="m-entrepot">Entrepôt</Label>
           <Select
             value={entrepotId}
             onValueChange={(valeur) => setEntrepotId(valeur as string)}
           >
-            <SelectTrigger id="m-entrepot" className="w-56">
+            <SelectTrigger id="m-entrepot" className="w-full">
               <SelectValue placeholder="Tous">
                 {(valeur: string) =>
                   valeur === ""
@@ -116,13 +199,13 @@ function MouvementsPage() {
             </SelectContent>
           </Select>
         </div>
-        <div className="flex flex-col gap-1.5">
+        <div className="flex w-full flex-col gap-1.5 sm:w-56">
           <Label htmlFor="m-type">Type</Label>
           <Select
             value={type}
             onValueChange={(valeur) => setType(valeur as string)}
           >
-            <SelectTrigger id="m-type" className="w-56">
+            <SelectTrigger id="m-type" className="w-full">
               <SelectValue placeholder="Tous">
                 {(valeur: string) =>
                   valeur === "" ? "Tous" : LIBELLES_TYPE_MOUVEMENT[valeur]
@@ -141,7 +224,7 @@ function MouvementsPage() {
             </SelectContent>
           </Select>
         </div>
-        <div className="flex flex-col gap-1.5">
+        <div className="flex w-full flex-col gap-1.5 sm:w-56">
           <Label htmlFor="m-recherche">Produit</Label>
           <InputRecherche
             id="m-recherche"
@@ -149,10 +232,10 @@ function MouvementsPage() {
             placeholder="Nom ou SKU…"
             value={recherche}
             onChange={(e) => setRecherche(e.target.value)}
-            className="w-56"
+            className="w-full"
           />
         </div>
-        <div className="flex flex-col gap-1.5">
+        <div className="flex w-full flex-col gap-1.5 sm:w-56">
           <Label htmlFor="m-du">Du</Label>
           <Input
             id="m-du"
@@ -161,7 +244,7 @@ function MouvementsPage() {
             onChange={(e) => setDu(e.target.value)}
           />
         </div>
-        <div className="flex flex-col gap-1.5">
+        <div className="flex w-full flex-col gap-1.5 sm:w-56">
           <Label htmlFor="m-au">Au</Label>
           <Input
             id="m-au"
@@ -179,68 +262,23 @@ function MouvementsPage() {
         />
       ) : (
         <>
-          <Table containerClassName="min-h-0 flex-1 overflow-y-auto">
-            <TableHeader sticky>
-              <TableRow>
-                <TableHead>Date</TableHead>
-                <TableHead>Entrepôt</TableHead>
-                <TableHead>Article</TableHead>
-                <TableHead>Type</TableHead>
-                <TableHead numeric>Delta</TableHead>
-                <TableHead>Lot</TableHead>
-                <TableHead>Motif</TableHead>
-                <TableHead>Par</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {mouvements.isPending ? (
-                <TableSkeleton colonnes={8} />
-              ) : mouvements.data.movements.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={8}>
-                    <EtatVide
-                      icon={History}
-                      titre="Aucun mouvement"
-                      message="Aucun mouvement ne correspond à ces filtres. Élargissez la période ou réinitialisez les critères."
-                    />
-                  </TableCell>
-                </TableRow>
-              ) : (
-                mouvements.data.movements.map((m) => (
-                  <TableRow key={m.id}>
-                    <TableCell className="text-sm whitespace-nowrap">
-                      {new Date(m.createdAt).toLocaleString("fr-FR")}
-                    </TableCell>
-                    <TableCell>{m.warehouseName}</TableCell>
-                    <TableCell>
-                      <span className="font-medium">{m.productName}</span>{" "}
-                      <span className="text-sm text-muted-foreground">
-                        {m.variantName} ({m.sku})
-                      </span>
-                    </TableCell>
-                    <TableCell>
-                      {LIBELLES_TYPE_MOUVEMENT[m.type] ?? m.type}
-                    </TableCell>
-                    <TableCell
-                      numeric
-                      className={
-                        m.delta > 0
-                          ? "font-medium text-success"
-                          : "font-medium text-destructive"
-                      }
-                    >
-                      {m.delta > 0 ? `+${m.delta}` : m.delta}
-                    </TableCell>
-                    <TableCell className="font-mono text-xs">
-                      {m.lotNumber ?? "—"}
-                    </TableCell>
-                    <TableCell className="text-sm">{m.reason ?? "—"}</TableCell>
-                    <TableCell className="text-sm">{m.userName}</TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
+          <ListeAdaptative<MouvementJournal>
+            colonnes={COLONNES_MOUVEMENTS}
+            lignes={liste}
+            cleLigne={(m) => m.id}
+            titre={titreMouvement}
+            valeur={valeurMouvement}
+            sousTitre={sousTitreMouvement}
+            chargement={mouvements.isPending}
+            containerClassName="min-h-0 flex-1 overflow-y-auto"
+            etatVide={
+              <EtatVide
+                icon={History}
+                titre="Aucun mouvement"
+                message="Aucun mouvement ne correspond à ces filtres. Élargissez la période ou réinitialisez les critères."
+              />
+            }
+          />
           {liste.length > 0 && (
             <Pagination
               className="mt-3"

@@ -42,10 +42,11 @@ typography:
     letterSpacing: "normal"
   body:
     fontFamily: "Inter Variable, sans-serif"
-    fontSize: "0.75rem"
+    fontSize: "0.875rem (mobile) / 0.75rem (≥48rem)"
     fontWeight: 400
     lineHeight: 1.55
     letterSpacing: "normal"
+    note: "fontSize is responsive, defined via `--text-xs` CSS variable in `src/styles.css`. Mobile-first: 0.875rem is the default, restores to 0.75rem at 48rem breakpoint for desktop density."
   label:
     fontFamily: "Inter Variable, sans-serif"
     fontSize: "0.625rem"
@@ -174,7 +175,7 @@ Une page d'encre et de papier, ponctuée d'un seul indigo — plus un monde chau
 - **Display** (DM Sans, 500, ~1,5 rem, LH 1.1) : titres du ticket de connexion uniquement.
 - **Headline** (Inter, 500, 1 rem, LH 1.4) : titres de page, en-têtes de section.
 - **Title** (Inter, 500, 0,875 rem `text-sm`) : titres de carte (`font-heading` = Inter), en-têtes de bloc.
-- **Body** (Inter, 400, 0,75 rem `text-xs/relaxed`, LH ~1.55) : le corps de l'app, la plupart des libellés et des cellules. Prose plafonnée à 65–75 ch ; les tables denses peuvent courir plus large.
+- **Body** (Inter, 400, LH ~1.55) : le corps de l'app, la plupart des libellés et des cellules. Taille responsive via `--text-xs` : 0,875 rem par défaut (mobile, `text-xs/relaxed`), qui redescend à 0,75 rem à partir de 48 rem (bureau, plus dense — le même palier que les tables/cartes de `ListeAdaptative`). Prose plafonnée à 65–75 ch ; les tables denses peuvent courir plus large.
 - **Label** (Inter, 500, 0,625 rem) : badges, micro-libellés. **Jamais en capitales tramées décoratives.**
 - **Mono** (JetBrains Mono, 400, 0,75 rem) : montants et numéros sur le reçu, où l'alignement des chiffres compte.
 
