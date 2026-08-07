@@ -55,8 +55,13 @@ export const Route = createFileRoute("/_app")({
     }
     return { me }
   },
-  component: AppLayout,
+  component: AppLayoutRoute,
 })
+
+function AppLayoutRoute() {
+  const { me } = Route.useRouteContext()
+  return <AppLayout me={me} />
+}
 
 // Nav entry: icon + label, dense (py-1). Icon inherits the text color
 // (currentColor): muted at rest, white on the active indigo state.
@@ -72,9 +77,12 @@ const sectionClasses =
  * Authenticated application shell: navigation sidebar
  * (POS, sales, catalog, stock, administration) filtered by the user's
  * roles, plus the main content area.
+ *
+ * Takes `me` as a prop (rather than reading `Route.useRouteContext()`
+ * itself) so it stays a plain, testable component — `AppLayoutRoute` is the
+ * thin route-bound wrapper, same split as `FicheProduitPage`/`FicheProduit`.
  */
-function AppLayout() {
-  const { me } = Route.useRouteContext()
+export function AppLayout({ me }: { me: Me }) {
   const estDesktop = useEstDesktop()
   const [menuOuvert, setMenuOuvert] = useState(false)
 
