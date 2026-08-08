@@ -407,7 +407,9 @@ Table « Par produit » (7 colonnes, type `LigneVentesProduit`, clé `variantId`
 
 Extraire `COLONNES_VENTES_BOUTIQUE` et `COLONNES_VENTES_PRODUIT`, puis remplacer les deux blocs `<Table>`.
 
-**La colonne `CA` de la table « Par boutique » contient une `BarreProportion`** dans un `<span className="flex flex-col items-end gap-1">`. Conserver ce rendu à l'identique dans `cellule` — la barre est un repère visuel de proportion, elle a sa place en carte aussi.
+**La colonne `CA` de la table « Par boutique » contient une `BarreProportion`** dans un `<span className="flex flex-col items-end gap-1">`. Conserver ce rendu à l'identique dans `cellule` pour la vue table.
+
+En carte, **`ca` est `masquerEnCarte: true` et c'est `valeur` qui porte le rendu complet** (montant + barre empilés). Sans cela le montant s'afficherait deux fois dans la même carte : une fois en tête via `valeur`, une fois en paire via la colonne restée visible. Piège générique : **une colonne dont la donnée est déjà portée par `titre`/`valeur`/`sousTitre` doit être `masquerEnCarte`**, même si son rendu de table est plus riche — c'est `valeur` qui s'enrichit, pas la colonne qui reste visible.
 
 Reposer `font-medium` sur `Boutique` et `Produit`, et `font-mono text-xs text-muted-foreground` sur `SKU`, via `classeCellule`.
 
