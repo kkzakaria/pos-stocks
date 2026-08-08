@@ -29,6 +29,7 @@
 3. **Une assertion doit porter sur ce qui peut casser**, pas sur ce qui est vrai par construction. Un `toContain("3")` a été accepté alors que la date de la fixture contenait déjà un « 3 ».
 4. **Les commentaires des extraits de code de ce plan sont parfois en français par inadvertance.** La convention du dépôt est l'**anglais** pour tout commentaire de code, tests compris, sans exception. Un extrait de plan fautif n'y change rien : le signaler plutôt que le recopier.
 5. **Un test ne justifie jamais de dégrader l'interface.** Si une assertion d'un extrait de ce plan ne passe qu'en simplifiant le rendu (retirer un `<span>` stylé pour satisfaire `getByText`, par exemple), c'est **le test** qui s'adapte — via `textContent`, un matcher fonction ou `within()`. Le cas s'est produit sur le compteur de `FiltresRepliables`.
+6. **Ne pas recopier tel quel le calcul de `nbActifs` de la Task 3.** `ventes/index.tsx` gèle sa fenêtre par défaut dans un `useRef` au montage pour la comparer ensuite. C'est correct **parce que sa période est un état local**, recalculé à chaque montage. Un écran dont la période viendrait de l'URL (partage de lien, retour arrière) verrait ce gel qualifier de « neutres » des valeurs que l'utilisateur a explicitement choisies — et annoncerait zéro filtre actif sur une liste filtrée, exactement ce que le compteur existe pour éviter. Chaque écran redécide selon son propre état initial ; en cas d'état d'URL, préférer un drapeau explicite positionné dans les handlers.
 
 ---
 
