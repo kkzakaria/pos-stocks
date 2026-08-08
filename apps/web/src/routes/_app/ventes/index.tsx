@@ -1,5 +1,5 @@
 import { createFileRoute, Link, useRouteContext } from "@tanstack/react-router"
-import { useState } from "react"
+import { useRef, useState } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { Receipt, Store } from "lucide-react"
 import { apiFetch } from "@/lib/api"
@@ -25,6 +25,7 @@ import {
 import { ListeAdaptative } from "@/components/ui/liste-adaptative"
 import type { ColonneAdaptative } from "@/components/ui/liste-adaptative"
 import { Pagination } from "@/components/ui/pagination"
+import { FiltresRepliables } from "@/components/ui/filtres-repliables"
 
 export const Route = createFileRoute("/_app/ventes/")({
   component: HistoriqueVentes,
@@ -116,6 +117,12 @@ export function HistoriqueVentes() {
   const boutiques = boutiquesLisibles(me, destinations.data?.warehouses ?? [])
   const [boutiqueChoisie, setBoutiqueChoisie] = useState<string | null>(null)
   const [periode, setPeriode] = useState(() => periodePreset("semaine"))
+  // Frozen at mount: the "semaine" window the page opens on, used below as
+  // the neutral baseline against which we decide whether the period counts
+  // as a user-set filter. `useRef`'s initial-value argument is only kept on
+  // the first render, so this stays stable even though `periodePreset`
+  // itself reads the current date every render.
+  const periodeParDefaut = useRef(periodePreset("semaine")).current
   const [page, setPage] = useState(1)
   const premiere = boutiques.length > 0 ? boutiques[0].id : null
   const boutiqueId = boutiqueChoisie ?? premiere
@@ -138,72 +145,85 @@ export function HistoriqueVentes() {
   const parPage = ventes.data?.limite ?? 50
   const aucuneBoutique = destinations.isSuccess && boutiques.length === 0
 
+  // Only filters actually set by the user: the boutique select has no
+  // "toutes" option, so it's only "set" once the user has explicitly picked
+  // one — the fallback to the first store on mount doesn't count. The dates
+  // are never empty (a real "semaine" window is the initial state, not a
+  // blank filter), so each date only counts once it has drifted from that
+  // opening window — whether by hand or via a preset button.
+  const nbFiltresActifs =
+    (boutiqueChoisie !== null ? 1 : 0) +
+    (periode.du !== periodeParDefaut.du ? 1 : 0) +
+    (periode.au !== periodeParDefaut.au ? 1 : 0)
+
   return (
     <div className="flex h-full flex-col">
       <h1 className="text-xl font-semibold">Historique des ventes</h1>
-      <div className="mt-4 flex flex-wrap items-end gap-3">
-        <div className="flex w-full flex-col gap-1.5 sm:w-56">
-          <Label htmlFor="v-boutique">Boutique</Label>
-          <Select
-            value={boutiqueId ?? ""}
-            onValueChange={(valeur) => {
-              setBoutiqueChoisie(valeur)
-              setPage(1)
-            }}
-          >
-            <SelectTrigger id="v-boutique" className="w-full">
-              <SelectValue placeholder="Choisir une boutique">
-                {(valeur: string) =>
-                  boutiques.find((b) => b.id === valeur)?.name
-                }
-              </SelectValue>
-            </SelectTrigger>
-            <SelectContent>
-              {boutiques.map((b) => (
-                <SelectItem key={b.id} value={b.id}>
-                  {b.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+      <FiltresRepliables nbActifs={nbFiltresActifs}>
+        <div className="mt-4 flex flex-wrap items-end gap-3">
+          <div className="flex w-full flex-col gap-1.5 sm:w-56">
+            <Label htmlFor="v-boutique">Boutique</Label>
+            <Select
+              value={boutiqueId ?? ""}
+              onValueChange={(valeur) => {
+                setBoutiqueChoisie(valeur)
+                setPage(1)
+              }}
+            >
+              <SelectTrigger id="v-boutique" className="w-full">
+                <SelectValue placeholder="Choisir une boutique">
+                  {(valeur: string) =>
+                    boutiques.find((b) => b.id === valeur)?.name
+                  }
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                {boutiques.map((b) => (
+                  <SelectItem key={b.id} value={b.id}>
+                    {b.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="flex w-full flex-col gap-1.5 sm:w-auto">
+            <Label htmlFor="v-du">Du</Label>
+            <Input
+              id="v-du"
+              type="date"
+              value={periode.du}
+              onChange={(e) => {
+                setPeriode((p) => ({ ...p, du: e.target.value }))
+                setPage(1)
+              }}
+            />
+          </div>
+          <div className="flex w-full flex-col gap-1.5 sm:w-auto">
+            <Label htmlFor="v-au">Au</Label>
+            <Input
+              id="v-au"
+              type="date"
+              value={periode.au}
+              onChange={(e) => {
+                setPeriode((p) => ({ ...p, au: e.target.value }))
+                setPage(1)
+              }}
+            />
+          </div>
+          {PRESETS.map((preset) => (
+            <Button
+              key={preset.id}
+              variant="outline"
+              onClick={() => {
+                setPeriode(periodePreset(preset.id))
+                setPage(1)
+              }}
+            >
+              {preset.libelle}
+            </Button>
+          ))}
         </div>
-        <div className="flex w-full flex-col gap-1.5 sm:w-auto">
-          <Label htmlFor="v-du">Du</Label>
-          <Input
-            id="v-du"
-            type="date"
-            value={periode.du}
-            onChange={(e) => {
-              setPeriode((p) => ({ ...p, du: e.target.value }))
-              setPage(1)
-            }}
-          />
-        </div>
-        <div className="flex w-full flex-col gap-1.5 sm:w-auto">
-          <Label htmlFor="v-au">Au</Label>
-          <Input
-            id="v-au"
-            type="date"
-            value={periode.au}
-            onChange={(e) => {
-              setPeriode((p) => ({ ...p, au: e.target.value }))
-              setPage(1)
-            }}
-          />
-        </div>
-        {PRESETS.map((preset) => (
-          <Button
-            key={preset.id}
-            variant="outline"
-            onClick={() => {
-              setPeriode(periodePreset(preset.id))
-              setPage(1)
-            }}
-          >
-            {preset.libelle}
-          </Button>
-        ))}
-      </div>
+      </FiltresRepliables>
 
       <div className="mt-4 flex min-h-0 flex-1 flex-col">
         {aucuneBoutique ? (
