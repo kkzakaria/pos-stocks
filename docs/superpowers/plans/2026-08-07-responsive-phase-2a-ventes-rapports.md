@@ -27,6 +27,7 @@
 1. **Le test garde-fou « ne perd aucune donnée en mode carte » porte sur les colonnes `masquerEnCarte`**, jamais sur les colonnes visibles — celles-ci passent par les paires quoi qu'il arrive, les asserter ne prouve rien. L'erreur inverse a été commise deux fois.
 2. **`ListeAdaptative` ne transmet au `TableCell` que `numeric` et `classeCellule`.** Toute autre classe portée par l'ancien `<TableCell>` (`font-medium`, `font-mono`, `text-muted-foreground`…) doit être reposée via `classeCellule` ou sur le contenu rendu dans `cellule`. Deux régressions silencieuses en vue table sont passées par là. **Comparer chaque colonne migrée au `<TableCell>` qu'elle remplace, et le dire dans le rapport.**
 3. **Une assertion doit porter sur ce qui peut casser**, pas sur ce qui est vrai par construction. Un `toContain("3")` a été accepté alors que la date de la fixture contenait déjà un « 3 ».
+4. **Les commentaires des extraits de code de ce plan sont parfois en français par inadvertance.** La convention du dépôt est l'**anglais** pour tout commentaire de code, tests compris, sans exception. Un extrait de plan fautif n'y change rien : le signaler plutôt que le recopier.
 
 ---
 
@@ -75,9 +76,9 @@ Dans `liste-adaptative.test.tsx`, remplacer les cas qui interrogent les lignes p
 it("conserve les rôles natifs de tableau quand la ligne est cliquable", () => {
   const nettoyer = installerMatchMedia(1280)
   afficher({ surClicLigne: () => undefined })
-  // Le rôle natif `row` doit survivre : un lecteur d'écran doit continuer
-  // d'annoncer un tableau, et les cellules d'avoir un propriétaire de ligne.
-  expect(screen.getAllByRole("row").length).toBe(3) // en-tête + 2 lignes
+  // The native `row` role must survive: screen readers must keep announcing
+  // a table, and cells must keep a row owner.
+  expect(screen.getAllByRole("row").length).toBe(3) // header + 2 rows
   expect(screen.queryAllByRole("button")).toHaveLength(0)
   nettoyer()
 })
