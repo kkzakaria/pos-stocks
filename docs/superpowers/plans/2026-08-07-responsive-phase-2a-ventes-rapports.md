@@ -28,6 +28,7 @@
 2. **`ListeAdaptative` ne transmet au `TableCell` que `numeric` et `classeCellule`.** Toute autre classe portée par l'ancien `<TableCell>` (`font-medium`, `font-mono`, `text-muted-foreground`…) doit être reposée via `classeCellule` ou sur le contenu rendu dans `cellule`. Deux régressions silencieuses en vue table sont passées par là. **Comparer chaque colonne migrée au `<TableCell>` qu'elle remplace, et le dire dans le rapport.**
 3. **Une assertion doit porter sur ce qui peut casser**, pas sur ce qui est vrai par construction. Un `toContain("3")` a été accepté alors que la date de la fixture contenait déjà un « 3 ».
 4. **Les commentaires des extraits de code de ce plan sont parfois en français par inadvertance.** La convention du dépôt est l'**anglais** pour tout commentaire de code, tests compris, sans exception. Un extrait de plan fautif n'y change rien : le signaler plutôt que le recopier.
+5. **Un test ne justifie jamais de dégrader l'interface.** Si une assertion d'un extrait de ce plan ne passe qu'en simplifiant le rendu (retirer un `<span>` stylé pour satisfaire `getByText`, par exemple), c'est **le test** qui s'adapte — via `textContent`, un matcher fonction ou `within()`. Le cas s'est produit sur le compteur de `FiltresRepliables`.
 
 ---
 
@@ -209,7 +210,10 @@ describe("FiltresRepliables", () => {
 
   it("annonce le nombre de filtres actifs sous md", () => {
     const nettoyer = afficher(2, 375)
-    expect(screen.getByText(/Filtres \(2\)/)).toBeTruthy()
+    // The count lives in its own styled <span>, so match on the summary's full
+    // textContent rather than on a single text node.
+    const resume = document.querySelector("summary")
+    expect(resume?.textContent).toBe("Filtres (2)")
     nettoyer()
   })
 
