@@ -200,14 +200,19 @@ describe("colonnes du rapport des ventes par boutique", () => {
     nettoyer()
   })
 
-  it("ne perd aucune donnée en mode carte : la boutique masquée resurgit en titre", () => {
+  it("ne perd aucune donnée en mode carte : boutique et CA masqués resurgissent, sans doublon du montant", () => {
     const nettoyer = afficher(375)
     const carte = screen.getAllByRole("listitem")[0]
 
-    // "boutique" is the only masquerEnCarte column of this table — the CA
-    // column is deliberately left visible (its BarreProportion belongs in
-    // card mode too), so it is not a resurfacing concern here.
+    // "boutique" → titre.
     expect(carte.textContent).toContain("Boutique Alpha")
+    // "ca" → valeur: amount + proportion bar rendered once in the card
+    // head. Both the column's `cellule` and `valeur` point at the same
+    // `valeurLigneVentesBoutique` function, but the column is
+    // `masquerEnCarte` so it must NOT also appear as a dt/dd pair — this
+    // asserts the figure renders exactly once, guarding against the amount
+    // duplicating in the same card.
+    expect(within(carte).getAllByText(texteMontant(1400))).toHaveLength(1)
 
     nettoyer()
   })

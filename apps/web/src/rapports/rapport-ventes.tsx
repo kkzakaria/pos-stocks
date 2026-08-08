@@ -144,9 +144,24 @@ export function titreLigneVentesBoutique(item: LigneVentesBoutiqueAffichee) {
   return item.storeName
 }
 
-/** Card mode: CA is the headline figure. */
+/**
+ * Amount + proportion bar, shared verbatim between the `ca` column (table
+ * mode) and the card headline (`valeur`). The `ca` column is
+ * `masquerEnCarte`, so this is the ONLY place it renders in card mode —
+ * reusing the same function for both rules out the figure appearing twice
+ * (once as the plain headline, once again as a dt/dd pair).
+ */
 export function valeurLigneVentesBoutique(item: LigneVentesBoutiqueAffichee) {
-  return formaterMontant(item.ca)
+  return (
+    <span className="flex flex-col items-end gap-1">
+      <span>{formaterMontant(item.ca)}</span>
+      <BarreProportion
+        className="max-w-24"
+        valeur={item.ca}
+        total={item.totalCa}
+      />
+    </span>
+  )
 }
 
 export const COLONNES_VENTES_BOUTIQUE: ColonneAdaptative<LigneVentesBoutiqueAffichee>[] =
@@ -162,19 +177,8 @@ export const COLONNES_VENTES_BOUTIQUE: ColonneAdaptative<LigneVentesBoutiqueAffi
       cle: "ca",
       entete: "CA",
       numeric: true,
-      // Not masquerEnCarte on purpose: the proportion bar is a visual cue
-      // that belongs in card mode too, not just the plain headline amount
-      // carried by `valeur`.
-      cellule: (ligne) => (
-        <span className="flex flex-col items-end gap-1">
-          <span>{formaterMontant(ligne.ca)}</span>
-          <BarreProportion
-            className="max-w-24"
-            valeur={ligne.ca}
-            total={ligne.totalCa}
-          />
-        </span>
-      ),
+      masquerEnCarte: true,
+      cellule: valeurLigneVentesBoutique,
     },
     {
       cle: "tickets",
