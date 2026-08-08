@@ -1,21 +1,27 @@
 import { describe, it, expect, vi, afterEach } from "vitest"
-import { render, screen, fireEvent, waitFor } from "@testing-library/react"
+import {
+  render,
+  screen,
+  fireEvent,
+  waitFor,
+  within,
+} from "@testing-library/react"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
-import { RapportVentes } from "@/rapports/rapport-ventes"
+import { installerMatchMedia } from "@/test/media-query"
+import {
+  COLONNES_VENTES_BOUTIQUE,
+  COLONNES_VENTES_PRODUIT,
+  RapportVentes,
+  sousTitreLigneVentesProduit,
+  titreLigneVentesBoutique,
+  titreLigneVentesProduit,
+  valeurLigneVentesBoutique,
+  valeurLigneVentesProduit,
+} from "@/rapports/rapport-ventes"
+import type { LigneVentesBoutiqueAffichee } from "@/rapports/rapport-ventes"
 import * as rapports from "@/lib/rapports"
-import { formaterMontant } from "@/lib/format"
-
-// formaterMontant insère des espaces insécables (narrow no-break space côté
-// ICU) : getByText(string) compare une chaîne normalisée (espaces classiques)
-// à la chaîne brute — un match direct échoue selon la version d'ICU (même
-// motif que pos/panier.test.tsx). On matche donc par regex : le normaliseur
-// de Testing Library s'applique aux deux côtés lors d'une comparaison RegExp.
-function texteMontant(montant: number): RegExp {
-  const echappe = formaterMontant(montant)
-    .replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
-    .replace(/\s+/g, "\\s+")
-  return new RegExp(`^${echappe}$`)
-}
+import { ListeAdaptative } from "@/components/ui/liste-adaptative"
+import { texteMontant } from "@/test/texte-montant"
 
 const donneesBoutiques: rapports.RapportVentesBoutiques = {
   periode: { du: "2026-07-06", au: "2026-07-12" },
@@ -140,5 +146,117 @@ describe("RapportVentes", () => {
     fireEvent.click(screen.getByRole("button", { name: "Exporter CSV" }))
     await screen.findByRole("alert")
     expect(screen.getByText("Export impossible (erreur 403)")).toBeDefined()
+  })
+})
+
+describe("colonnes du rapport des ventes par boutique", () => {
+  const LIGNE: LigneVentesBoutiqueAffichee = {
+    ...donneesBoutiques.lignes[0],
+    totalCa: donneesBoutiques.total.ca,
+  }
+
+  function afficher(largeur: number) {
+    const nettoyer = installerMatchMedia(largeur)
+    render(
+      <ListeAdaptative<LigneVentesBoutiqueAffichee>
+        colonnes={COLONNES_VENTES_BOUTIQUE}
+        lignes={[LIGNE]}
+        cleLigne={(ligne) => ligne.storeId}
+        titre={titreLigneVentesBoutique}
+        valeur={valeurLigneVentesBoutique}
+      />
+    )
+    return nettoyer
+  }
+
+  it("expose 6 colonnes", () => {
+    expect(COLONNES_VENTES_BOUTIQUE).toHaveLength(6)
+  })
+
+  it("rend les 6 en-têtes en table à 1280 px", () => {
+    const nettoyer = afficher(1280)
+    for (const entete of [
+      "Boutique",
+      "CA",
+      "Tickets",
+      "Panier moyen",
+      "Espèces",
+      "Mobile money",
+    ]) {
+      expect(screen.getByText(entete)).toBeTruthy()
+    }
+    nettoyer()
+  })
+
+  it("ne perd aucune donnée en mode carte : boutique et CA masqués resurgissent, sans doublon du montant", () => {
+    const nettoyer = afficher(375)
+    const carte = screen.getAllByRole("listitem")[0]
+
+    // "boutique" → titre.
+    expect(carte.textContent).toContain("Boutique Alpha")
+    // "ca" → valeur: amount + proportion bar rendered once in the card
+    // head. Both the column's `cellule` and `valeur` point at the same
+    // `valeurLigneVentesBoutique` function, but the column is
+    // `masquerEnCarte` so it must NOT also appear as a dt/dd pair — this
+    // asserts the figure renders exactly once, guarding against the amount
+    // duplicating in the same card.
+    expect(within(carte).getAllByText(texteMontant(1400))).toHaveLength(1)
+
+    nettoyer()
+  })
+})
+
+describe("colonnes du rapport des ventes par produit", () => {
+  const LIGNE: rapports.LigneVentesProduit = donneesProduits.lignes[0]
+
+  function afficher(largeur: number) {
+    const nettoyer = installerMatchMedia(largeur)
+    render(
+      <ListeAdaptative<rapports.LigneVentesProduit>
+        colonnes={COLONNES_VENTES_PRODUIT}
+        lignes={[LIGNE]}
+        cleLigne={(ligne) => ligne.variantId}
+        titre={titreLigneVentesProduit}
+        valeur={valeurLigneVentesProduit}
+        sousTitre={sousTitreLigneVentesProduit}
+      />
+    )
+    return nettoyer
+  }
+
+  it("expose 7 colonnes", () => {
+    expect(COLONNES_VENTES_PRODUIT).toHaveLength(7)
+  })
+
+  it("rend les 7 en-têtes en table à 1280 px", () => {
+    const nettoyer = afficher(1280)
+    for (const entete of [
+      "Produit",
+      "Variante",
+      "SKU",
+      "Quantité",
+      "CA",
+      "Remises",
+      "Tickets",
+    ]) {
+      expect(screen.getByText(entete)).toBeTruthy()
+    }
+    nettoyer()
+  })
+
+  it("ne perd aucune donnée en mode carte : produit, SKU et CA masqués resurgissent", () => {
+    const nettoyer = afficher(375)
+    const carte = screen.getAllByRole("listitem")[0]
+
+    // "produit" → titreLigneVentesProduit.
+    expect(carte.textContent).toContain("Cola")
+    // "ca" → valeurLigneVentesProduit: formatted amount at the top of the
+    // card. texteMontant is anchored to a single element's full text, so it
+    // targets the headline <span> rather than the card's whole textContent.
+    expect(within(carte).getByText(texteMontant(3400))).toBeDefined()
+    // "sku" → sousTitreLigneVentesProduit.
+    expect(carte.textContent).toContain("SKU1")
+
+    nettoyer()
   })
 })

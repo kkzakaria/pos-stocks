@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/select"
 import { ListeAdaptative } from "@/components/ui/liste-adaptative"
 import type { ColonneAdaptative } from "@/components/ui/liste-adaptative"
+import { FiltresRepliables } from "@/components/ui/filtres-repliables"
 
 export const Route = createFileRoute("/_app/stock/mouvements")({
   component: MouvementsPage,
@@ -169,91 +170,102 @@ function MouvementsPage() {
   const total = mouvements.data?.total ?? 0
   const liste = mouvements.data?.movements ?? []
 
+  // Only filters actually set by the user: a Select left on "Tous", or an
+  // empty search/date, is the neutral default and doesn't count.
+  const nbFiltresActifs =
+    (entrepotId !== "" ? 1 : 0) +
+    (type !== "" ? 1 : 0) +
+    (recherche !== "" ? 1 : 0) +
+    (du !== "" ? 1 : 0) +
+    (au !== "" ? 1 : 0)
+
   return (
     <div className="flex h-full flex-col">
       <h1 className="mb-6 text-xl font-semibold">Journal des mouvements</h1>
 
-      <div className="mb-4 flex flex-wrap items-end gap-3">
-        <div className="flex w-full flex-col gap-1.5 sm:w-56">
-          <Label htmlFor="m-entrepot">Entrepôt</Label>
-          <Select
-            value={entrepotId}
-            onValueChange={(valeur) => setEntrepotId(valeur as string)}
-          >
-            <SelectTrigger id="m-entrepot" className="w-full">
-              <SelectValue placeholder="Tous">
-                {(valeur: string) =>
-                  valeur === ""
-                    ? "Tous"
-                    : entrepots.find((w) => w.id === valeur)?.name
-                }
-              </SelectValue>
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="">Tous</SelectItem>
-              {entrepots.map((w) => (
-                <SelectItem key={w.id} value={w.id}>
-                  {w.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="flex w-full flex-col gap-1.5 sm:w-56">
-          <Label htmlFor="m-type">Type</Label>
-          <Select
-            value={type}
-            onValueChange={(valeur) => setType(valeur as string)}
-          >
-            <SelectTrigger id="m-type" className="w-full">
-              <SelectValue placeholder="Tous">
-                {(valeur: string) =>
-                  valeur === "" ? "Tous" : LIBELLES_TYPE_MOUVEMENT[valeur]
-                }
-              </SelectValue>
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="">Tous</SelectItem>
-              {Object.entries(LIBELLES_TYPE_MOUVEMENT).map(
-                ([valeur, libelle]) => (
-                  <SelectItem key={valeur} value={valeur}>
-                    {libelle}
+      <FiltresRepliables nbActifs={nbFiltresActifs}>
+        <div className="mb-4 flex flex-wrap items-end gap-3">
+          <div className="flex w-full flex-col gap-1.5 sm:w-56">
+            <Label htmlFor="m-entrepot">Entrepôt</Label>
+            <Select
+              value={entrepotId}
+              onValueChange={(valeur) => setEntrepotId(valeur as string)}
+            >
+              <SelectTrigger id="m-entrepot" className="w-full">
+                <SelectValue placeholder="Tous">
+                  {(valeur: string) =>
+                    valeur === ""
+                      ? "Tous"
+                      : entrepots.find((w) => w.id === valeur)?.name
+                  }
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="">Tous</SelectItem>
+                {entrepots.map((w) => (
+                  <SelectItem key={w.id} value={w.id}>
+                    {w.name}
                   </SelectItem>
-                )
-              )}
-            </SelectContent>
-          </Select>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="flex w-full flex-col gap-1.5 sm:w-56">
+            <Label htmlFor="m-type">Type</Label>
+            <Select
+              value={type}
+              onValueChange={(valeur) => setType(valeur as string)}
+            >
+              <SelectTrigger id="m-type" className="w-full">
+                <SelectValue placeholder="Tous">
+                  {(valeur: string) =>
+                    valeur === "" ? "Tous" : LIBELLES_TYPE_MOUVEMENT[valeur]
+                  }
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="">Tous</SelectItem>
+                {Object.entries(LIBELLES_TYPE_MOUVEMENT).map(
+                  ([valeur, libelle]) => (
+                    <SelectItem key={valeur} value={valeur}>
+                      {libelle}
+                    </SelectItem>
+                  )
+                )}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="flex w-full flex-col gap-1.5 sm:w-56">
+            <Label htmlFor="m-recherche">Produit</Label>
+            <InputRecherche
+              id="m-recherche"
+              name="recherche"
+              placeholder="Nom ou SKU…"
+              value={recherche}
+              onChange={(e) => setRecherche(e.target.value)}
+              className="w-full"
+            />
+          </div>
+          <div className="flex w-full flex-col gap-1.5 sm:w-56">
+            <Label htmlFor="m-du">Du</Label>
+            <Input
+              id="m-du"
+              type="date"
+              value={du}
+              onChange={(e) => setDu(e.target.value)}
+            />
+          </div>
+          <div className="flex w-full flex-col gap-1.5 sm:w-56">
+            <Label htmlFor="m-au">Au</Label>
+            <Input
+              id="m-au"
+              type="date"
+              value={au}
+              onChange={(e) => setAu(e.target.value)}
+            />
+          </div>
         </div>
-        <div className="flex w-full flex-col gap-1.5 sm:w-56">
-          <Label htmlFor="m-recherche">Produit</Label>
-          <InputRecherche
-            id="m-recherche"
-            name="recherche"
-            placeholder="Nom ou SKU…"
-            value={recherche}
-            onChange={(e) => setRecherche(e.target.value)}
-            className="w-full"
-          />
-        </div>
-        <div className="flex w-full flex-col gap-1.5 sm:w-56">
-          <Label htmlFor="m-du">Du</Label>
-          <Input
-            id="m-du"
-            type="date"
-            value={du}
-            onChange={(e) => setDu(e.target.value)}
-          />
-        </div>
-        <div className="flex w-full flex-col gap-1.5 sm:w-56">
-          <Label htmlFor="m-au">Au</Label>
-          <Input
-            id="m-au"
-            type="date"
-            value={au}
-            onChange={(e) => setAu(e.target.value)}
-          />
-        </div>
-      </div>
+      </FiltresRepliables>
 
       {mouvements.isError ? (
         <ErreurChargement

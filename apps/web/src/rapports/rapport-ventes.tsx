@@ -8,21 +8,20 @@ import {
   periodePreset,
   telechargerCsv,
 } from "@/lib/rapports"
-import type { TotalVentes } from "@/lib/rapports"
+import type {
+  LigneVentesBoutique,
+  LigneVentesProduit,
+  TotalVentes,
+} from "@/lib/rapports"
+import { cn } from "@/lib/utils"
 import { EtatVide } from "@/components/etat-vide"
 import { BarreProportion } from "@/components/ui/barre-proportion"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { ListeAdaptative } from "@/components/ui/liste-adaptative"
+import type { ColonneAdaptative } from "@/components/ui/liste-adaptative"
 import { Skeleton } from "@/components/ui/skeleton"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
-import { TableSkeleton } from "@/components/ui/table-skeleton"
 
 const PRESETS = [
   { id: "jour", libelle: "Aujourd'hui" },
@@ -40,24 +39,28 @@ export function SelecteurPeriode({
 }) {
   return (
     <div className="flex flex-wrap items-end gap-2">
-      <label className="text-sm">
-        Du
+      {/* `Label` + wrapper div, matching the rest of the repo. A bare <label>
+          wrapping the input left the date fields without a determinate width:
+          `Input` is `w-full min-w-0`, so inside a content-sized flex item it
+          collapsed. */}
+      <div className="flex w-full flex-col gap-1.5 sm:w-40">
+        <Label htmlFor="rap-du">Du</Label>
         <Input
+          id="rap-du"
           type="date"
-          className="mt-1"
           value={periode.du}
           onChange={(e) => onChange({ ...periode, du: e.target.value })}
         />
-      </label>
-      <label className="text-sm">
-        Au
+      </div>
+      <div className="flex w-full flex-col gap-1.5 sm:w-40">
+        <Label htmlFor="rap-au">Au</Label>
         <Input
+          id="rap-au"
           type="date"
-          className="mt-1"
           value={periode.au}
           onChange={(e) => onChange({ ...periode, au: e.target.value })}
         />
-      </label>
+      </div>
       {PRESETS.map((preset) => (
         <Button
           key={preset.id}
@@ -95,10 +98,22 @@ export function TuilesTotaux({ total }: { total: TotalVentes }) {
   )
 }
 
-/** Loading tiles, matching the density of the totals tiles. */
-export function TuilesSkeleton({ nombre = 5 }: { nombre?: number }) {
+/**
+ * Loading tiles, matching the density of the totals tiles. `classeGrille`
+ * defaults to this screen's own tile grid; a caller whose real tiles use a
+ * different column count (e.g. `rapport-marges.tsx`) must pass its own grid
+ * classes, otherwise the skeleton's column count would drift from the
+ * content it precedes and the layout would jump once loading finishes.
+ */
+export function TuilesSkeleton({
+  nombre = 5,
+  classeGrille = "grid-cols-2 md:grid-cols-5",
+}: {
+  nombre?: number
+  classeGrille?: string
+}) {
   return (
-    <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-5">
+    <div className={cn("mt-4 grid gap-3", classeGrille)}>
       {Array.from({ length: nombre }).map((_tuile, i) => (
         <Skeleton key={i} className="h-14" />
       ))}
@@ -125,6 +140,144 @@ export function ErreurEtRetry({
     </div>
   )
 }
+
+/**
+ * `LigneVentesBoutique` with the period's total CA spliced in — the `CA`
+ * column's `BarreProportion` needs it, but the API only returns the total
+ * once on `RapportVentesBoutiques`, not per line.
+ */
+export type LigneVentesBoutiqueAffichee = LigneVentesBoutique & {
+  totalCa: number
+}
+
+/** Card mode: the store name is the dominant identity line. */
+export function titreLigneVentesBoutique(item: LigneVentesBoutiqueAffichee) {
+  return item.storeName
+}
+
+/**
+ * Amount + proportion bar, shared verbatim between the `ca` column (table
+ * mode) and the card headline (`valeur`). The `ca` column is
+ * `masquerEnCarte`, so this is the ONLY place it renders in card mode —
+ * reusing the same function for both rules out the figure appearing twice
+ * (once as the plain headline, once again as a dt/dd pair).
+ */
+export function valeurLigneVentesBoutique(item: LigneVentesBoutiqueAffichee) {
+  return (
+    <span className="flex flex-col items-end gap-1">
+      <span>{formaterMontant(item.ca)}</span>
+      <BarreProportion
+        className="max-w-24"
+        valeur={item.ca}
+        total={item.totalCa}
+      />
+    </span>
+  )
+}
+
+export const COLONNES_VENTES_BOUTIQUE: ColonneAdaptative<LigneVentesBoutiqueAffichee>[] =
+  [
+    {
+      cle: "boutique",
+      entete: "Boutique",
+      masquerEnCarte: true,
+      classeCellule: "font-medium",
+      cellule: titreLigneVentesBoutique,
+    },
+    {
+      cle: "ca",
+      entete: "CA",
+      numeric: true,
+      masquerEnCarte: true,
+      cellule: valeurLigneVentesBoutique,
+    },
+    {
+      cle: "tickets",
+      entete: "Tickets",
+      numeric: true,
+      cellule: (ligne) => ligne.tickets,
+    },
+    {
+      cle: "panierMoyen",
+      entete: "Panier moyen",
+      numeric: true,
+      cellule: (ligne) => formaterMontant(ligne.panierMoyen),
+    },
+    {
+      cle: "cash",
+      entete: "Espèces",
+      numeric: true,
+      cellule: (ligne) => formaterMontant(ligne.cash),
+    },
+    {
+      cle: "mobileMoney",
+      entete: "Mobile money",
+      numeric: true,
+      cellule: (ligne) => formaterMontant(ligne.mobileMoney),
+    },
+  ]
+
+/** Card mode: the product name is the dominant identity line. */
+export function titreLigneVentesProduit(item: LigneVentesProduit) {
+  return item.productName
+}
+
+/** Card mode: CA is the headline figure. */
+export function valeurLigneVentesProduit(item: LigneVentesProduit) {
+  return formaterMontant(item.ca)
+}
+
+export function sousTitreLigneVentesProduit(item: LigneVentesProduit) {
+  return item.sku
+}
+
+export const COLONNES_VENTES_PRODUIT: ColonneAdaptative<LigneVentesProduit>[] =
+  [
+    {
+      cle: "produit",
+      entete: "Produit",
+      masquerEnCarte: true,
+      classeCellule: "font-medium",
+      cellule: titreLigneVentesProduit,
+    },
+    {
+      cle: "variante",
+      entete: "Variante",
+      cellule: (ligne) => ligne.variantName,
+    },
+    {
+      cle: "sku",
+      entete: "SKU",
+      masquerEnCarte: true,
+      classeCellule: "font-mono text-xs text-muted-foreground",
+      cellule: sousTitreLigneVentesProduit,
+    },
+    {
+      cle: "quantite",
+      entete: "Quantité",
+      numeric: true,
+      cellule: (ligne) => ligne.quantite,
+    },
+    {
+      cle: "ca",
+      entete: "CA",
+      numeric: true,
+      masquerEnCarte: true,
+      cellule: valeurLigneVentesProduit,
+    },
+    {
+      cle: "remises",
+      entete: "Remises",
+      numeric: true,
+      cellule: (ligne) => formaterMontant(ligne.remise),
+    },
+    {
+      cle: "tickets",
+      entete: "Tickets",
+      numeric: true,
+      cellule: (ligne) => ligne.tickets,
+    },
+  ]
 
 /** Sales report: grouping by store or by product over a period, totals tiles, table, and CSV export. */
 export function RapportVentes() {
@@ -161,7 +314,7 @@ export function RapportVentes() {
     <div>
       <div className="flex flex-wrap items-end justify-between gap-3">
         <SelecteurPeriode periode={periode} onChange={(p) => setPeriode(p)} />
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Button
             variant={groupe === "boutique" ? "default" : "outline"}
             onClick={() => setGroupe("boutique")}
@@ -189,16 +342,7 @@ export function RapportVentes() {
         </p>
       )}
 
-      {active.isPending && periodeValide && (
-        <>
-          <TuilesSkeleton />
-          <Table className="mt-4">
-            <TableBody>
-              <TableSkeleton colonnes={groupe === "boutique" ? 6 : 7} />
-            </TableBody>
-          </Table>
-        </>
-      )}
+      {active.isPending && periodeValide && <TuilesSkeleton />}
       {active.isError && (
         <ErreurEtRetry
           message={
@@ -210,104 +354,55 @@ export function RapportVentes() {
         />
       )}
 
-      {groupe === "boutique" && boutiquesQ.isSuccess && (
+      {groupe === "boutique" && periodeValide && !boutiquesQ.isError && (
         <>
-          <TuilesTotaux total={boutiquesQ.data.total} />
-          {boutiquesQ.data.lignes.length === 0 ? (
-            <EtatVide
-              className="mt-6"
-              icon={Receipt}
-              titre="Aucune vente sur cette période"
-              message="Ajustez la période ou vérifiez qu'un ticket a bien été encaissé."
-            />
-          ) : (
-            <Table className="mt-4">
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Boutique</TableHead>
-                  <TableHead numeric>CA</TableHead>
-                  <TableHead numeric>Tickets</TableHead>
-                  <TableHead numeric>Panier moyen</TableHead>
-                  <TableHead numeric>Espèces</TableHead>
-                  <TableHead numeric>Mobile money</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {boutiquesQ.data.lignes.map((ligne) => (
-                  <TableRow key={ligne.storeId}>
-                    <TableCell className="font-medium">
-                      {ligne.storeName}
-                    </TableCell>
-                    <TableCell numeric>
-                      <span className="flex flex-col items-end gap-1">
-                        <span>{formaterMontant(ligne.ca)}</span>
-                        <BarreProportion
-                          className="max-w-24"
-                          valeur={ligne.ca}
-                          total={boutiquesQ.data.total.ca}
-                        />
-                      </span>
-                    </TableCell>
-                    <TableCell numeric>{ligne.tickets}</TableCell>
-                    <TableCell numeric>
-                      {formaterMontant(ligne.panierMoyen)}
-                    </TableCell>
-                    <TableCell numeric>{formaterMontant(ligne.cash)}</TableCell>
-                    <TableCell numeric>
-                      {formaterMontant(ligne.mobileMoney)}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+          {boutiquesQ.isSuccess && (
+            <TuilesTotaux total={boutiquesQ.data.total} />
           )}
+          <div className="mt-4">
+            <ListeAdaptative<LigneVentesBoutiqueAffichee>
+              colonnes={COLONNES_VENTES_BOUTIQUE}
+              lignes={(boutiquesQ.data?.lignes ?? []).map((ligne) => ({
+                ...ligne,
+                totalCa: boutiquesQ.data?.total.ca ?? 0,
+              }))}
+              chargement={boutiquesQ.isPending}
+              cleLigne={(ligne) => ligne.storeId}
+              titre={titreLigneVentesBoutique}
+              valeur={valeurLigneVentesBoutique}
+              etatVide={
+                <EtatVide
+                  icon={Receipt}
+                  titre="Aucune vente sur cette période"
+                  message="Ajustez la période ou vérifiez qu'un ticket a bien été encaissé."
+                />
+              }
+            />
+          </div>
         </>
       )}
 
-      {groupe === "produit" && produitsQ.isSuccess && (
+      {groupe === "produit" && periodeValide && !produitsQ.isError && (
         <>
-          <TuilesTotaux total={produitsQ.data.total} />
-          {produitsQ.data.lignes.length === 0 ? (
-            <EtatVide
-              className="mt-6"
-              icon={Receipt}
-              titre="Aucune vente sur cette période"
-              message="Ajustez la période ou vérifiez qu'un ticket a bien été encaissé."
+          {produitsQ.isSuccess && <TuilesTotaux total={produitsQ.data.total} />}
+          <div className="mt-4">
+            <ListeAdaptative<LigneVentesProduit>
+              colonnes={COLONNES_VENTES_PRODUIT}
+              lignes={produitsQ.data?.lignes ?? []}
+              chargement={produitsQ.isPending}
+              cleLigne={(ligne) => ligne.variantId}
+              titre={titreLigneVentesProduit}
+              valeur={valeurLigneVentesProduit}
+              sousTitre={sousTitreLigneVentesProduit}
+              etatVide={
+                <EtatVide
+                  icon={Receipt}
+                  titre="Aucune vente sur cette période"
+                  message="Ajustez la période ou vérifiez qu'un ticket a bien été encaissé."
+                />
+              }
             />
-          ) : (
-            <Table className="mt-4">
-              <TableHeader sticky>
-                <TableRow>
-                  <TableHead>Produit</TableHead>
-                  <TableHead>Variante</TableHead>
-                  <TableHead>SKU</TableHead>
-                  <TableHead numeric>Quantité</TableHead>
-                  <TableHead numeric>CA</TableHead>
-                  <TableHead numeric>Remises</TableHead>
-                  <TableHead numeric>Tickets</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {produitsQ.data.lignes.map((ligne) => (
-                  <TableRow key={ligne.variantId}>
-                    <TableCell className="font-medium">
-                      {ligne.productName}
-                    </TableCell>
-                    <TableCell>{ligne.variantName}</TableCell>
-                    <TableCell className="font-mono text-xs text-muted-foreground">
-                      {ligne.sku}
-                    </TableCell>
-                    <TableCell numeric>{ligne.quantite}</TableCell>
-                    <TableCell numeric>{formaterMontant(ligne.ca)}</TableCell>
-                    <TableCell numeric>
-                      {formaterMontant(ligne.remise)}
-                    </TableCell>
-                    <TableCell numeric>{ligne.tickets}</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
+          </div>
         </>
       )}
     </div>

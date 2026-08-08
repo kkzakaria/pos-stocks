@@ -144,9 +144,17 @@ Il n'existe **aucune infrastructure E2E automatisée** dans ce dépôt (ni Playw
 Une PR par phase, chacune livrable et vérifiable au navigateur indépendamment.
 
 1. **Fondations + POS + deux tables témoins** — tiroir de navigation, composant générique table→carte, mock `matchMedia`, les deux correctifs de lisibilité, mise à jour de `DESIGN.md`, l'écran de vente POS complet (barre de synthèse, paliers 288/384 px, ouverture et fermeture de caisse, tickets du jour), **plus `stock/mouvements.tsx` (8 colonnes, la plus large) et `ventes/index.tsx`**.
-2. **Ventes et Catalogue** — détail de vente, rapports, produits (liste, fiche, création), catégories, fournisseurs.
-3. **Stock** — niveaux, réceptions, transferts, inventaires.
-4. **Administration** — entrepôts, utilisateurs, paramètres, tableau de bord, mon compte. L'écran de connexion est déjà quasi conforme et ne demande qu'une vérification.
+2. **Ventes et Rapports** (phase 2a) — deux chantiers transverses puis les écrans : retrait de `role="button"` sur les lignes de `ListeAdaptative` au profit d'un lien réel, composant de repli des filtres (`<details>` sous `md` avec compteur de filtres actifs), détail de vente, et les trois rapports (ventes, marges, valorisation).
+3. **Catalogue** (phase 2b) — produits (liste, fiche, création), catégories, fournisseurs.
+4. **Stock** — niveaux, réceptions, transferts, inventaires.
+5. **Administration** — entrepôts, utilisateurs, paramètres, tableau de bord, mon compte. L'écran de connexion est déjà quasi conforme et ne demande qu'une vérification.
+
+La phase 2 initialement prévue a été **scindée en 2a et 2b** après reconnaissance : elle cumulait 7 écrans, 10 tables et 8 fichiers de test à ne pas casser, soit plus du double de la phase 1. Le catalogue concentre à lui seul les deux structures qui résistent à `ListeAdaptative` (voir ci-dessous) et 7 des 8 fichiers de test.
+
+**Deux structures ne passeront pas par `ListeAdaptative`, délibérément** (décidé en phase 2a, à appliquer en 2b) :
+
+- `components/produit/section-stock.tsx` porte un `TableFooter` de totaux — le seul du dépôt. Ajouter une API de pied au composant pour un unique consommateur alourdirait une surface destinée à 18 écrans ; le total se rend hors de la liste, en ligne de synthèse.
+- `components/produit/section-variantes.tsx` émet **deux lignes par variante** (la variante, puis une ligne pleine largeur listant ses lots). C'est du maître-détail, pas un tableau de lignes uniformes : il reçoit une passe responsive écrite à la main.
 
 Les deux tables témoins sont **dans** la phase 1 délibérément : le POS n'utilise aucune `Table`, donc sans elles le composant carte serait figé sans avoir jamais été éprouvé, et les phases 2 à 4 accumuleraient des contournements. `stock/mouvements.tsx` fixe la borne haute à 8 colonnes ; `ventes/index.tsx` fournit une forme différente.
 

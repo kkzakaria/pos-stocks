@@ -4,20 +4,77 @@ import { Boxes } from "lucide-react"
 import { formaterMontant } from "@/lib/format"
 import { jourLocal } from "@/lib/pos"
 import { fetchRapportValorisation, telechargerCsv } from "@/lib/rapports"
+import type { LigneValorisation } from "@/lib/rapports"
 import { BarreProportion } from "@/components/ui/barre-proportion"
 import { ErreurEtRetry } from "@/rapports/rapport-ventes"
 import { EtatVide } from "@/components/etat-vide"
 import { Button } from "@/components/ui/button"
+import { ListeAdaptative } from "@/components/ui/liste-adaptative"
+import type { ColonneAdaptative } from "@/components/ui/liste-adaptative"
 import { Skeleton } from "@/components/ui/skeleton"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
-import { TableSkeleton } from "@/components/ui/table-skeleton"
+
+/** Card mode: the product name is the dominant identity line. */
+export function titreLigneValorisation(item: LigneValorisation) {
+  return item.productName
+}
+
+/** Card mode: the line's stock value is the headline figure. */
+export function valeurLigneValorisation(item: LigneValorisation) {
+  return formaterMontant(item.valeur)
+}
+
+export function sousTitreLigneValorisation(item: LigneValorisation) {
+  return item.sku
+}
+
+/**
+ * Extracted once at module level: this screen renders one list per warehouse,
+ * so rebuilding the array inside the map would allocate it N times for no
+ * reason.
+ */
+export const COLONNES_VALORISATION: ColonneAdaptative<LigneValorisation>[] = [
+  {
+    cle: "produit",
+    entete: "Produit",
+    masquerEnCarte: true,
+    classeCellule: "font-medium",
+    cellule: titreLigneValorisation,
+  },
+  {
+    cle: "variante",
+    entete: "Variante",
+    cellule: (ligne) => ligne.variantName,
+  },
+  {
+    cle: "sku",
+    entete: "SKU",
+    masquerEnCarte: true,
+    classeCellule: "font-mono text-xs text-muted-foreground",
+    cellule: sousTitreLigneValorisation,
+  },
+  {
+    cle: "quantite",
+    entete: "Quantité",
+    numeric: true,
+    cellule: (ligne) => ligne.quantity,
+  },
+  {
+    cle: "cmp",
+    entete: "CMP",
+    numeric: true,
+    cellule: (ligne) => formaterMontant(ligne.avgCost),
+  },
+  {
+    cle: "valeur",
+    entete: "Valeur",
+    numeric: true,
+    // masquerEnCarte + reusing valeurLigneValorisation as `cellule` is what
+    // structurally rules out the figure appearing twice in one card (once
+    // as the headline, once as a dt/dd pair) — not just a comment's say-so.
+    masquerEnCarte: true,
+    cellule: valeurLigneValorisation,
+  },
+]
 
 /** Valuation report: snapshot of current stock (quantity × weighted average cost) per warehouse and per variant, with total and CSV export. */
 export function RapportValorisation() {
@@ -41,7 +98,7 @@ export function RapportValorisation() {
 
   return (
     <div>
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-sm text-muted-foreground">
           Photographie du stock courant (quantité × coût moyen pondéré).
         </p>
@@ -54,16 +111,13 @@ export function RapportValorisation() {
           {erreurExport}
         </p>
       )}
-      {rapport.isPending && (
-        <>
-          <Skeleton className="mt-4 h-16 w-full max-w-xs" />
-          <Table className="mt-6">
-            <TableBody>
-              <TableSkeleton colonnes={6} />
-            </TableBody>
-          </Table>
-        </>
-      )}
+      {/*
+        No per-warehouse skeleton here: the tile above is all there is to
+        show — the warehouse sections themselves only exist once
+        `rapport.data.entrepots` has arrived, so there is nothing to iterate
+        into a card or table skeleton yet.
+      */}
+      {rapport.isPending && <Skeleton className="mt-4 h-16 w-full max-w-xs" />}
       {rapport.isError && (
         <ErreurEtRetry
           message={
@@ -94,7 +148,7 @@ export function RapportValorisation() {
           ) : (
             rapport.data.entrepots.map((entrepot) => (
               <section key={entrepot.warehouseId} className="mt-6">
-                <div className="flex items-baseline justify-between">
+                <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
                   <h2 className="font-semibold">{entrepot.warehouseName}</h2>
                   <span className="flex flex-col items-end gap-1">
                     <span className="text-sm font-normal text-muted-foreground tabular-nums">
@@ -107,38 +161,25 @@ export function RapportValorisation() {
                     />
                   </span>
                 </div>
-                <Table className="mt-2">
-                  <TableHeader sticky>
-                    <TableRow>
-                      <TableHead>Produit</TableHead>
-                      <TableHead>Variante</TableHead>
-                      <TableHead>SKU</TableHead>
-                      <TableHead numeric>Quantité</TableHead>
-                      <TableHead numeric>CMP</TableHead>
-                      <TableHead numeric>Valeur</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {entrepot.lignes.map((ligne) => (
-                      <TableRow key={ligne.variantId}>
-                        <TableCell className="font-medium">
-                          {ligne.productName}
-                        </TableCell>
-                        <TableCell>{ligne.variantName}</TableCell>
-                        <TableCell className="font-mono text-xs text-muted-foreground">
-                          {ligne.sku}
-                        </TableCell>
-                        <TableCell numeric>{ligne.quantity}</TableCell>
-                        <TableCell numeric>
-                          {formaterMontant(ligne.avgCost)}
-                        </TableCell>
-                        <TableCell numeric>
-                          {formaterMontant(ligne.valeur)}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                <div className="mt-2">
+                  {/*
+                    No `etatVide`: the API only ever creates a warehouse
+                    entry in `entrepots` by folding over stock rows filtered
+                    to quantity > 0 (apps/api/src/routes/reports.ts,
+                    `/valuation`) — a warehouse is pushed into the array in
+                    the same iteration as its first line, so `entrepot.lignes`
+                    can never be empty here. An empty warehouse simply never
+                    appears in the response at all.
+                  */}
+                  <ListeAdaptative<LigneValorisation>
+                    colonnes={COLONNES_VALORISATION}
+                    lignes={entrepot.lignes}
+                    cleLigne={(ligne) => ligne.variantId}
+                    titre={titreLigneValorisation}
+                    valeur={valeurLigneValorisation}
+                    sousTitre={sousTitreLigneValorisation}
+                  />
+                </div>
               </section>
             ))
           )}
