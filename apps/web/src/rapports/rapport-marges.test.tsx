@@ -17,21 +17,8 @@ import {
 } from "@/rapports/rapport-marges"
 import * as rapports from "@/lib/rapports"
 import type { LigneMarge } from "@/lib/rapports"
-import { formaterMontant } from "@/lib/format"
 import { ListeAdaptative } from "@/components/ui/liste-adaptative"
-
-// formaterMontant insère des espaces insécables (narrow no-break space côté
-// ICU) : getByText(string) compare une chaîne normalisée (espaces classiques)
-// à la chaîne brute — un match direct échoue selon la version d'ICU (même
-// motif que rapport-ventes.test.tsx). On matche donc par regex : le
-// normaliseur de Testing Library s'applique aux deux côtés lors d'une
-// comparaison RegExp.
-function texteMontant(montant: number): RegExp {
-  const echappe = formaterMontant(montant)
-    .replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
-    .replace(/\s+/g, "\\s+")
-  return new RegExp(`^${echappe}$`)
-}
+import { texteMontant } from "@/test/texte-montant"
 
 const ligneNormale: LigneMarge = {
   productId: "p1",
@@ -161,19 +148,20 @@ describe("colonnes du rapport des marges", () => {
     nettoyer()
   })
 
-  // Colonnes masquées en carte : produit (→ titre), sku (→ sousTitre) et
-  // marge (→ valeur). Les colonnes VISIBLES en carte (variante, quantité,
-  // CA, coût) passent par les paires libellé/valeur par construction — les
-  // asserter ne prouverait rien sur la logique masquerEnCarte elle-même.
+  // masquerEnCarte columns: produit (→ titreLigneMarge), sku (→
+  // sousTitreLigneMarge), and marge (→ valeurLigneMarge). The columns
+  // visible in card mode (variante, quantite, CA, cout) go through the
+  // label/value pairs by construction — asserting them would prove nothing
+  // about the masquerEnCarte logic itself.
   it("ne perd aucune donnée en mode carte : produit, SKU et marge masqués resurgissent, sans doublon", () => {
     const nettoyer = afficher(375, [ligneNormale])
     const carte = screen.getAllByRole("listitem")[0]
 
-    // "produit" → titre.
+    // "produit" → titreLigneMarge.
     expect(carte.textContent).toContain("Cola")
-    // "sku" → sousTitre.
+    // "sku" → sousTitreLigneMarge.
     expect(carte.textContent).toContain("SKU1")
-    // "marge" → valeur : rendu une seule fois (pas de doublon dt/dd).
+    // "marge" → valeurLigneMarge: rendered once (no dt/dd duplicate).
     expect(within(carte).getAllByText(texteMontant(1400))).toHaveLength(1)
 
     nettoyer()

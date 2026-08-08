@@ -11,18 +11,22 @@ import {
 } from "@/rapports/rapport-valorisation"
 import * as rapports from "@/lib/rapports"
 import type { LigneValorisation } from "@/lib/rapports"
-import { formaterMontant } from "@/lib/format"
 import { ListeAdaptative } from "@/components/ui/liste-adaptative"
+import { texteMontant } from "@/test/texte-montant"
 
-// formaterMontant inserts narrow no-break spaces (ICU): comparing a raw
-// string with getByText fails depending on the ICU build. Matching by RegExp
-// lets Testing Library's normaliser apply to both sides. Same helper as
-// rapport-marges.test.tsx.
-function texteMontant(montant: number): RegExp {
-  const echappe = formaterMontant(montant)
-    .replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
-    .replace(/\s+/g, "\\s+")
-  return new RegExp(`^${echappe}$`)
+/**
+ * Card mode renders non-hidden columns as `<dt>`/`<dd>` pairs inside a
+ * `<dl>` — reading the `<dd>` next to a given `<dt>` label targets that
+ * specific pair instead of the whole card's `textContent`, which other
+ * fields can satisfy by coincidence. Same helper as `$saleId.test.tsx`.
+ */
+function valeurPaire(carte: HTMLElement, libelle: string): string {
+  const dt = within(carte).getByText(libelle)
+  const dd = dt.nextElementSibling
+  if (!(dd instanceof HTMLElement)) {
+    throw new Error(`Aucune <dd> associée au libellé « ${libelle} »`)
+  }
+  return dd.textContent
 }
 
 const ligneCiment: LigneValorisation = {
@@ -193,8 +197,8 @@ describe("COLONNES_VALORISATION", () => {
   it("garde les colonnes visibles en paires libellé/valeur", () => {
     const nettoyer = afficherListe(375)
     const carte = screen.getAllByRole("listitem")[0]
-    expect(carte.textContent).toContain("Sac") // variante
-    expect(carte.textContent).toContain("12") // quantité
+    expect(valeurPaire(carte, "Variante")).toBe("Sac")
+    expect(valeurPaire(carte, "Quantité")).toBe("12")
     expect(within(carte).getByText(texteMontant(4000))).toBeDefined() // CMP
     nettoyer()
   })

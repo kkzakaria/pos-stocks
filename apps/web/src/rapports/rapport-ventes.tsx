@@ -13,6 +13,7 @@ import type {
   LigneVentesProduit,
   TotalVentes,
 } from "@/lib/rapports"
+import { cn } from "@/lib/utils"
 import { EtatVide } from "@/components/etat-vide"
 import { BarreProportion } from "@/components/ui/barre-proportion"
 import { Button } from "@/components/ui/button"
@@ -21,8 +22,6 @@ import { Label } from "@/components/ui/label"
 import { ListeAdaptative } from "@/components/ui/liste-adaptative"
 import type { ColonneAdaptative } from "@/components/ui/liste-adaptative"
 import { Skeleton } from "@/components/ui/skeleton"
-import { Table, TableBody } from "@/components/ui/table"
-import { TableSkeleton } from "@/components/ui/table-skeleton"
 
 const PRESETS = [
   { id: "jour", libelle: "Aujourd'hui" },
@@ -99,10 +98,22 @@ export function TuilesTotaux({ total }: { total: TotalVentes }) {
   )
 }
 
-/** Loading tiles, matching the density of the totals tiles. */
-export function TuilesSkeleton({ nombre = 5 }: { nombre?: number }) {
+/**
+ * Loading tiles, matching the density of the totals tiles. `classeGrille`
+ * defaults to this screen's own tile grid; a caller whose real tiles use a
+ * different column count (e.g. `rapport-marges.tsx`) must pass its own grid
+ * classes, otherwise the skeleton's column count would drift from the
+ * content it precedes and the layout would jump once loading finishes.
+ */
+export function TuilesSkeleton({
+  nombre = 5,
+  classeGrille = "grid-cols-2 md:grid-cols-5",
+}: {
+  nombre?: number
+  classeGrille?: string
+}) {
   return (
-    <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-5">
+    <div className={cn("mt-4 grid gap-3", classeGrille)}>
       {Array.from({ length: nombre }).map((_tuile, i) => (
         <Skeleton key={i} className="h-14" />
       ))}
@@ -171,7 +182,7 @@ export const COLONNES_VENTES_BOUTIQUE: ColonneAdaptative<LigneVentesBoutiqueAffi
       entete: "Boutique",
       masquerEnCarte: true,
       classeCellule: "font-medium",
-      cellule: (ligne) => ligne.storeName,
+      cellule: titreLigneVentesBoutique,
     },
     {
       cle: "ca",
@@ -227,7 +238,7 @@ export const COLONNES_VENTES_PRODUIT: ColonneAdaptative<LigneVentesProduit>[] =
       entete: "Produit",
       masquerEnCarte: true,
       classeCellule: "font-medium",
-      cellule: (ligne) => ligne.productName,
+      cellule: titreLigneVentesProduit,
     },
     {
       cle: "variante",
@@ -239,7 +250,7 @@ export const COLONNES_VENTES_PRODUIT: ColonneAdaptative<LigneVentesProduit>[] =
       entete: "SKU",
       masquerEnCarte: true,
       classeCellule: "font-mono text-xs text-muted-foreground",
-      cellule: (ligne) => ligne.sku,
+      cellule: sousTitreLigneVentesProduit,
     },
     {
       cle: "quantite",
@@ -252,7 +263,7 @@ export const COLONNES_VENTES_PRODUIT: ColonneAdaptative<LigneVentesProduit>[] =
       entete: "CA",
       numeric: true,
       masquerEnCarte: true,
-      cellule: (ligne) => formaterMontant(ligne.ca),
+      cellule: valeurLigneVentesProduit,
     },
     {
       cle: "remises",
@@ -331,16 +342,7 @@ export function RapportVentes() {
         </p>
       )}
 
-      {active.isPending && periodeValide && (
-        <>
-          <TuilesSkeleton />
-          <Table className="mt-4">
-            <TableBody>
-              <TableSkeleton colonnes={groupe === "boutique" ? 6 : 7} />
-            </TableBody>
-          </Table>
-        </>
-      )}
+      {active.isPending && periodeValide && <TuilesSkeleton />}
       {active.isError && (
         <ErreurEtRetry
           message={
@@ -352,16 +354,19 @@ export function RapportVentes() {
         />
       )}
 
-      {groupe === "boutique" && boutiquesQ.isSuccess && (
+      {groupe === "boutique" && periodeValide && !boutiquesQ.isError && (
         <>
-          <TuilesTotaux total={boutiquesQ.data.total} />
+          {boutiquesQ.isSuccess && (
+            <TuilesTotaux total={boutiquesQ.data.total} />
+          )}
           <div className="mt-4">
             <ListeAdaptative<LigneVentesBoutiqueAffichee>
               colonnes={COLONNES_VENTES_BOUTIQUE}
-              lignes={boutiquesQ.data.lignes.map((ligne) => ({
+              lignes={(boutiquesQ.data?.lignes ?? []).map((ligne) => ({
                 ...ligne,
-                totalCa: boutiquesQ.data.total.ca,
+                totalCa: boutiquesQ.data?.total.ca ?? 0,
               }))}
+              chargement={boutiquesQ.isPending}
               cleLigne={(ligne) => ligne.storeId}
               titre={titreLigneVentesBoutique}
               valeur={valeurLigneVentesBoutique}
@@ -377,13 +382,14 @@ export function RapportVentes() {
         </>
       )}
 
-      {groupe === "produit" && produitsQ.isSuccess && (
+      {groupe === "produit" && periodeValide && !produitsQ.isError && (
         <>
-          <TuilesTotaux total={produitsQ.data.total} />
+          {produitsQ.isSuccess && <TuilesTotaux total={produitsQ.data.total} />}
           <div className="mt-4">
             <ListeAdaptative<LigneVentesProduit>
               colonnes={COLONNES_VENTES_PRODUIT}
-              lignes={produitsQ.data.lignes}
+              lignes={produitsQ.data?.lignes ?? []}
+              chargement={produitsQ.isPending}
               cleLigne={(ligne) => ligne.variantId}
               titre={titreLigneVentesProduit}
               valeur={valeurLigneVentesProduit}

@@ -18,8 +18,6 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { ListeAdaptative } from "@/components/ui/liste-adaptative"
 import type { ColonneAdaptative } from "@/components/ui/liste-adaptative"
-import { Table, TableBody } from "@/components/ui/table"
-import { TableSkeleton } from "@/components/ui/table-skeleton"
 
 /** "estimé" badge flagging a margin whose cost was approximated (weighted average cost unavailable for a lot). */
 function BadgeEstime() {
@@ -62,7 +60,7 @@ export const COLONNES_MARGES: ColonneAdaptative<LigneMarge>[] = [
     entete: "Produit",
     masquerEnCarte: true,
     classeCellule: "font-medium",
-    cellule: (ligne) => ligne.productName,
+    cellule: titreLigneMarge,
   },
   {
     cle: "variante",
@@ -74,7 +72,7 @@ export const COLONNES_MARGES: ColonneAdaptative<LigneMarge>[] = [
     entete: "SKU",
     masquerEnCarte: true,
     classeCellule: "font-mono text-xs text-muted-foreground",
-    cellule: (ligne) => ligne.sku,
+    cellule: sousTitreLigneMarge,
   },
   {
     cle: "quantite",
@@ -144,14 +142,7 @@ export function RapportMarges() {
         </p>
       )}
       {rapport.isPending && periodeValide && (
-        <>
-          <TuilesSkeleton nombre={3} />
-          <Table className="mt-4">
-            <TableBody>
-              <TableSkeleton colonnes={7} />
-            </TableBody>
-          </Table>
-        </>
+        <TuilesSkeleton nombre={3} classeGrille="grid-cols-1 sm:grid-cols-3" />
       )}
       {rapport.isError && (
         <ErreurEtRetry
@@ -164,48 +155,49 @@ export function RapportMarges() {
         />
       )}
       {rapport.isSuccess && (
-        <>
-          <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
-            <div className="rounded-md bg-card p-3 ring-1 ring-foreground/10">
-              <p className="text-xs text-muted-foreground">CA</p>
-              <p className="mt-1 font-semibold tabular-nums">
-                {formaterMontant(rapport.data.total.ca)}
-              </p>
-            </div>
-            <div className="rounded-md bg-card p-3 ring-1 ring-foreground/10">
-              <p className="text-xs text-muted-foreground">Coût</p>
-              <p className="mt-1 font-semibold tabular-nums">
-                {formaterMontant(rapport.data.total.cout)}
-              </p>
-            </div>
-            <div className="rounded-md bg-card p-3 ring-1 ring-foreground/10">
-              <p className="text-xs text-muted-foreground">
-                Marge
-                {rapport.data.total.estime && <BadgeEstime />}
-              </p>
-              <p className="mt-1 font-semibold tabular-nums">
-                {formaterMontant(rapport.data.total.marge)}
-              </p>
-            </div>
+        <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <div className="rounded-md bg-card p-3 ring-1 ring-foreground/10">
+            <p className="text-xs text-muted-foreground">CA</p>
+            <p className="mt-1 font-semibold tabular-nums">
+              {formaterMontant(rapport.data.total.ca)}
+            </p>
           </div>
-          <div className="mt-4">
-            <ListeAdaptative<LigneMarge>
-              colonnes={COLONNES_MARGES}
-              lignes={rapport.data.lignes}
-              cleLigne={(ligne) => ligne.variantId}
-              titre={titreLigneMarge}
-              valeur={valeurLigneMarge}
-              sousTitre={sousTitreLigneMarge}
-              etatVide={
-                <EtatVide
-                  icon={Receipt}
-                  titre="Aucune vente sur cette période"
-                  message="Ajustez la période ou vérifiez qu'un ticket a bien été encaissé."
-                />
-              }
-            />
+          <div className="rounded-md bg-card p-3 ring-1 ring-foreground/10">
+            <p className="text-xs text-muted-foreground">Coût</p>
+            <p className="mt-1 font-semibold tabular-nums">
+              {formaterMontant(rapport.data.total.cout)}
+            </p>
           </div>
-        </>
+          <div className="rounded-md bg-card p-3 ring-1 ring-foreground/10">
+            <p className="text-xs text-muted-foreground">
+              Marge
+              {rapport.data.total.estime && <BadgeEstime />}
+            </p>
+            <p className="mt-1 font-semibold tabular-nums">
+              {formaterMontant(rapport.data.total.marge)}
+            </p>
+          </div>
+        </div>
+      )}
+      {periodeValide && !rapport.isError && (
+        <div className="mt-4">
+          <ListeAdaptative<LigneMarge>
+            colonnes={COLONNES_MARGES}
+            lignes={rapport.data?.lignes ?? []}
+            chargement={rapport.isPending}
+            cleLigne={(ligne) => ligne.variantId}
+            titre={titreLigneMarge}
+            valeur={valeurLigneMarge}
+            sousTitre={sousTitreLigneMarge}
+            etatVide={
+              <EtatVide
+                icon={Receipt}
+                titre="Aucune vente sur cette période"
+                message="Ajustez la période ou vérifiez qu'un ticket a bien été encaissé."
+              />
+            }
+          />
+        </div>
       )}
     </div>
   )

@@ -12,8 +12,6 @@ import { Button } from "@/components/ui/button"
 import { ListeAdaptative } from "@/components/ui/liste-adaptative"
 import type { ColonneAdaptative } from "@/components/ui/liste-adaptative"
 import { Skeleton } from "@/components/ui/skeleton"
-import { Table, TableBody } from "@/components/ui/table"
-import { TableSkeleton } from "@/components/ui/table-skeleton"
 
 /** Card mode: the product name is the dominant identity line. */
 export function titreLigneValorisation(item: LigneValorisation) {
@@ -40,7 +38,7 @@ export const COLONNES_VALORISATION: ColonneAdaptative<LigneValorisation>[] = [
     entete: "Produit",
     masquerEnCarte: true,
     classeCellule: "font-medium",
-    cellule: (ligne) => ligne.productName,
+    cellule: titreLigneValorisation,
   },
   {
     cle: "variante",
@@ -52,7 +50,7 @@ export const COLONNES_VALORISATION: ColonneAdaptative<LigneValorisation>[] = [
     entete: "SKU",
     masquerEnCarte: true,
     classeCellule: "font-mono text-xs text-muted-foreground",
-    cellule: (ligne) => ligne.sku,
+    cellule: sousTitreLigneValorisation,
   },
   {
     cle: "quantite",
@@ -70,10 +68,11 @@ export const COLONNES_VALORISATION: ColonneAdaptative<LigneValorisation>[] = [
     cle: "valeur",
     entete: "Valeur",
     numeric: true,
-    // Already carried by the card headline (`valeur`), so hidden from the
-    // pairs — otherwise the figure would render twice in one card.
+    // masquerEnCarte + reusing valeurLigneValorisation as `cellule` is what
+    // structurally rules out the figure appearing twice in one card (once
+    // as the headline, once as a dt/dd pair) — not just a comment's say-so.
     masquerEnCarte: true,
-    cellule: (ligne) => formaterMontant(ligne.valeur),
+    cellule: valeurLigneValorisation,
   },
 ]
 
@@ -112,16 +111,13 @@ export function RapportValorisation() {
           {erreurExport}
         </p>
       )}
-      {rapport.isPending && (
-        <>
-          <Skeleton className="mt-4 h-16 w-full max-w-xs" />
-          <Table className="mt-6">
-            <TableBody>
-              <TableSkeleton colonnes={6} />
-            </TableBody>
-          </Table>
-        </>
-      )}
+      {/*
+        No per-warehouse skeleton here: the tile above is all there is to
+        show — the warehouse sections themselves only exist once
+        `rapport.data.entrepots` has arrived, so there is nothing to iterate
+        into a card or table skeleton yet.
+      */}
+      {rapport.isPending && <Skeleton className="mt-4 h-16 w-full max-w-xs" />}
       {rapport.isError && (
         <ErreurEtRetry
           message={
@@ -166,6 +162,15 @@ export function RapportValorisation() {
                   </span>
                 </div>
                 <div className="mt-2">
+                  {/*
+                    No `etatVide`: the API only ever creates a warehouse
+                    entry in `entrepots` by folding over stock rows filtered
+                    to quantity > 0 (apps/api/src/routes/reports.ts,
+                    `/valuation`) — a warehouse is pushed into the array in
+                    the same iteration as its first line, so `entrepot.lignes`
+                    can never be empty here. An empty warehouse simply never
+                    appears in the response at all.
+                  */}
                   <ListeAdaptative<LigneValorisation>
                     colonnes={COLONNES_VALORISATION}
                     lignes={entrepot.lignes}

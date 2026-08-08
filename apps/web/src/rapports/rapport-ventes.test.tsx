@@ -20,20 +20,8 @@ import {
 } from "@/rapports/rapport-ventes"
 import type { LigneVentesBoutiqueAffichee } from "@/rapports/rapport-ventes"
 import * as rapports from "@/lib/rapports"
-import { formaterMontant } from "@/lib/format"
 import { ListeAdaptative } from "@/components/ui/liste-adaptative"
-
-// formaterMontant insère des espaces insécables (narrow no-break space côté
-// ICU) : getByText(string) compare une chaîne normalisée (espaces classiques)
-// à la chaîne brute — un match direct échoue selon la version d'ICU (même
-// motif que pos/panier.test.tsx). On matche donc par regex : le normaliseur
-// de Testing Library s'applique aux deux côtés lors d'une comparaison RegExp.
-function texteMontant(montant: number): RegExp {
-  const echappe = formaterMontant(montant)
-    .replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
-    .replace(/\s+/g, "\\s+")
-  return new RegExp(`^${echappe}$`)
-}
+import { texteMontant } from "@/test/texte-montant"
 
 const donneesBoutiques: rapports.RapportVentesBoutiques = {
   periode: { du: "2026-07-06", au: "2026-07-12" },

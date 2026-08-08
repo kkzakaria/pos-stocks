@@ -1,6 +1,7 @@
 import { render, screen, within } from "@testing-library/react"
 import { ListeAdaptative } from "@/components/ui/liste-adaptative"
 import { installerMatchMedia } from "@/test/media-query"
+import { texteMontant } from "@/test/texte-montant"
 import {
   COLONNES_LIGNES_VENTE,
   titreLigneVente,
@@ -29,11 +30,6 @@ const ITEM_VARIANTE: LigneVenteAffichee = {
   id: "li2",
   productName: "T-shirt",
   variantName: "Bleu / M",
-}
-
-/** fr-FR inserts U+202F narrow no-break spaces in amounts. */
-function texteMontant(valeur: number): RegExp {
-  return new RegExp(String(valeur).replace(/\B(?=(\d{3})+(?!\d))/g, "\\s?"))
 }
 
 /**
@@ -92,7 +88,7 @@ describe("colonnes du détail de vente", () => {
     const nettoyer = afficher(375)
     const carte = screen.getAllByRole("listitem")[0]
     expect(carte.textContent).toContain("Riz parfumé 5kg")
-    expect(carte.textContent).toMatch(texteMontant(4500))
+    expect(within(carte).getByText(texteMontant(4500))).toBeDefined()
     nettoyer()
   })
 
@@ -112,7 +108,7 @@ describe("colonnes du détail de vente", () => {
     // "article" → titreLigneVente.
     expect(carte.textContent).toContain("Riz parfumé 5kg")
     // "puApplique" → valeurLigneVente: formatted amount at the top of the card.
-    expect(carte.textContent).toMatch(texteMontant(4500))
+    expect(within(carte).getByText(texteMontant(4500))).toBeDefined()
     // "sku" → sousTitreLigneVente.
     expect(carte.textContent).toContain("RIZ-5KG")
 
