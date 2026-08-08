@@ -61,15 +61,15 @@ const ligneFer: LigneValorisation = {
   variantName: "8mm",
   sku: "FER-08",
   quantity: 1,
-  avgCost: 5000,
-  valeur: 5000,
+  avgCost: 6000,
+  valeur: 6000,
 }
 
 // Each warehouse holds two lines on purpose: with a single line, its header
 // total would equal that line's value, and an assertion on the total could
 // not tell the two apart. Every figure below is distinct for the same reason.
 const donnees: rapports.RapportValorisation = {
-  total: 78000,
+  total: 79000,
   entrepots: [
     {
       warehouseId: "w1",
@@ -80,7 +80,7 @@ const donnees: rapports.RapportValorisation = {
     {
       warehouseId: "w2",
       warehouseName: "Dépôt central",
-      valeur: 20000,
+      valeur: 21000,
       lignes: [ligneGravier, ligneFer],
     },
   ],
@@ -132,18 +132,24 @@ describe("RapportValorisation", () => {
     expect(within(sections[1]).queryByText("Ciment 50kg")).toBeNull()
   })
 
-  it("garde la valeur totale de chaque entrepôt visible", async () => {
-    vi.spyOn(rapports, "fetchRapportValorisation").mockResolvedValue(donnees)
-    rendre()
-    await screen.findByText("Boutique Centre")
-    // The per-warehouse total lives in the section header, not in the list —
-    // it is the figure the user came for, so it must survive the migration.
-    const sections = document.querySelectorAll("section")
-    expect(within(sections[0]).getByText(texteMontant(58000))).toBeDefined()
-    expect(within(sections[1]).getByText(texteMontant(20000))).toBeDefined()
-    // And the grand total above the sections.
-    expect(screen.getByText(texteMontant(78000))).toBeDefined()
-  })
+  // Asserted at both tiers on purpose: the per-warehouse total is the figure
+  // the user opens this screen for. The section header lives outside
+  // `ListeAdaptative` so it should not depend on the breakpoint — this proves
+  // it rather than leaving it to code reading.
+  for (const largeur of [1280, 375]) {
+    it(`garde la valeur totale de chaque entrepôt visible à ${largeur} px`, async () => {
+      const nettoyer = installerMatchMedia(largeur)
+      vi.spyOn(rapports, "fetchRapportValorisation").mockResolvedValue(donnees)
+      rendre()
+      await screen.findByText("Boutique Centre")
+      const sections = document.querySelectorAll("section")
+      expect(within(sections[0]).getByText(texteMontant(58000))).toBeDefined()
+      expect(within(sections[1]).getByText(texteMontant(21000))).toBeDefined()
+      // And the grand total above the sections.
+      expect(screen.getByText(texteMontant(79000))).toBeDefined()
+      nettoyer()
+    })
+  }
 })
 
 describe("COLONNES_VALORISATION", () => {
