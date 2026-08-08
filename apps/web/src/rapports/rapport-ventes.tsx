@@ -8,21 +8,20 @@ import {
   periodePreset,
   telechargerCsv,
 } from "@/lib/rapports"
-import type { TotalVentes } from "@/lib/rapports"
+import type {
+  LigneVentesBoutique,
+  LigneVentesProduit,
+  TotalVentes,
+} from "@/lib/rapports"
 import { EtatVide } from "@/components/etat-vide"
 import { BarreProportion } from "@/components/ui/barre-proportion"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { ListeAdaptative } from "@/components/ui/liste-adaptative"
+import type { ColonneAdaptative } from "@/components/ui/liste-adaptative"
 import { Skeleton } from "@/components/ui/skeleton"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
+import { Table, TableBody } from "@/components/ui/table"
 import { TableSkeleton } from "@/components/ui/table-skeleton"
 
 const PRESETS = [
@@ -131,6 +130,140 @@ export function ErreurEtRetry({
   )
 }
 
+/**
+ * `LigneVentesBoutique` with the period's total CA spliced in — the `CA`
+ * column's `BarreProportion` needs it, but the API only returns the total
+ * once on `RapportVentesBoutiques`, not per line.
+ */
+export type LigneVentesBoutiqueAffichee = LigneVentesBoutique & {
+  totalCa: number
+}
+
+/** Card mode: the store name is the dominant identity line. */
+export function titreLigneVentesBoutique(item: LigneVentesBoutiqueAffichee) {
+  return item.storeName
+}
+
+/** Card mode: CA is the headline figure. */
+export function valeurLigneVentesBoutique(item: LigneVentesBoutiqueAffichee) {
+  return formaterMontant(item.ca)
+}
+
+export const COLONNES_VENTES_BOUTIQUE: ColonneAdaptative<LigneVentesBoutiqueAffichee>[] =
+  [
+    {
+      cle: "boutique",
+      entete: "Boutique",
+      masquerEnCarte: true,
+      classeCellule: "font-medium",
+      cellule: (ligne) => ligne.storeName,
+    },
+    {
+      cle: "ca",
+      entete: "CA",
+      numeric: true,
+      // Not masquerEnCarte on purpose: the proportion bar is a visual cue
+      // that belongs in card mode too, not just the plain headline amount
+      // carried by `valeur`.
+      cellule: (ligne) => (
+        <span className="flex flex-col items-end gap-1">
+          <span>{formaterMontant(ligne.ca)}</span>
+          <BarreProportion
+            className="max-w-24"
+            valeur={ligne.ca}
+            total={ligne.totalCa}
+          />
+        </span>
+      ),
+    },
+    {
+      cle: "tickets",
+      entete: "Tickets",
+      numeric: true,
+      cellule: (ligne) => ligne.tickets,
+    },
+    {
+      cle: "panierMoyen",
+      entete: "Panier moyen",
+      numeric: true,
+      cellule: (ligne) => formaterMontant(ligne.panierMoyen),
+    },
+    {
+      cle: "cash",
+      entete: "Espèces",
+      numeric: true,
+      cellule: (ligne) => formaterMontant(ligne.cash),
+    },
+    {
+      cle: "mobileMoney",
+      entete: "Mobile money",
+      numeric: true,
+      cellule: (ligne) => formaterMontant(ligne.mobileMoney),
+    },
+  ]
+
+/** Card mode: the product name is the dominant identity line. */
+export function titreLigneVentesProduit(item: LigneVentesProduit) {
+  return item.productName
+}
+
+/** Card mode: CA is the headline figure. */
+export function valeurLigneVentesProduit(item: LigneVentesProduit) {
+  return formaterMontant(item.ca)
+}
+
+export function sousTitreLigneVentesProduit(item: LigneVentesProduit) {
+  return item.sku
+}
+
+export const COLONNES_VENTES_PRODUIT: ColonneAdaptative<LigneVentesProduit>[] =
+  [
+    {
+      cle: "produit",
+      entete: "Produit",
+      masquerEnCarte: true,
+      classeCellule: "font-medium",
+      cellule: (ligne) => ligne.productName,
+    },
+    {
+      cle: "variante",
+      entete: "Variante",
+      cellule: (ligne) => ligne.variantName,
+    },
+    {
+      cle: "sku",
+      entete: "SKU",
+      masquerEnCarte: true,
+      classeCellule: "font-mono text-xs text-muted-foreground",
+      cellule: (ligne) => ligne.sku,
+    },
+    {
+      cle: "quantite",
+      entete: "Quantité",
+      numeric: true,
+      cellule: (ligne) => ligne.quantite,
+    },
+    {
+      cle: "ca",
+      entete: "CA",
+      numeric: true,
+      masquerEnCarte: true,
+      cellule: (ligne) => formaterMontant(ligne.ca),
+    },
+    {
+      cle: "remises",
+      entete: "Remises",
+      numeric: true,
+      cellule: (ligne) => formaterMontant(ligne.remise),
+    },
+    {
+      cle: "tickets",
+      entete: "Tickets",
+      numeric: true,
+      cellule: (ligne) => ligne.tickets,
+    },
+  ]
+
 /** Sales report: grouping by store or by product over a period, totals tiles, table, and CSV export. */
 export function RapportVentes() {
   const [periode, setPeriode] = useState(() => periodePreset("semaine"))
@@ -218,101 +351,48 @@ export function RapportVentes() {
       {groupe === "boutique" && boutiquesQ.isSuccess && (
         <>
           <TuilesTotaux total={boutiquesQ.data.total} />
-          {boutiquesQ.data.lignes.length === 0 ? (
-            <EtatVide
-              className="mt-6"
-              icon={Receipt}
-              titre="Aucune vente sur cette période"
-              message="Ajustez la période ou vérifiez qu'un ticket a bien été encaissé."
+          <div className="mt-4">
+            <ListeAdaptative<LigneVentesBoutiqueAffichee>
+              colonnes={COLONNES_VENTES_BOUTIQUE}
+              lignes={boutiquesQ.data.lignes.map((ligne) => ({
+                ...ligne,
+                totalCa: boutiquesQ.data.total.ca,
+              }))}
+              cleLigne={(ligne) => ligne.storeId}
+              titre={titreLigneVentesBoutique}
+              valeur={valeurLigneVentesBoutique}
+              etatVide={
+                <EtatVide
+                  icon={Receipt}
+                  titre="Aucune vente sur cette période"
+                  message="Ajustez la période ou vérifiez qu'un ticket a bien été encaissé."
+                />
+              }
             />
-          ) : (
-            <Table className="mt-4">
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Boutique</TableHead>
-                  <TableHead numeric>CA</TableHead>
-                  <TableHead numeric>Tickets</TableHead>
-                  <TableHead numeric>Panier moyen</TableHead>
-                  <TableHead numeric>Espèces</TableHead>
-                  <TableHead numeric>Mobile money</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {boutiquesQ.data.lignes.map((ligne) => (
-                  <TableRow key={ligne.storeId}>
-                    <TableCell className="font-medium">
-                      {ligne.storeName}
-                    </TableCell>
-                    <TableCell numeric>
-                      <span className="flex flex-col items-end gap-1">
-                        <span>{formaterMontant(ligne.ca)}</span>
-                        <BarreProportion
-                          className="max-w-24"
-                          valeur={ligne.ca}
-                          total={boutiquesQ.data.total.ca}
-                        />
-                      </span>
-                    </TableCell>
-                    <TableCell numeric>{ligne.tickets}</TableCell>
-                    <TableCell numeric>
-                      {formaterMontant(ligne.panierMoyen)}
-                    </TableCell>
-                    <TableCell numeric>{formaterMontant(ligne.cash)}</TableCell>
-                    <TableCell numeric>
-                      {formaterMontant(ligne.mobileMoney)}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
+          </div>
         </>
       )}
 
       {groupe === "produit" && produitsQ.isSuccess && (
         <>
           <TuilesTotaux total={produitsQ.data.total} />
-          {produitsQ.data.lignes.length === 0 ? (
-            <EtatVide
-              className="mt-6"
-              icon={Receipt}
-              titre="Aucune vente sur cette période"
-              message="Ajustez la période ou vérifiez qu'un ticket a bien été encaissé."
+          <div className="mt-4">
+            <ListeAdaptative<LigneVentesProduit>
+              colonnes={COLONNES_VENTES_PRODUIT}
+              lignes={produitsQ.data.lignes}
+              cleLigne={(ligne) => ligne.variantId}
+              titre={titreLigneVentesProduit}
+              valeur={valeurLigneVentesProduit}
+              sousTitre={sousTitreLigneVentesProduit}
+              etatVide={
+                <EtatVide
+                  icon={Receipt}
+                  titre="Aucune vente sur cette période"
+                  message="Ajustez la période ou vérifiez qu'un ticket a bien été encaissé."
+                />
+              }
             />
-          ) : (
-            <Table className="mt-4">
-              <TableHeader sticky>
-                <TableRow>
-                  <TableHead>Produit</TableHead>
-                  <TableHead>Variante</TableHead>
-                  <TableHead>SKU</TableHead>
-                  <TableHead numeric>Quantité</TableHead>
-                  <TableHead numeric>CA</TableHead>
-                  <TableHead numeric>Remises</TableHead>
-                  <TableHead numeric>Tickets</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {produitsQ.data.lignes.map((ligne) => (
-                  <TableRow key={ligne.variantId}>
-                    <TableCell className="font-medium">
-                      {ligne.productName}
-                    </TableCell>
-                    <TableCell>{ligne.variantName}</TableCell>
-                    <TableCell className="font-mono text-xs text-muted-foreground">
-                      {ligne.sku}
-                    </TableCell>
-                    <TableCell numeric>{ligne.quantite}</TableCell>
-                    <TableCell numeric>{formaterMontant(ligne.ca)}</TableCell>
-                    <TableCell numeric>
-                      {formaterMontant(ligne.remise)}
-                    </TableCell>
-                    <TableCell numeric>{ligne.tickets}</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
+          </div>
         </>
       )}
     </div>

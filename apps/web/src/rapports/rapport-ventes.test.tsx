@@ -1,9 +1,27 @@
 import { describe, it, expect, vi, afterEach } from "vitest"
-import { render, screen, fireEvent, waitFor } from "@testing-library/react"
+import {
+  render,
+  screen,
+  fireEvent,
+  waitFor,
+  within,
+} from "@testing-library/react"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
-import { RapportVentes } from "@/rapports/rapport-ventes"
+import { installerMatchMedia } from "@/test/media-query"
+import {
+  COLONNES_VENTES_BOUTIQUE,
+  COLONNES_VENTES_PRODUIT,
+  RapportVentes,
+  sousTitreLigneVentesProduit,
+  titreLigneVentesBoutique,
+  titreLigneVentesProduit,
+  valeurLigneVentesBoutique,
+  valeurLigneVentesProduit,
+} from "@/rapports/rapport-ventes"
+import type { LigneVentesBoutiqueAffichee } from "@/rapports/rapport-ventes"
 import * as rapports from "@/lib/rapports"
 import { formaterMontant } from "@/lib/format"
+import { ListeAdaptative } from "@/components/ui/liste-adaptative"
 
 // formaterMontant insère des espaces insécables (narrow no-break space côté
 // ICU) : getByText(string) compare une chaîne normalisée (espaces classiques)
@@ -140,5 +158,112 @@ describe("RapportVentes", () => {
     fireEvent.click(screen.getByRole("button", { name: "Exporter CSV" }))
     await screen.findByRole("alert")
     expect(screen.getByText("Export impossible (erreur 403)")).toBeDefined()
+  })
+})
+
+describe("colonnes du rapport des ventes par boutique", () => {
+  const LIGNE: LigneVentesBoutiqueAffichee = {
+    ...donneesBoutiques.lignes[0],
+    totalCa: donneesBoutiques.total.ca,
+  }
+
+  function afficher(largeur: number) {
+    const nettoyer = installerMatchMedia(largeur)
+    render(
+      <ListeAdaptative<LigneVentesBoutiqueAffichee>
+        colonnes={COLONNES_VENTES_BOUTIQUE}
+        lignes={[LIGNE]}
+        cleLigne={(ligne) => ligne.storeId}
+        titre={titreLigneVentesBoutique}
+        valeur={valeurLigneVentesBoutique}
+      />
+    )
+    return nettoyer
+  }
+
+  it("expose 6 colonnes", () => {
+    expect(COLONNES_VENTES_BOUTIQUE).toHaveLength(6)
+  })
+
+  it("rend les 6 en-têtes en table à 1280 px", () => {
+    const nettoyer = afficher(1280)
+    for (const entete of [
+      "Boutique",
+      "CA",
+      "Tickets",
+      "Panier moyen",
+      "Espèces",
+      "Mobile money",
+    ]) {
+      expect(screen.getByText(entete)).toBeTruthy()
+    }
+    nettoyer()
+  })
+
+  it("ne perd aucune donnée en mode carte : la boutique masquée resurgit en titre", () => {
+    const nettoyer = afficher(375)
+    const carte = screen.getAllByRole("listitem")[0]
+
+    // "boutique" is the only masquerEnCarte column of this table — the CA
+    // column is deliberately left visible (its BarreProportion belongs in
+    // card mode too), so it is not a resurfacing concern here.
+    expect(carte.textContent).toContain("Boutique Alpha")
+
+    nettoyer()
+  })
+})
+
+describe("colonnes du rapport des ventes par produit", () => {
+  const LIGNE: rapports.LigneVentesProduit = donneesProduits.lignes[0]
+
+  function afficher(largeur: number) {
+    const nettoyer = installerMatchMedia(largeur)
+    render(
+      <ListeAdaptative<rapports.LigneVentesProduit>
+        colonnes={COLONNES_VENTES_PRODUIT}
+        lignes={[LIGNE]}
+        cleLigne={(ligne) => ligne.variantId}
+        titre={titreLigneVentesProduit}
+        valeur={valeurLigneVentesProduit}
+        sousTitre={sousTitreLigneVentesProduit}
+      />
+    )
+    return nettoyer
+  }
+
+  it("expose 7 colonnes", () => {
+    expect(COLONNES_VENTES_PRODUIT).toHaveLength(7)
+  })
+
+  it("rend les 7 en-têtes en table à 1280 px", () => {
+    const nettoyer = afficher(1280)
+    for (const entete of [
+      "Produit",
+      "Variante",
+      "SKU",
+      "Quantité",
+      "CA",
+      "Remises",
+      "Tickets",
+    ]) {
+      expect(screen.getByText(entete)).toBeTruthy()
+    }
+    nettoyer()
+  })
+
+  it("ne perd aucune donnée en mode carte : produit, SKU et CA masqués resurgissent", () => {
+    const nettoyer = afficher(375)
+    const carte = screen.getAllByRole("listitem")[0]
+
+    // "produit" → titreLigneVentesProduit.
+    expect(carte.textContent).toContain("Cola")
+    // "ca" → valeurLigneVentesProduit: formatted amount at the top of the
+    // card. texteMontant is anchored to a single element's full text, so it
+    // targets the headline <span> rather than the card's whole textContent.
+    expect(within(carte).getByText(texteMontant(3400))).toBeDefined()
+    // "sku" → sousTitreLigneVentesProduit.
+    expect(carte.textContent).toContain("SKU1")
+
+    nettoyer()
   })
 })
