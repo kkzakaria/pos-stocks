@@ -13,6 +13,7 @@ import { EtatVide } from "@/components/etat-vide"
 import { BarreProportion } from "@/components/ui/barre-proportion"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import { Skeleton } from "@/components/ui/skeleton"
 import {
   Table,
@@ -40,24 +41,28 @@ export function SelecteurPeriode({
 }) {
   return (
     <div className="flex flex-wrap items-end gap-2">
-      <label className="text-sm">
-        Du
+      {/* `Label` + wrapper div, matching the rest of the repo. A bare <label>
+          wrapping the input left the date fields without a determinate width:
+          `Input` is `w-full min-w-0`, so inside a content-sized flex item it
+          collapsed. */}
+      <div className="flex w-full flex-col gap-1.5 sm:w-40">
+        <Label htmlFor="rap-du">Du</Label>
         <Input
+          id="rap-du"
           type="date"
-          className="mt-1"
           value={periode.du}
           onChange={(e) => onChange({ ...periode, du: e.target.value })}
         />
-      </label>
-      <label className="text-sm">
-        Au
+      </div>
+      <div className="flex w-full flex-col gap-1.5 sm:w-40">
+        <Label htmlFor="rap-au">Au</Label>
         <Input
+          id="rap-au"
           type="date"
-          className="mt-1"
           value={periode.au}
           onChange={(e) => onChange({ ...periode, au: e.target.value })}
         />
-      </label>
+      </div>
       {PRESETS.map((preset) => (
         <Button
           key={preset.id}
@@ -161,7 +166,7 @@ export function RapportVentes() {
     <div>
       <div className="flex flex-wrap items-end justify-between gap-3">
         <SelecteurPeriode periode={periode} onChange={(p) => setPeriode(p)} />
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Button
             variant={groupe === "boutique" ? "default" : "outline"}
             onClick={() => setGroupe("boutique")}

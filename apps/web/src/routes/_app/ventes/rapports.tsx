@@ -72,7 +72,7 @@ function PageRapports() {
   return (
     <div>
       <h1 className="text-xl font-semibold">Rapports</h1>
-      <div className="mt-4 mb-4 flex gap-2">
+      <div className="mt-4 mb-4 flex flex-wrap gap-2">
         {visibles.map((o) => (
           <Button
             key={o.id}

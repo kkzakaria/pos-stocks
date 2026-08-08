@@ -41,7 +41,7 @@ export function RapportValorisation() {
 
   return (
     <div>
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-sm text-muted-foreground">
           Photographie du stock courant (quantité × coût moyen pondéré).
         </p>
