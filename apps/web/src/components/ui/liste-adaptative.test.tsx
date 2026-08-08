@@ -188,8 +188,8 @@ describe("ListeAdaptative", () => {
   it("conserve les rôles natifs de tableau quand la ligne est cliquable", () => {
     const nettoyer = installerMatchMedia(1280)
     afficher({ surClicLigne: () => undefined })
-    // Le rôle natif `row` doit survivre : un lecteur d'écran doit continuer
-    // d'annoncer un tableau, et les cellules d'avoir un propriétaire de ligne.
+    // The native `row` role must survive: a screen reader must keep
+    // announcing a table, and cells must keep a row owner.
     expect(screen.getAllByRole("row").length).toBe(3) // en-tête + 2 lignes
     expect(screen.queryAllByRole("button")).toHaveLength(0)
     nettoyer()
@@ -203,11 +203,16 @@ describe("ListeAdaptative", () => {
     nettoyer()
   })
 
-  it("n'expose aucune ligne focusable au clavier", () => {
-    const nettoyer = installerMatchMedia(1280)
-    const { container } = afficher({ surClicLigne: () => undefined })
-    expect(container.querySelectorAll("[tabindex]")).toHaveLength(0)
-    nettoyer()
+  it("n'expose aucune ligne focusable au clavier, en table et en carte", () => {
+    for (const largeur of [1280, 375]) {
+      const nettoyer = installerMatchMedia(largeur)
+      const { container, unmount } = afficher({
+        surClicLigne: () => undefined,
+      })
+      expect(container.querySelectorAll("[tabindex]")).toHaveLength(0)
+      unmount()
+      nettoyer()
+    }
   })
 
   it("déclenche surClicLigne au clic sur la ligne", () => {
@@ -224,16 +229,16 @@ describe("ListeAdaptative", () => {
     let appels = 0
     afficher({
       surClicLigne: () => (appels += 1),
-      // preventDefault évite le bruit jsdom « not implemented: navigation »
-      // — seule la propagation du clic est testée ici.
+      // preventDefault avoids jsdom's "not implemented: navigation" noise —
+      // irrelevant here, only the click's propagation is under test.
       actionCarte: () => (
         <a href="/detail" onClick={(e) => e.preventDefault()}>
           Détail
         </a>
       ),
     })
-    // LIGNES a deux entrées, donc deux liens « Détail » identiques — seul le
-    // premier importe ici.
+    // LIGNES has two entries, so two identical "Détail" links — only the
+    // first one matters here.
     screen.getAllByText("Détail")[0].click()
     expect(appels).toBe(0)
     nettoyer()
