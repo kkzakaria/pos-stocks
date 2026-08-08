@@ -170,7 +170,7 @@ Sur les écrans à filtres, les contrôles passés en pleine largeur s'empilent 
 
 **Interfaces:**
 - Consumes: `useEstLarge` (`@/lib/use-media-query`), `cn`.
-- Produces: `FiltresRepliables({ nbActifs, children, className })` où `nbActifs: number` est le nombre de filtres actuellement renseignés.
+- Produces: `FiltresRepliables({ nbActifs, children, className, label, id, ...aria })` où `nbActifs: number` est le nombre de filtres actuellement renseignés et `label` vaut `"Filtres"` par défaut. *(API finale après ronde de correction : `label`, `id` et les `aria-*` ont été ajoutés pour qu'un écran portant deux zones de filtres n'affiche pas deux résumés indiscernables.)*
 
 - [ ] **Step 1: Écrire le test qui échoue**
 
@@ -214,7 +214,10 @@ describe("FiltresRepliables", () => {
     // The count lives in its own styled <span>, so match on the summary's full
     // textContent rather than on a single text node.
     const resume = document.querySelector("summary")
-    expect(resume?.textContent).toBe("Filtres (2)")
+    // The count is a <Badge>, so textContent reads "Filtres2" — assert the
+    // label and the count separately rather than a concatenated string.
+    expect(resume?.textContent).toContain("Filtres")
+    expect(within(resume!).getByText("2")).toBeTruthy()
     nettoyer()
   })
 
@@ -246,7 +249,7 @@ Expected: FAIL — module absent.
 Créer `apps/web/src/components/ui/filtres-repliables.tsx`. Contraintes de rendu :
 
 - À partir de `md` (`useEstLarge()`), rendre les enfants **tels quels**, sans `<details>` ni résumé — la densité desktop est inchangée.
-- En dessous, envelopper dans `<details>` avec `open` initialisé à `nbActifs > 0`, et un `<summary>` portant le libellé `Filtres` suivi de `(N)` quand `nbActifs > 0`.
+- En dessous, envelopper dans `<details>` avec `open` initialisé à `nbActifs > 0`, et un `<summary>` portant le libellé (`label`, `"Filtres"` par défaut) suivi d'un `<Badge>` contenant `nbActifs` quand celui-ci est non nul. *(Le compteur est un `Badge` et non du texte en ligne : le dépôt a déjà cette convention pour les compteurs numériques, et « le chiffre est sacré » veut qu'il soit repérable d'un coup d'œil.)*
 - Le `<summary>` est une cible tactile : hauteur minimale 44 px, `cursor-pointer`, focus visible (`focus-visible:ring-2 focus-visible:ring-ring/30`).
 - Tokens uniquement (`text-muted-foreground`, `border`), aucune couleur en dur.
 - Le contenu replié reste dans le DOM — `<details>` s'en charge nativement.
