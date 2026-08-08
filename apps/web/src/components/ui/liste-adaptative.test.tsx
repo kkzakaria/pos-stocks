@@ -185,37 +185,57 @@ describe("ListeAdaptative", () => {
     nettoyer()
   })
 
-  it("surClicLigne rend les lignes cliquables et activables au clavier en mode table", () => {
+  it("conserve les rôles natifs de tableau quand la ligne est cliquable", () => {
     const nettoyer = installerMatchMedia(1280)
-    const clics: string[] = []
-    afficher({ surClicLigne: (l) => clics.push(l.id) })
-
-    const lignes = screen.getAllByRole("button")
-    expect(lignes).toHaveLength(2)
-    expect(lignes[0].tabIndex).toBe(0)
-
-    fireEvent.click(lignes[0])
-    fireEvent.keyDown(lignes[1], { key: "Enter" })
-    fireEvent.keyDown(lignes[1], { key: " " })
-
-    expect(clics).toEqual(["1", "2", "2"])
+    afficher({ surClicLigne: () => undefined })
+    // Le rôle natif `row` doit survivre : un lecteur d'écran doit continuer
+    // d'annoncer un tableau, et les cellules d'avoir un propriétaire de ligne.
+    expect(screen.getAllByRole("row").length).toBe(3) // en-tête + 2 lignes
+    expect(screen.queryAllByRole("button")).toHaveLength(0)
     nettoyer()
   })
 
-  it("surClicLigne rend les cartes cliquables et activables au clavier en mode carte", () => {
+  it("conserve la sémantique de liste en mode carte quand la ligne est cliquable", () => {
     const nettoyer = installerMatchMedia(375)
-    const clics: string[] = []
-    afficher({ surClicLigne: (l) => clics.push(l.id) })
+    afficher({ surClicLigne: () => undefined })
+    expect(screen.getAllByRole("listitem")).toHaveLength(2)
+    expect(screen.queryAllByRole("button")).toHaveLength(0)
+    nettoyer()
+  })
 
-    const cartes = screen.getAllByRole("button")
-    expect(cartes).toHaveLength(2)
-    expect(cartes[0].tabIndex).toBe(0)
+  it("n'expose aucune ligne focusable au clavier", () => {
+    const nettoyer = installerMatchMedia(1280)
+    const { container } = afficher({ surClicLigne: () => undefined })
+    expect(container.querySelectorAll("[tabindex]")).toHaveLength(0)
+    nettoyer()
+  })
 
-    fireEvent.click(cartes[0])
-    fireEvent.keyDown(cartes[1], { key: "Enter" })
-    fireEvent.keyDown(cartes[1], { key: " " })
+  it("déclenche surClicLigne au clic sur la ligne", () => {
+    const nettoyer = installerMatchMedia(1280)
+    let recu: string | null = null
+    afficher({ surClicLigne: (l) => (recu = l.id) })
+    screen.getAllByRole("row")[1].click()
+    expect(recu).toBe("1")
+    nettoyer()
+  })
 
-    expect(clics).toEqual(["1", "2", "2"])
+  it("ne déclenche pas surClicLigne au clic sur un contrôle interne", () => {
+    const nettoyer = installerMatchMedia(375)
+    let appels = 0
+    afficher({
+      surClicLigne: () => (appels += 1),
+      // preventDefault évite le bruit jsdom « not implemented: navigation »
+      // — seule la propagation du clic est testée ici.
+      actionCarte: () => (
+        <a href="/detail" onClick={(e) => e.preventDefault()}>
+          Détail
+        </a>
+      ),
+    })
+    // LIGNES a deux entrées, donc deux liens « Détail » identiques — seul le
+    // premier importe ici.
+    screen.getAllByText("Détail")[0].click()
+    expect(appels).toBe(0)
     nettoyer()
   })
 
@@ -272,11 +292,10 @@ describe("ListeAdaptative", () => {
     fireEvent.click(screen.getAllByRole("link", { name: "Détail" })[0])
     expect(clics).toEqual([])
 
-    // Activating the row itself still works. `role="button"` overrides the
-    // native `row` role here (tracked phase-2 decision, untouched by this
-    // fix), so the rows are queried as buttons, as the existing
-    // surClicLigne tests above already do.
-    fireEvent.click(screen.getAllByRole("button")[0])
+    // Clicking the row itself (outside the link) still works — the row
+    // keeps its native `row` role, `gererClicLigne` alone decides whether
+    // the click originated from the link or from elsewhere in the row.
+    fireEvent.click(screen.getAllByRole("row")[1])
     expect(clics).toEqual(["1"])
     nettoyer()
   })
@@ -291,12 +310,11 @@ describe("ListeAdaptative", () => {
 
     const boutons = screen.getAllByRole("button", { name: "Détails" })
     fireEvent.click(boutons[0])
-    fireEvent.keyDown(boutons[0], { key: "Enter" })
     expect(clics).toEqual([])
 
-    // Activating the card itself still works. `role="button"` overrides the
-    // native `listitem` role here (tracked phase-2 decision, untouched by
-    // this fix), so the card is queried directly as an `<li>`.
+    // Clicking the card itself (outside actionCarte) still works — the
+    // card keeps its native `listitem` role, so it is queried directly as
+    // an `<li>`.
     const carte = container.querySelector("li")
     expect(carte).not.toBeNull()
     fireEvent.click(carte as Element)
