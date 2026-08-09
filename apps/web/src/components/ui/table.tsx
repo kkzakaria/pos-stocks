@@ -130,6 +130,40 @@ function TableCell({
   )
 }
 
+/**
+ * Classes to put on any `TableCell` holding FREE USER TEXT — a warehouse
+ * name, a variant name, a supplier lot number, an attribute value.
+ *
+ * The defect they fix belongs to `TableCell` itself: it sets
+ * `whitespace-nowrap`, and `table-layout: auto` sizes a column on its
+ * content's *min-content* width — so one long token widens the table without
+ * bound and its container grows a horizontal scrollbar.
+ *
+ * `break-words` (`overflow-wrap: break-word`) contributes NOTHING to that
+ * min-content width: it only breaks a word already overflowing an
+ * established line box. Measured in Chrome at min-content on three ~60
+ * character strings — `whitespace-nowrap`, then `whitespace-normal`, then
+ * `whitespace-normal break-words`, then `whitespace-normal wrap-anywhere`:
+ *
+ *   unbreakable token  532 → 532 → 532 → 14 px
+ *   with spaces        605 → 127 → 127 → 14 px
+ *   with hyphens       572 → 125 → 125 → 14 px
+ *
+ * `break-words` costs exactly 0 px in all three. What partly works is
+ * `whitespace-normal` alone, on whatever spaces and hyphens the text happens
+ * to contain — and that IS the trap: a column of prose shrinks while an
+ * unbreakable reference does not, so the table reads as "fixed" while its
+ * worst column is untouched. `overflow-wrap: anywhere` is the only one of the
+ * two that enters the min-content calculation, hence the pair.
+ *
+ * `max-width` + `truncate` would also fit the container, but hides the tail —
+ * unacceptable on data meant to be read character by character.
+ *
+ * Lives here rather than in a consumer: the rule holds for EVERY table of the
+ * repo, so the developer writing the next one meets it where they need it.
+ */
+export const TEXTE_LIBRE = "whitespace-normal wrap-anywhere"
+
 /** Table caption (`<caption>`) at the bottom, muted text. */
 function TableCaption({
   className,

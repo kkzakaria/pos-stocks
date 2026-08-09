@@ -69,8 +69,9 @@ function DrawerContent({
           {children}
           <DrawerPrimitive.Close
             data-slot="drawer-close"
-            // `icon` and not `icon-sm`: only `icon` carries
-            // `pointer-coarse:size-11`, and this button is touch-first.
+            // `icon` rather than `icon-sm`: both reach 44px on a coarse
+            // pointer since `icon-sm` gained the same rule, so this is now a
+            // free choice kept as-is rather than a constraint.
             render={
               <Button
                 variant="ghost"

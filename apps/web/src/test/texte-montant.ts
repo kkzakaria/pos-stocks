@@ -9,9 +9,14 @@ import { formaterMontant } from "@/lib/format"
  * with `\s+` — anchored at both ends so it never partially matches inside a
  * larger digit string (e.g. matching "400" inside "3400") — is enough to
  * make the match ICU-independent.
+ *
+ * `devise` is optional and falls through to `formaterMontant`'s own default
+ * (XOF), so every existing call site keeps its exact behaviour; pass it when
+ * the fixture deliberately uses another currency, otherwise the assertion
+ * would still pass with the currency dropped from the code under test.
  */
-export function texteMontant(montant: number): RegExp {
-  const echappe = formaterMontant(montant)
+export function texteMontant(montant: number, devise?: string): RegExp {
+  const echappe = formaterMontant(montant, devise)
     .replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
     .replace(/\s+/g, "\\s+")
   return new RegExp(`^${echappe}$`)

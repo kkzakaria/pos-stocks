@@ -52,20 +52,45 @@ function DialogContent({
       <DialogOverlay />
       <DialogPrimitive.Popup
         data-slot="dialog-content"
+        // Two-box layout on purpose. The popup is the OUTER box: it is capped
+        // at the viewport (`max-h-[calc(100dvh-2rem)]`, `dvh` so mobile address
+        // bars are accounted for) and never scrolls, so the absolutely
+        // positioned close button stays reachable whatever the scroll offset.
+        // `flex-col` + `max-h` keeps the dialog centered while it fits and only
+        // bounds it once it overflows.
         className={cn(
-          "fixed top-1/2 left-1/2 z-50 grid w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 gap-4 rounded-xl bg-popover p-4 text-xs/relaxed text-popover-foreground ring-1 ring-foreground/10 duration-100 outline-none sm:max-w-sm data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
+          "fixed top-1/2 left-1/2 z-50 flex max-h-[calc(100dvh-2rem)] w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 flex-col rounded-xl bg-popover p-4 text-xs/relaxed text-popover-foreground ring-1 ring-foreground/10 duration-100 outline-none sm:max-w-sm data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
           className
         )}
         {...props}
       >
-        {children}
+        {/*
+          INNER box: carries the grid the consumers rely on plus the vertical
+          scroll. `min-h-0` is required for a flex child to shrink below its
+          content height; `*:min-w-0` lets the grid tracks shrink below their
+          children's min-content width (a `nowrap` select trigger or a long
+          unbreakable label would otherwise silently widen the dialog past its
+          `max-w` and push the footer buttons off-screen).
+        */}
+        <div
+          data-slot="dialog-body"
+          className="grid min-h-0 gap-4 overflow-y-auto *:min-w-0"
+        >
+          {children}
+        </div>
         {showCloseButton && (
           <DialogPrimitive.Close
             data-slot="dialog-close"
+            // `bg-popover` is load-bearing since the body became a scroller:
+            // this button sits outside it, so scrolled content now passes
+            // UNDER it. `ghost` is transparent, which left two glyphs
+            // superimposed (measured: a select chevron landing on the exact
+            // centre of the close button). The hover/focus states of `ghost`
+            // still win, being more specific.
             render={
               <Button
                 variant="ghost"
-                className="absolute top-2 right-2"
+                className="absolute top-2 right-2 bg-popover"
                 size="icon-sm"
               />
             }
@@ -79,11 +104,23 @@ function DialogContent({
   )
 }
 
+/**
+ * Right gutter sized on the close button, which is absolutely positioned over
+ * this header's own band. Load-bearing since that button gained an opaque
+ * `bg-popover`: a long title used to merely run behind a transparent glyph,
+ * it would now be CUT by the opaque square. The button measures 24px at rest
+ * and 44px under `pointer-coarse` (`size-icon-sm` in `button.tsx`), sits 8px
+ * from the popup edge, and the header starts 16px in (`p-4`) — so it intrudes
+ * 16px, then 36px, into the header. The gutter is the button's own width in
+ * each case, i.e. the intrusion plus an 8px breathing gap, so the title never
+ * touches the square either. Invisible on a short title: this is padding on a
+ * left-aligned block, not a margin.
+ */
 function DialogHeader({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
       data-slot="dialog-header"
-      className={cn("flex flex-col gap-1", className)}
+      className={cn("flex flex-col gap-1 pr-6 pointer-coarse:pr-11", className)}
       {...props}
     />
   )

@@ -82,6 +82,15 @@ type Props<T> = {
  * columns that is a wall of text. The identity of the row goes on a dominant
  * title line, its headline figure sits opposite it, and only the remaining
  * columns become pairs underneath.
+ *
+ * The card list carries an explicit `role="list"`. It is redundant in plain
+ * HTML — do not remove it on that ground: Tailwind's Preflight sets
+ * `list-style: none` on every `<ul>`, which makes VoiceOver on Safari/iOS
+ * drop the list role. Without it, a screen-reader user on a phone hears a run
+ * of unrelated groups instead of "list, N items", losing the count and the
+ * position that table mode conveys for free — a loss of STRUCTURAL
+ * information caused by screen width alone, which this component exists to
+ * prevent.
  */
 // A row click must not also fire an interactive descendant's own action — a
 // `<Link>` in a cell, or `actionCarte`'s button, both bubble up to the row.
@@ -191,7 +200,7 @@ export function ListeAdaptative<T>({
   const paires = colonnes.filter((c) => !c.masquerEnCarte)
 
   return (
-    <ul className={cn("flex flex-col gap-2", containerClassName)}>
+    <ul role="list" className={cn("flex flex-col gap-2", containerClassName)}>
       {lignes.map((ligne) => (
         <li
           key={cleLigne(ligne)}
@@ -219,6 +228,12 @@ export function ListeAdaptative<T>({
             <dl className="mt-2 flex flex-col gap-1">
               {paires.map((c) => (
                 <div key={c.cle} className="flex justify-between gap-3">
+                  {/* `min-w-0` and `break-words` are kept on purpose next to
+                      the `shrink-0` that makes them inert: they keep the label
+                      protected the day a consumer drops the `shrink-0`, and
+                      they let the two hand-written copies of this pair
+                      (`section-stock.tsx`, `section-variantes.tsx`) stay
+                      token-for-token faithful to their source. */}
                   <dt className="min-w-0 shrink-0 break-words text-muted-foreground">
                     {c.libelle ?? c.entete}
                   </dt>

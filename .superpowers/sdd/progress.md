@@ -593,3 +593,23 @@ Différés pour les phases suivantes:
   afficherait une barre en EUR au-dessus d'un panier en XOF.
 - [mineur] Nom de boutique long tronqué (~13 car.) dans MenuPos sous md, le <h1> étant masqué.
 - [mineur] window.print() appelé 2x sur une vente en dev — probablement StrictMode, à confirmer.
+
+## SPA responsive — décisions de cadrage pour la phase 2b (2026-08-09)
+- Le GEL de ListeAdaptative devient un défaut fort, PAS un interdit. Ordre de préférence :
+  résoudre au niveau de l'écran → vérifier que la règle masquerEnCarte couvre déjà le cas →
+  seulement ensuite ouvrir le composant. Toute modification est additive, documentée en JSDoc,
+  testée, et sa raison consignée. C'est le contournement qui doit se justifier.
+- Colonne image de la liste des produits : PAS besoin de rouvrir le composant. L'image porte
+  alt="" (décorative, déclarée telle par l'app elle-même), donc masquerEnCarte:true sur la
+  colonne + vignette portée par `titre` aux côtés du nom. Suit exactement la règle établie sur
+  7 écrans. Et comme `titre` peut rendre le <Link> existant de la cellule Nom, cela honore du
+  même coup le contrat « toute ligne cliquable expose un lien réel en carte », jamais exercé
+  jusqu'ici. Le stopPropagation manuel actuel devient inutile.
+- Migrer la LISTE DES PRODUITS EN PREMIER en 2b : c'est l'écran qui éprouve les deux points
+  ouverts (vignette + ligne cliquable). Le découvrir sur le premier écran laisse le temps de
+  corriger ; sur le dernier, non.
+- Image mobile : la phase 2b prépare le terrain (module @/lib/image.ts avec preparerImage(),
+  identité au départ, branché sur les DEUX chemins d'envoi), sans livrer la compression.
+  Trois obstacles structurels documentés dans la spec (ordre valider/transformer inversé,
+  handler synchrone, chemins divergents) + 5 décisions ouvertes dont l'orientation EXIF,
+  qui est le piège n°1 de toute compression cliente par <canvas>.

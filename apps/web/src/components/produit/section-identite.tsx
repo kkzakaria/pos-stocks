@@ -1,8 +1,18 @@
-import { useState } from "react"
+import { useRef, useState } from "react"
 import { useMutation, useQuery } from "@tanstack/react-query"
 import { Upload } from "lucide-react"
 import { apiFetch, apiUrl } from "@/lib/api"
 import { cn } from "@/lib/utils"
+import {
+  ACCEPT_IMAGE,
+  AIDE_IMAGE,
+  ERREUR_PREPARATION_IMAGE,
+  ERREUR_TAILLE_IMAGE,
+  ERREUR_TYPE_IMAGE,
+  TAILLE_IMAGE_MAX,
+  TYPES_IMAGE_ACCEPTES,
+  preparerImage,
+} from "@/lib/image"
 import { Button, buttonVariants } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -16,6 +26,7 @@ import {
   ComboboxItem,
   ComboboxList,
 } from "@/components/ui/combobox"
+import type { ChangeEvent } from "react"
 import type { Produit } from "./types"
 
 type Categorie = { id: string; name: string }
@@ -32,7 +43,13 @@ function Definition({ libelle, valeur }: { libelle: string; valeur: string }) {
   return (
     <div className="flex flex-col">
       <span className="text-xs text-muted-foreground">{libelle}</span>
-      <span className="text-sm">{valeur || "—"}</span>
+      {/*
+        Category name, barcode and description are free user text. The row is a
+        COLUMN flex container, so the box already stretches to the full width
+        and no `min-w-0` is needed; only the inline text spilled — a 50-digit
+        barcode pushed the document to 430 px at a 375 px viewport.
+      */}
+      <span className="text-sm break-words">{valeur || "—"}</span>
     </div>
   )
 }
@@ -60,6 +77,10 @@ export function SectionIdentite({
   const [erreur, setErreur] = useState<string | null>(null)
   const [erreurImage, setErreurImage] = useState<string | null>(null)
   const [versionImage, setVersionImage] = useState(0)
+  const [preparationImage, setPreparationImage] = useState(false)
+  // Generation token: only the most recent selection may publish its result.
+  // See the identical guard in `ChampImage` for the rationale.
+  const generationImage = useRef(0)
 
   const categories = useQuery({
     queryKey: ["categories"],
@@ -77,7 +98,22 @@ export function SectionIdentite({
     setDescription(produit.description ?? "")
     setActif(produit.isActive)
     setErreur(null)
+    // The image error is part of the edit session too: without this, a refusal
+    // from a previous session reappears verbatim when reopening the form.
+    setErreurImage(null)
     setEdition(true)
+  }
+
+  /**
+   * Leaves edit mode. Bumping the generation token is NOT cosmetic: unmounting
+   * the image block does not cancel an in-flight preparation, and the upload
+   * mutation would fire on a form the user explicitly cancelled — writing the
+   * image server-side, with no visible feedback since the block is gone.
+   */
+  const fermer = () => {
+    generationImage.current++
+    setPreparationImage(false)
+    setEdition(false)
   }
 
   const enregistrer = useMutation({
@@ -119,6 +155,69 @@ export function SectionIdentite({
       setErreurImage(err instanceof Error ? err.message : "Erreur"),
   })
 
+  /**
+   * Same three steps, in the same order, as `ChampImage` — and for the same
+   * reasons; do not "simplify" this by grouping the two validations:
+   *
+   * 1. MIME type BEFORE `preparerImage` (entry guard: a PDF must yield
+   *    "format not accepted", not a decoding error).
+   * 2. `preparerImage`, the single place where compression will land.
+   * 3. Size AFTER `preparerImage`: it is the *prepared* file that has to fit
+   *    under the cap, not the original.
+   *
+   * Both errors reuse the constants of `@/lib/image`, so the two upload paths
+   * cannot word the same refusal differently.
+   */
+  const choisirImage = async (evenement: ChangeEvent<HTMLInputElement>) => {
+    // evenement.target.files is nullable (FileList | null): the optional
+    // chain is legitimate for no-unnecessary-condition
+    const input = evenement.target
+    const fichier = input.files?.[0]
+    // Reset after each attempt (success or failure): otherwise re-selecting
+    // the SAME file does not fire onChange.
+    input.value = ""
+    if (!fichier) return
+
+    const jeton = ++generationImage.current
+    const obsolete = () => generationImage.current !== jeton
+
+    if (!TYPES_IMAGE_ACCEPTES.includes(fichier.type)) {
+      setErreurImage(ERREUR_TYPE_IMAGE)
+      // Mandatory, and a `finally` could NOT do it: this attempt never enters
+      // the `try`. The token claimed above already invalidated any in-flight
+      // preparation, which now returns through its `obsolete()` guard BEFORE
+      // its own setPreparationImage(false) — leaving the busy state stuck at
+      // true, i.e. an unusable field, without this line.
+      setPreparationImage(false)
+      return
+    }
+
+    setErreurImage(null)
+    setPreparationImage(true)
+    let prepare: File
+    try {
+      prepare = await preparerImage(fichier)
+    } catch {
+      if (obsolete()) return
+      setPreparationImage(false)
+      // Fixed French sentence: the browser's own decoding errors are English.
+      setErreurImage(ERREUR_PREPARATION_IMAGE)
+      return
+    }
+    // A newer selection took over while we were preparing: drop this result
+    // rather than uploading a file the user already replaced.
+    if (obsolete()) return
+    setPreparationImage(false)
+
+    if (prepare.size > TAILLE_IMAGE_MAX) {
+      setErreurImage(ERREUR_TAILLE_IMAGE)
+      return
+    }
+    envoyerImage.mutate(prepare)
+  }
+
+  const imageOccupee = preparationImage || envoyerImage.isPending
+
   return (
     <section className="flex flex-col gap-4">
       <h2 className="text-base font-medium">Identité</h2>
@@ -139,43 +238,41 @@ export function SectionIdentite({
       {/* edit-only (edition implies peutEcrire): read mode shows the image alone */}
       {edition && (
         <div className="flex flex-col gap-2">
+          <input
+            // "id-image" and not "p-image": the latter is the default id of
+            // `ChampImage`, and duplicating it would break both labels the day
+            // the two coexist in one view.
+            id="id-image"
+            type="file"
+            accept={ACCEPT_IMAGE}
+            aria-label="Choisir une image"
+            aria-busy={imageOccupee}
+            disabled={envoyerImage.isPending}
+            onChange={(e) => void choisirImage(e)}
+            // "peer" must be an IMMEDIATE previous sibling of the label for
+            // peer-focus-visible: to apply — Tailwind's peer combinator only
+            // matches general siblings, and the failure is silent. Same
+            // pattern as `ChampImage`, on purpose.
+            className="peer sr-only"
+          />
           <label
-            htmlFor="p-image"
+            htmlFor="id-image"
             className={cn(
               buttonVariants({ variant: "outline", size: "sm" }),
-              "w-fit cursor-pointer",
-              envoyerImage.isPending && "pointer-events-none opacity-50"
+              "w-fit cursor-pointer peer-focus-visible:ring-2 peer-focus-visible:ring-ring/30",
+              imageOccupee && "pointer-events-none opacity-50"
             )}
           >
             <Upload />
-            {envoyerImage.isPending ? "Envoi…" : "Choisir une image…"}
+            {preparationImage
+              ? "Préparation…"
+              : envoyerImage.isPending
+                ? "Envoi…"
+                : "Choisir une image…"}
           </label>
-          <p className="text-xs text-muted-foreground">
-            JPEG, PNG, WebP — 2 Mo max
-          </p>
-          <input
-            id="p-image"
-            type="file"
-            accept="image/jpeg,image/png,image/webp"
-            disabled={envoyerImage.isPending}
-            onChange={(e) => {
-              // e.target.files is nullable (FileList | null): the optional
-              // chain is legitimate for no-unnecessary-condition
-              const input = e.target
-              const fichier = input.files?.[0]
-              if (!fichier) return
-              // Reset after each attempt (success or failure): otherwise
-              // re-selecting the SAME file does not fire onChange.
-              envoyerImage.mutate(fichier, {
-                onSettled: () => {
-                  input.value = ""
-                },
-              })
-            }}
-            className="sr-only"
-          />
+          <p className="text-xs text-muted-foreground">{AIDE_IMAGE}</p>
           {erreurImage && (
-            <p role="alert" className="text-xs text-destructive">
+            <p role="alert" className="text-xs break-words text-destructive">
               {erreurImage}
             </p>
           )}
@@ -253,10 +350,18 @@ export function SectionIdentite({
               checked={actif}
               onCheckedChange={(valeur) => setActif(valeur === true)}
             />
-            <Label htmlFor="id-actif">Produit actif</Label>
+            {/* `Checkbox` already grows its own hit area to 44px on a coarse
+                pointer via a `::before` pseudo-element, but the label is the
+                wider half of the control and had none — so the effective touch
+                band was the box's 16px. Same fix as `produits/nouveau.tsx`. */}
+            <Label htmlFor="id-actif" className="pointer-coarse:min-h-11">
+              Produit actif
+            </Label>
           </div>
+          {/* Same reason as the image error above: an API message may carry an
+              unbroken token (quoted value, error code with underscores). */}
           {erreur && (
-            <p role="alert" className="text-xs text-destructive">
+            <p role="alert" className="text-xs break-words text-destructive">
               {erreur}
             </p>
           )}
@@ -264,11 +369,7 @@ export function SectionIdentite({
             <Button type="submit" disabled={enregistrer.isPending}>
               {enregistrer.isPending ? "Enregistrement…" : "Enregistrer"}
             </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={() => setEdition(false)}
-            >
+            <Button type="button" variant="ghost" onClick={fermer}>
               Annuler
             </Button>
           </div>

@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from "vitest"
 import { render, screen, fireEvent } from "@testing-library/react"
+import { jetons } from "@/test/jetons"
 import { FormulaireVariantes } from "@/components/produit/formulaire-variantes"
 import type { VarianteSaisie } from "@/components/produit/formulaire-variantes"
 
@@ -345,5 +346,60 @@ describe("FormulaireVariantes", () => {
 
     expect(onChange).not.toHaveBeenCalled()
     expect(screen.getByRole("alert").textContent).toContain("50")
+  })
+
+  // jsdom has neither a layout engine nor a CSS cascade: the two cases below
+  // guard that the classes are APPLIED, never that they produce their effect.
+  // Both effects were measured in Chrome, on the creation form, at 375 px and
+  // at 1280 px.
+
+  /**
+   * Measured at 375 px: the three wrappers sat at 252 px each in a 343 px row
+   * — bare flex items are `flex: 0 1 auto`, so each took its content's width —
+   * wrapping onto three lines anyway and leaving 91 px unused on the right,
+   * while every product field above took the full 343 px. With `w-full` they
+   * measure 343 px, like their neighbours. At 1280 px the three wrappers
+   * measure 191 px with AND without the two classes: `sm:w-auto` restores the
+   * `width: auto` they had, so the desktop row is unchanged.
+   */
+  it("donne aux champs de variante la largeur disponible sous sm, sans toucher au desktop", () => {
+    render(<FormulaireVariantes value={[]} onChange={vi.fn()} />)
+
+    for (const libelle of [
+      "Prix (optionnel)",
+      "Plancher (optionnel)",
+      "Code-barres (optionnel)",
+    ]) {
+      const enveloppe = screen.getByLabelText(libelle).parentElement
+      expect(jetons(enveloppe)).toContain("w-full")
+      // Without the `sm` reset, `w-full` would also apply on desktop and
+      // stack the three fields there — a regression this assertion is the
+      // only thing standing in the way of.
+      expect(jetons(enveloppe)).toContain("sm:w-auto")
+    }
+  })
+
+  /**
+   * The attribute pairs stack below `sm`, where the gap INSIDE a pair and the
+   * gap BETWEEN two pairs are the only thing telling one pair from the next.
+   * Measured at 375 px: 8 px inside, 12 px between — a ratio of 1.5, i.e. a
+   * 4 px difference, so the pairs read as one run of anonymous fields.
+   * `gap-6` takes the outer gap to 24 px (ratio 3.0). `sm:gap-1.5` is asserted
+   * alongside: from `sm` on each pair is a single row and needs no separation,
+   * and the measured desktop gap must stay 6 px.
+   */
+  it("sépare les paires d'attributs empilées sans toucher à la géométrie desktop", () => {
+    render(<FormulaireVariantes value={[]} onChange={vi.fn()} />)
+
+    const paire = screen.getByLabelText("Attribut 1 — nom").parentElement
+    const enveloppe = paire?.parentElement ?? null
+
+    expect(jetons(enveloppe)).toContain("gap-6")
+    expect(jetons(enveloppe)).toContain("sm:gap-1.5")
+    // The premise: the outer gap only separates anything while the pair is a
+    // COLUMN. Turn the pair into a row below `sm` and the two gaps stop being
+    // comparable, which would leave the assertion above green and meaningless.
+    expect(jetons(paire)).toContain("flex-col")
+    expect(jetons(paire)).toContain("gap-2")
   })
 })

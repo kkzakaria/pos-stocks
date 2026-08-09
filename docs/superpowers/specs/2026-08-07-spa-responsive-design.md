@@ -117,6 +117,34 @@ Le correctif passe donc par **une redéfinition de `--text-xs` sous 768 px** dan
 
 `DESIGN.md` doit être mis à jour pour refléter ce palier, sinon le document ment sur le système réel.
 
+## Image produit sur mobile — terrain à préparer en phase 2b
+
+Le serveur plafonne l'image à **2 Mo** et n'accepte que `image/jpeg`, `image/png`, `image/webp` (rejet précoce sur `content-length`). Or une photo prise avec l'appareil d'un téléphone dépasse presque toujours 2 Mo. En l'état, le caissier ou le gestionnaire qui photographie un produit depuis son mobile est simplement **bloqué** : `ChampImage` affiche « L'image dépasse 2 Mo » et n'offre aucune issue.
+
+La phase 2b ne livre pas la compression elle-même, mais doit **rendre son insertion triviale**. Trois obstacles structurels aujourd'hui :
+
+1. **L'ordre est inversé.** La validation taille/MIME vit en ligne dans le gestionnaire `onChange` de `ChampImage` et s'exécute **avant** toute transformation possible. Une photo de 3 Mo est rejetée avant d'avoir pu être réduite.
+
+   L'ordre retenu et implémenté n'est pas « transformer puis valider » d'un bloc : les **deux validations sont dissociées**, et se lisent, dans les deux chemins d'envoi, comme *valider le type → préparer → valider la taille → remettre au parent (ou poster)*.
+
+   - **Le type MIME se valide AVANT `preparerImage`** — c'est une garde d'entrée : on ne passe pas un fichier arbitraire à un décodeur d'image. Un PDF doit produire « Formats acceptés : JPEG, PNG, WebP », pas une erreur de décodage du navigateur.
+   - **La taille se valide APRÈS `preparerImage`** — c'est le fichier *préparé* qui doit tenir sous le plafond, jamais l'original : valider avant, c'est rejeter la photo de 3 Mo avant qu'elle ait eu sa chance d'être réduite.
+
+   Ce découpage est la raison d'être de la tâche ; ne pas le « simplifier » en regroupant les deux validations d'un même côté de la préparation.
+
+2. **Le gestionnaire est synchrone.** Décoder et ré-encoder une image est asynchrone ; le handler doit devenir une fonction nommée `async`, avec un état d'attente visible — une photo de 5 Mo prend un moment, et le champ ne doit pas paraître figé.
+3. **Les deux chemins d'envoi divergent.** La création (`ChampImage`) valide ; l'édition (`section-identite.tsx`) ne valide **rien** côté client et poste directement, pour se faire rejeter par le serveur. Les deux doivent passer par le même point.
+
+**Ce que la phase 2b met en place** : un module `@/lib/image.ts` exportant `preparerImage(fichier: File): Promise<File>`, branché sur les **deux** chemins, dont l'implémentation initiale renvoie le fichier inchangé. Le contrat est documenté, testé sur le cas identité, et la compression se réduit alors à remplir ce corps de fonction.
+
+**Décisions laissées ouvertes, à trancher au moment d'implémenter la compression** (les noter ne coûte rien maintenant, les redécouvrir coûtera cher) :
+
+- **Orientation EXIF** — le ré-encodage par `<canvas>` perd les métadonnées EXIF, donc une photo prise en portrait ressort couchée. `createImageBitmap(fichier, { imageOrientation: "from-image" })` applique l'orientation avant le dessin ; c'est le piège n°1 de toute compression cliente.
+- **Format de sortie** — WebP compresse nettement mieux que JPEG à qualité égale et préserve la transparence, ce que JPEG ne fait pas. Les trois formats sont acceptés par le serveur.
+- **Dimension cible et qualité** — l'image est affichée en 128×128 sur la fiche et 40×40 en liste ; une borne longue de 1024 px est très large pour cet usage.
+- **Garantie, pas tentative** — le serveur rejette sur `content-length`, donc la compression doit *atteindre* la cible, pas seulement s'en approcher : prévoir une seconde passe si le premier ré-encodage dépasse encore.
+- **Message d'erreur** — si même après compression le fichier dépasse, le message doit dire quoi faire, pas seulement constater l'échec.
+
 ## Ce qui ne change pas
 
 - Aucune modification de l'API, d'un schéma Zod, ou d'une règle d'autorisation. Chantier strictement front.
@@ -152,6 +180,8 @@ Une PR par phase, chacune livrable et vérifiable au navigateur indépendamment.
 5. **Administration** — entrepôts, utilisateurs, paramètres, tableau de bord, mon compte. L'écran de connexion est déjà quasi conforme et ne demande qu'une vérification.
 
 La phase 2 initialement prévue a été **scindée en 2a et 2b** après reconnaissance : elle cumulait 7 écrans, 10 tables et 8 fichiers de test à ne pas casser, soit plus du double de la phase 1. Le catalogue concentre à lui seul les deux structures qui résistent à `ListeAdaptative` (voir ci-dessous) et 7 des 8 fichiers de test.
+
+**Le gel de `ListeAdaptative` est un défaut fort, pas un interdit.** Le composant est conçu pour être consommé tel quel, et l'a été sur sept écrans sans qu'une seule prop soit ajoutée. Mais quand une contrainte réelle n'a **aucune alternative propre** — c'est-à-dire quand les solutions de contournement au niveau de l'écran consommateur dégraderaient le rendu, la sémantique ou la donnée —, **on modifie le composant**. L'ordre de préférence reste : résoudre au niveau de l'écran, puis vérifier que la règle `masquerEnCarte` ne couvre pas déjà le cas, et seulement ensuite ouvrir le composant. Toute modification est additive, documentée dans sa JSDoc, couverte par un test, et sa raison est consignée au ledger — c'est le contournement qui doit se justifier, pas la modification.
 
 **Deux structures ne passeront pas par `ListeAdaptative`, délibérément** (décidé en phase 2a, à appliquer en 2b) :
 

@@ -133,7 +133,11 @@ export function FormulaireVariantes({
               key={`${variante.name}-${index}`}
               className="flex items-center justify-between gap-2 px-2 py-1.5"
             >
-              <span className="text-xs">
+              {/* min-w-0 + break-words: an attribute VALUE is free text, and a
+                  long unbroken one (a supplier reference pasted in) used to set
+                  the flex item's automatic minimum to its own width and push
+                  the whole page 200px past the viewport, "Retirer" included. */}
+              <span className="min-w-0 text-xs break-words">
                 {variante.name}{" "}
                 <span className="text-muted-foreground">
                   ·{" "}
@@ -167,50 +171,71 @@ export function FormulaireVariantes({
 
       <div className="flex flex-col gap-1.5">
         <Label>Attributs</Label>
-        {attributs.map((paire, index) => (
-          <div key={index} className="flex gap-2">
-            <Input
-              aria-label={`Attribut ${index + 1} — nom`}
-              placeholder="taille"
-              value={paire.cle}
-              onChange={(e) =>
-                setAttributs(
-                  attributs.map((item, i) =>
-                    i === index ? { ...item, cle: e.target.value } : item
+        {/* Own wrapper so the gap BETWEEN pairs beats the gap INSIDE a stacked
+            pair (8px) below `sm`. Without it the two gaps would read 6px vs
+            8px and the pairs would visually merge into one column of anonymous
+            fields. 24px and not the 12px first shipped: a 1.5 ratio satisfies
+            the "external > internal" rule on paper and still reads as one run
+            of fields, the two gaps differing by 4px. At 3.0 the pair is the
+            unit the eye picks up first. Kept identical to the sheet's variant
+            dialog (`section-variantes.tsx`), which repeats this block rather
+            than sharing it. Back to the parent's rhythm from `sm` on, where
+            each pair is a single row again and needs no separation. */}
+        <div className="flex flex-col gap-6 sm:gap-1.5">
+          {attributs.map((paire, index) => (
+            // Stacked below `sm`: side by side, the pair shrinks to 132px per
+            // field once "Retirer" takes its 62px — under the readable width
+            // for a free-text attribute.
+            <div key={index} className="flex flex-col gap-2 sm:flex-row">
+              <Input
+                aria-label={`Attribut ${index + 1} — nom`}
+                placeholder="taille"
+                value={paire.cle}
+                onChange={(e) =>
+                  setAttributs(
+                    attributs.map((item, i) =>
+                      i === index ? { ...item, cle: e.target.value } : item
+                    )
                   )
-                )
-              }
-            />
-            <Input
-              aria-label={`Attribut ${index + 1} — valeur`}
-              placeholder="M"
-              value={paire.valeur}
-              onChange={(e) =>
-                setAttributs(
-                  attributs.map((item, i) =>
-                    i === index ? { ...item, valeur: e.target.value } : item
-                  )
-                )
-              }
-            />
-            {/* Adding pairs without being able to remove one forced the user to
-                abandon the whole draft over a single mistyped key. The last
-                remaining pair stays, since a variant needs one attribute. */}
-            {attributs.length > 1 && (
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                aria-label={`Retirer l'attribut ${index + 1}`}
-                onClick={() =>
-                  setAttributs(attributs.filter((_, i) => i !== index))
                 }
-              >
-                Retirer
-              </Button>
-            )}
-          </div>
-        ))}
+              />
+              <Input
+                aria-label={`Attribut ${index + 1} — valeur`}
+                placeholder="M"
+                value={paire.valeur}
+                onChange={(e) =>
+                  setAttributs(
+                    attributs.map((item, i) =>
+                      i === index ? { ...item, valeur: e.target.value } : item
+                    )
+                  )
+                }
+              />
+              {/* Adding pairs without being able to remove one forced the user
+                  to abandon the whole draft over a single mistyped key. The
+                  last remaining pair stays, since a variant needs one
+                  attribute. */}
+              {attributs.length > 1 && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  // `self-start` only matters while stacked, where the default
+                  // stretch would blow the button up to the full width. From
+                  // `sm` on it is inert: the button has a fixed height, so
+                  // stretch already resolved to flex-start.
+                  className="self-start"
+                  aria-label={`Retirer l'attribut ${index + 1}`}
+                  onClick={() =>
+                    setAttributs(attributs.filter((_, i) => i !== index))
+                  }
+                >
+                  Retirer
+                </Button>
+              )}
+            </div>
+          ))}
+        </div>
         <Button
           type="button"
           variant="outline"
@@ -222,8 +247,16 @@ export function FormulaireVariantes({
         </Button>
       </div>
 
+      {/* `w-full sm:w-auto` on the three wrappers. As bare flex items they are
+          `flex: 0 1 auto`, so each one sat at its content's width — 252px
+          measured at 375px — in a 343px row, wrapping to three lines anyway
+          and leaving 91px unused on the right, while every product field above
+          takes the full 343px. Full width below `sm` lines them up with those;
+          `sm:w-auto` restores `width: auto` from `sm` on, so the desktop row
+          (three fields side by side at their natural width) is unchanged.
+          Same treatment as the filter row of `routes/_app/ventes/index.tsx`. */}
       <div className="flex flex-wrap gap-3">
-        <div className="flex flex-col gap-1.5">
+        <div className="flex w-full flex-col gap-1.5 sm:w-auto">
           <Label htmlFor="v-prix">Prix (optionnel)</Label>
           <Input
             id="v-prix"
@@ -234,7 +267,7 @@ export function FormulaireVariantes({
             onChange={(e) => setPrix(e.target.value)}
           />
         </div>
-        <div className="flex flex-col gap-1.5">
+        <div className="flex w-full flex-col gap-1.5 sm:w-auto">
           <Label htmlFor="v-plancher">Plancher (optionnel)</Label>
           <Input
             id="v-plancher"
@@ -245,7 +278,7 @@ export function FormulaireVariantes({
             onChange={(e) => setPlancher(e.target.value)}
           />
         </div>
-        <div className="flex flex-col gap-1.5">
+        <div className="flex w-full flex-col gap-1.5 sm:w-auto">
           <Label htmlFor="v-barcode">Code-barres (optionnel)</Label>
           <Input
             id="v-barcode"
@@ -257,8 +290,15 @@ export function FormulaireVariantes({
         </div>
       </div>
 
+      {/* break-words: these messages quote what the user typed — an attribute
+          key, or the normalised SKU suffix built from attribute VALUES. A
+          60-character supplier reference pasted as a value overflows the 343px
+          available at 375px and <main> does not clip, exactly like the variant
+          list above. No min-w-0 needed here, unlike the <span> in that list:
+          this <p> is a block in a column, its width is already the
+          container's. */}
       {erreur && (
-        <p role="alert" className="text-xs text-destructive">
+        <p role="alert" className="text-xs break-words text-destructive">
           {erreur}
         </p>
       )}

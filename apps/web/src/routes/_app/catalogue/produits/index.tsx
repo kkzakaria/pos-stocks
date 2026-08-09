@@ -2,9 +2,11 @@ import { useEffect, useRef, useState } from "react"
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router"
 import { useQuery } from "@tanstack/react-query"
 import { apiFetch, apiUrl } from "@/lib/api"
+import { cn } from "@/lib/utils"
 import { formaterMontant } from "@/lib/format"
 import { usePeutEcrire } from "@/lib/permissions"
 import { validerRechercheProduits } from "@/lib/recherche-produits"
+import type { RechercheProduits } from "@/lib/recherche-produits"
 import { PackageSearch } from "lucide-react"
 import { EtatVide } from "@/components/etat-vide"
 import { Pagination } from "@/components/ui/pagination"
@@ -20,15 +22,10 @@ import {
   ComboboxItem,
   ComboboxList,
 } from "@/components/ui/combobox"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
-import { TableSkeleton } from "@/components/ui/table-skeleton"
+import { TEXTE_LIBRE } from "@/components/ui/table"
+import { ListeAdaptative } from "@/components/ui/liste-adaptative"
+import type { ColonneAdaptative } from "@/components/ui/liste-adaptative"
+import { FiltresRepliables } from "@/components/ui/filtres-repliables"
 
 export const Route = createFileRoute("/_app/catalogue/produits/")({
   // Filters and page live in the URL: shareable, refresh- and back-safe.
@@ -50,11 +47,166 @@ type Produit = {
 type Categorie = { id: string; name: string }
 type Reglages = { currency: string }
 
+/** Normalizes the list's live filter state into a search object — undefined
+ * (not empty string / page 1) so `Link`'s `search` and the URL it produces
+ * stay minimal. Shared by every navigation that must carry the list's
+ * filters back: row link, row click, and the "Nouveau produit" actions. */
+function rechercheListe(
+  q: string,
+  categorie: string,
+  page: number
+): RechercheProduits {
+  return {
+    q: q || undefined,
+    categorie: categorie || undefined,
+    page: page > 1 ? page : undefined,
+  }
+}
+
+/** Decorative only (`alt=""`): the underlying data (name, SKU) is already
+ * carried by other columns, so a screen reader has nothing to lose. */
+function vignetteProduit(p: Produit) {
+  return p.imageKey ? (
+    <img
+      src={`${apiUrl(`/api/v1/files/${p.imageKey}`)}?v=${encodeURIComponent(p.updatedAt)}`}
+      alt=""
+      width={40}
+      height={40}
+      loading="lazy"
+      crossOrigin="use-credentials"
+      className="h-10 w-10 shrink-0 rounded object-cover"
+    />
+  ) : (
+    <div className="h-10 w-10 shrink-0 rounded bg-muted" />
+  )
+}
+
+/**
+ * `Produit` with the two pieces of context the row itself does not carry:
+ * `currency` is an organization-wide setting fetched once (not a product
+ * field), and `recherche` is this screen's live filter state, read from the
+ * URL. Splicing them into every row is what keeps `COLONNES_PRODUITS` a
+ * static module-level array instead of a factory — the same trade already
+ * made by `LigneVenteAffichee` (`routes/_app/ventes/$saleId.tsx`, where the
+ * currency is carried once by the sale, not by each line) and by
+ * `LigneVentesBoutiqueAffichee` (`rapports/rapport-ventes.tsx`, which
+ * splices a screen-level scalar, `totalCa`).
+ */
+export type ProduitAffiche = Produit & {
+  currency: string
+  recherche: RechercheProduits
+}
+
+/** The one real link to the product sheet — used verbatim by the table's
+ * "Nom" cell and by the card's title, so the two renderings can never drift
+ * apart. */
+function lienNomProduit(p: ProduitAffiche) {
+  return (
+    <Link
+      to="/catalogue/produits/$productId"
+      params={{ productId: p.id }}
+      search={p.recherche}
+      className="min-w-0 rounded-sm outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring/30"
+    >
+      {p.name}
+    </Link>
+  )
+}
+
+/** Card mode: thumbnail plus the real link to the product sheet — the same
+ * contract table mode exposes via the "Nom" column, so a keyboard or
+ * screen-reader user reaches the sheet identically in both tiers. */
+export function titreProduit(p: ProduitAffiche) {
+  return (
+    <span className="flex items-center gap-2">
+      {vignetteProduit(p)}
+      {lienNomProduit(p)}
+    </span>
+  )
+}
+
+/** Card mode: the SKU as the secondary line under the title. `font-mono`
+ * rides on the returned content rather than only on the column's
+ * `classeCellule`, which never reaches the card's subtitle: an
+ * identification code must not change typeface with the screen width. */
+export function sousTitreProduit(p: Produit) {
+  return <span className="font-mono">{p.sku}</span>
+}
+
+/**
+ * `TEXTE_LIBRE` on the two free-text columns only — the product name, and the
+ * SKU, whose tail is normalised from attribute VALUES the user typed and can
+ * therefore be arbitrarily long and unbreakable. Its JSDoc in
+ * `components/ui/table.tsx` holds the mechanism, including why `break-words`
+ * alone contributes nothing here. Measured at the 1024px tier, where this
+ * screen's container is 736px: a single long product name sized the Nom column
+ * at 576px and the table at 940px, i.e. 204px of horizontal scroll.
+ *
+ * The four other columns are deliberately left alone: the thumbnail carries no
+ * text, Prix is a formatted amount and Variantes a count — atomic figures that
+ * must never be broken mid-number — and Statut is a fixed one-word badge from
+ * a closed set.
+ */
+export const COLONNES_PRODUITS: ColonneAdaptative<ProduitAffiche>[] = [
+  {
+    cle: "vignette",
+    entete: "",
+    // Purely decorative (alt=""); resurfaces via titreProduit.
+    masquerEnCarte: true,
+    cellule: vignetteProduit,
+  },
+  {
+    cle: "nom",
+    entete: "Nom",
+    // Resurfaces via titreProduit, which renders this same link.
+    masquerEnCarte: true,
+    classeCellule: cn("font-medium", TEXTE_LIBRE),
+    cellule: lienNomProduit,
+  },
+  {
+    cle: "sku",
+    entete: "SKU",
+    // Resurfaces via sousTitreProduit.
+    masquerEnCarte: true,
+    classeCellule: cn("font-mono text-xs", TEXTE_LIBRE),
+    cellule: sousTitreProduit,
+  },
+  {
+    cle: "prix",
+    entete: "Prix",
+    numeric: true,
+    cellule: (p) => formaterMontant(p.price, p.currency),
+  },
+  {
+    cle: "variantes",
+    entete: "Variantes",
+    numeric: true,
+    cellule: (p) => {
+      const actives = p.variants.filter((v) => v.isActive).length
+      return actives > 0 ? (
+        actives
+      ) : (
+        <span className="text-muted-foreground">—</span>
+      )
+    },
+  },
+  {
+    cle: "statut",
+    entete: "Statut",
+    cellule: (p) => (
+      <Badge variant={p.isActive ? "success" : "secondary"}>
+        {p.isActive ? "Actif" : "Inactif"}
+      </Badge>
+    ),
+  },
+]
+
 /**
  * Catalog products list: search (name, SKU, barcode), filter by
  * category, and creation of a product leading to its detail page.
  * Full-height column layout: heading, filters and pagination stay
- * fixed while the table body scrolls under its sticky header.
+ * fixed while the list body scrolls under it (sticky table header from
+ * the `md` tier, cards below).
  */
 function ProduitsPage() {
   const navigate = useNavigate()
@@ -119,8 +271,24 @@ function ProduitsPage() {
   const nomCategorie = (id: string) =>
     listeCategories.find((c) => c.id === id)?.name ?? id
 
+  const rechercheListeActuelle = rechercheListe(q, categorie, page)
+  const liste = produits.data?.products ?? []
+  const lignes: ProduitAffiche[] = liste.map((p) => ({
+    ...p,
+    currency: devise,
+    recherche: rechercheListeActuelle,
+  }))
+
+  // Only filters actually set by the user: the search and category filters
+  // live in the URL, so at mount they may already hold values restored from
+  // a shared link or a back navigation — counting non-empty values (rather
+  // than freezing a neutral default, as `ventes/index.tsx` does for its
+  // locally-stated period) keeps a filtered, reloaded list from showing zero
+  // active filters.
+  const nbFiltresActifs = (q !== "" ? 1 : 0) + (categorie !== "" ? 1 : 0)
+
   return (
-    <div className="flex h-[calc(100dvh-3rem)] flex-col">
+    <div className="flex h-full flex-col">
       <div className="mb-6 flex items-center justify-between">
         <h1 className="text-xl font-semibold">Produits</h1>
         {peutEcrire && (
@@ -128,11 +296,7 @@ function ProduitsPage() {
             onClick={() =>
               void navigate({
                 to: "/catalogue/produits/nouveau",
-                search: {
-                  q: q || undefined,
-                  categorie: categorie || undefined,
-                  page: page > 1 ? page : undefined,
-                },
+                search: rechercheListeActuelle,
               })
             }
           >
@@ -141,192 +305,118 @@ function ProduitsPage() {
         )}
       </div>
 
-      <div className="mb-4 flex flex-wrap items-end gap-3">
-        <div className="flex flex-col gap-1.5">
-          <Label htmlFor="p-recherche">Recherche</Label>
-          <InputRecherche
-            id="p-recherche"
-            name="recherche"
-            ref={refRecherche}
-            placeholder="Nom, SKU ou code-barres…"
-            value={recherche}
-            onChange={(e) => setRecherche(e.target.value)}
-            className="w-72"
-          />
-        </div>
-        <div className="flex flex-col gap-1.5">
-          <Label htmlFor="p-filtre-categorie">Catégorie</Label>
-          <Combobox
-            items={idsCategories}
-            itemToStringLabel={nomCategorie}
-            autoHighlight
-            value={categorie || null}
-            onValueChange={(valeur) =>
-              // Push (not replace): each filter step stays in history
-              void navigateFiltres({
-                search: (prec) => ({
-                  ...prec,
-                  categorie: valeur ?? undefined,
-                  page: undefined,
-                }),
-              })
-            }
-          >
-            <ComboboxInput
-              id="p-filtre-categorie"
-              placeholder="Toutes"
-              showClear
-              className="w-56"
+      <FiltresRepliables nbActifs={nbFiltresActifs}>
+        <div className="mt-4 flex flex-wrap items-end gap-3">
+          <div className="flex w-full flex-col gap-1.5 sm:w-72">
+            <Label htmlFor="p-recherche">Recherche</Label>
+            <InputRecherche
+              id="p-recherche"
+              name="recherche"
+              ref={refRecherche}
+              placeholder="Nom, SKU ou code-barres…"
+              value={recherche}
+              onChange={(e) => setRecherche(e.target.value)}
+              className="w-full sm:w-72"
             />
-            <ComboboxContent>
-              <ComboboxEmpty>Aucune catégorie trouvée</ComboboxEmpty>
-              <ComboboxList>
-                {(id: string) => (
-                  <ComboboxItem key={id} value={id}>
-                    {nomCategorie(id)}
-                  </ComboboxItem>
-                )}
-              </ComboboxList>
-            </ComboboxContent>
-          </Combobox>
+          </div>
+          <div className="flex w-full flex-col gap-1.5 sm:w-56">
+            <Label htmlFor="p-filtre-categorie">Catégorie</Label>
+            <Combobox
+              items={idsCategories}
+              itemToStringLabel={nomCategorie}
+              autoHighlight
+              value={categorie || null}
+              onValueChange={(valeur) =>
+                // Push (not replace): each filter step stays in history
+                void navigateFiltres({
+                  search: (prec) => ({
+                    ...prec,
+                    categorie: valeur ?? undefined,
+                    page: undefined,
+                  }),
+                })
+              }
+            >
+              <ComboboxInput
+                id="p-filtre-categorie"
+                placeholder="Toutes"
+                showClear
+                className="w-full sm:w-56"
+              />
+              <ComboboxContent>
+                <ComboboxEmpty>Aucune catégorie trouvée</ComboboxEmpty>
+                <ComboboxList>
+                  {(id: string) => (
+                    <ComboboxItem key={id} value={id}>
+                      {nomCategorie(id)}
+                    </ComboboxItem>
+                  )}
+                </ComboboxList>
+              </ComboboxContent>
+            </Combobox>
+          </div>
         </div>
-      </div>
+      </FiltresRepliables>
 
-      <Table containerClassName="min-h-0 flex-1 overflow-y-auto">
-        <TableHeader sticky>
-          <TableRow>
-            <TableHead />
-            <TableHead>Nom</TableHead>
-            <TableHead>SKU</TableHead>
-            <TableHead numeric>Prix</TableHead>
-            <TableHead numeric>Variantes</TableHead>
-            <TableHead>Statut</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {produits.isPending ? (
-            <TableSkeleton colonnes={6} />
-          ) : (produits.data?.products ?? []).length === 0 ? (
-            <TableRow>
-              <TableCell colSpan={6}>
-                <EtatVide
-                  icon={PackageSearch}
-                  titre="Aucun produit trouvé"
-                  message={
-                    q || categorie
-                      ? "Aucun produit ne correspond à ces critères. Ajustez la recherche ou le filtre."
-                      : "Créez votre premier produit pour démarrer le catalogue."
-                  }
-                  action={
-                    peutEcrire && !q && !categorie ? (
-                      <Button
-                        onClick={() =>
-                          void navigate({
-                            to: "/catalogue/produits/nouveau",
-                            search: {
-                              q: q || undefined,
-                              categorie: categorie || undefined,
-                              page: page > 1 ? page : undefined,
-                            },
-                          })
-                        }
-                      >
-                        Nouveau produit
-                      </Button>
-                    ) : undefined
-                  }
-                />
-              </TableCell>
-            </TableRow>
-          ) : (
-            (produits.data?.products ?? []).map((p) => {
-              const variantesActives = p.variants.filter(
-                (v) => v.isActive
-              ).length
-              return (
-                <TableRow
-                  key={p.id}
-                  className="cursor-pointer"
-                  onClick={() =>
-                    void navigate({
-                      to: "/catalogue/produits/$productId",
-                      params: { productId: p.id },
-                      search: {
-                        q: q || undefined,
-                        categorie: categorie || undefined,
-                        page: page > 1 ? page : undefined,
-                      },
-                    })
-                  }
-                >
-                  <TableCell>
-                    {p.imageKey ? (
-                      <img
-                        src={`${apiUrl(`/api/v1/files/${p.imageKey}`)}?v=${encodeURIComponent(p.updatedAt)}`}
-                        alt=""
-                        width={40}
-                        height={40}
-                        loading="lazy"
-                        crossOrigin="use-credentials"
-                        className="h-10 w-10 rounded object-cover"
-                      />
-                    ) : (
-                      <div className="h-10 w-10 rounded bg-muted" />
-                    )}
-                  </TableCell>
-                  <TableCell className="font-medium">
-                    <Link
-                      to="/catalogue/produits/$productId"
-                      params={{ productId: p.id }}
-                      search={{
-                        q: q || undefined,
-                        categorie: categorie || undefined,
-                        page: page > 1 ? page : undefined,
-                      }}
-                      onClick={(e) => e.stopPropagation()}
-                      className="rounded-sm outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring/30"
-                    >
-                      {p.name}
-                    </Link>
-                  </TableCell>
-                  <TableCell className="font-mono text-xs">{p.sku}</TableCell>
-                  <TableCell numeric>
-                    {formaterMontant(p.price, devise)}
-                  </TableCell>
-                  <TableCell numeric>
-                    {variantesActives > 0 ? (
-                      variantesActives
-                    ) : (
-                      <span className="text-muted-foreground">—</span>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant={p.isActive ? "success" : "secondary"}>
-                      {p.isActive ? "Actif" : "Inactif"}
-                    </Badge>
-                  </TableCell>
-                </TableRow>
-              )
-            })
-          )}
-        </TableBody>
-      </Table>
-
-      {(produits.data?.total ?? 0) > 0 && (
-        <Pagination
-          className="mt-3"
-          page={page}
-          total={produits.data?.total ?? 0}
-          pageSize={produits.data?.limite ?? 50}
-          onPageChange={(p) =>
-            // Push (not replace): Back returns to the previous page of results
-            void navigateFiltres({
-              search: (prec) => ({ ...prec, page: p > 1 ? p : undefined }),
+      <div className="mt-4 flex min-h-0 flex-1 flex-col">
+        <ListeAdaptative<ProduitAffiche>
+          colonnes={COLONNES_PRODUITS}
+          lignes={lignes}
+          cleLigne={(p) => p.id}
+          titre={titreProduit}
+          sousTitre={sousTitreProduit}
+          chargement={produits.isPending}
+          containerClassName="min-h-0 flex-1 overflow-y-auto"
+          surClicLigne={(p) =>
+            void navigate({
+              to: "/catalogue/produits/$productId",
+              params: { productId: p.id },
+              search: rechercheListeActuelle,
             })
           }
-          element={{ un: "produit", plusieurs: "produits" }}
+          etatVide={
+            <EtatVide
+              icon={PackageSearch}
+              titre="Aucun produit trouvé"
+              message={
+                q || categorie
+                  ? "Aucun produit ne correspond à ces critères. Ajustez la recherche ou le filtre."
+                  : "Créez votre premier produit pour démarrer le catalogue."
+              }
+              action={
+                peutEcrire && !q && !categorie ? (
+                  <Button
+                    onClick={() =>
+                      void navigate({
+                        to: "/catalogue/produits/nouveau",
+                        search: rechercheListeActuelle,
+                      })
+                    }
+                  >
+                    Nouveau produit
+                  </Button>
+                ) : undefined
+              }
+            />
+          }
         />
-      )}
+
+        {(produits.data?.total ?? 0) > 0 && (
+          <Pagination
+            className="mt-3"
+            page={page}
+            total={produits.data?.total ?? 0}
+            pageSize={produits.data?.limite ?? 50}
+            onPageChange={(p) =>
+              // Push (not replace): Back returns to the previous page of results
+              void navigateFiltres({
+                search: (prec) => ({ ...prec, page: p > 1 ? p : undefined }),
+              })
+            }
+            element={{ un: "produit", plusieurs: "produits" }}
+          />
+        )}
+      </div>
     </div>
   )
 }

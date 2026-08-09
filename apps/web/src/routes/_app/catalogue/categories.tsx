@@ -2,6 +2,7 @@ import { useState } from "react"
 import { createFileRoute } from "@tanstack/react-router"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { apiFetch } from "@/lib/api"
+import { cn } from "@/lib/utils"
 import { usePeutEcrire } from "@/lib/permissions"
 import { FolderTree } from "lucide-react"
 import { EtatVide } from "@/components/etat-vide"
@@ -21,21 +22,111 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
-import { TableSkeleton } from "@/components/ui/table-skeleton"
+import { TEXTE_LIBRE } from "@/components/ui/table"
+import { ListeAdaptative } from "@/components/ui/liste-adaptative"
+import type { ColonneAdaptative } from "@/components/ui/liste-adaptative"
 
 export const Route = createFileRoute("/_app/catalogue/categories")({
   component: CategoriesPage,
 })
 
 type Categorie = { id: string; name: string; parentId: string | null }
+
+/**
+ * `Categorie` with the two pieces of context the row itself does not carry:
+ * `libelle`, the hierarchical label, which needs the whole list to resolve the
+ * parent's name, and `surModifier`, this screen's edit handler. Splicing them
+ * into every row is what keeps the column arrays static at module level
+ * instead of a factory — the same trade already made by `ProduitAffiche`
+ * (`catalogue/produits/index.tsx`) and `LigneVenteAffichee`
+ * (`ventes/$saleId.tsx`).
+ */
+export type CategorieAffichee = Categorie & {
+  libelle: string
+  surModifier: () => void
+}
+
+/**
+ * Hierarchical label: `Parent > Enfant`, or the bare name at root level.
+ * `parents` maps every known category id to its name; an unresolved parent
+ * degrades to "?" rather than dropping the level silently.
+ */
+export function libelleCategorie(
+  cat: Categorie,
+  parents: Map<string, string>
+): string {
+  return cat.parentId
+    ? `${parents.get(cat.parentId) ?? "?"} > ${cat.name}`
+    : cat.name
+}
+
+/** Card mode: the hierarchical label identifies the row. */
+export function titreCategorie(cat: CategorieAffichee) {
+  return cat.libelle
+}
+
+/**
+ * Shared between the table's action column and the card's trailing action, so
+ * the two renderings can never drift apart — and so the button exists exactly
+ * once in each tier.
+ */
+export function boutonModifier(cat: CategorieAffichee) {
+  return (
+    <Button variant="outline" size="sm" onClick={cat.surModifier}>
+      Modifier
+    </Button>
+  )
+}
+
+/**
+ * The one free-text column of this screen: the label is built from category
+ * NAMES the user typed, so a long one (or an unbreakable reference pasted as a
+ * name) sizes the column at its own min-content width and the whole table
+ * overflows its container — measured 1 075px of table for a 736px container at
+ * the 1024px tier, which pushed the "Modifier" button 331px out of view. Hence
+ * `TEXTE_LIBRE`; see its JSDoc in `components/ui/table.tsx` for why the two
+ * tokens are needed together and why `break-words` alone would be inert.
+ */
+const COLONNE_CATEGORIE: ColonneAdaptative<CategorieAffichee> = {
+  cle: "categorie",
+  entete: "Catégorie",
+  // Resurfaces via titreCategorie, which renders this same label.
+  masquerEnCarte: true,
+  classeCellule: cn("font-medium", TEXTE_LIBRE),
+  cellule: titreCategorie,
+}
+
+/** Appended only when the account can write. Module-private: the screen and
+ * its test consume the composed array below, never this column on its own. */
+const COLONNE_ACTION_CATEGORIE: ColonneAdaptative<CategorieAffichee> = {
+  cle: "action",
+  entete: "",
+  // Resurfaces via actionCarte, which renders this same button.
+  masquerEnCarte: true,
+  cellule: boutonModifier,
+}
+
+/** The data columns — exactly what a read-only account sees. */
+export const COLONNES_CATEGORIES: ColonneAdaptative<CategorieAffichee>[] = [
+  COLONNE_CATEGORIE,
+]
+
+/**
+ * Write-capable roles get the trailing action column. The composition is
+ * spelled out here — derived from `COLONNES_CATEGORIES`, not re-enumerated,
+ * and not assembled at the call site — for two reasons:
+ *
+ * 1. The data columns are defined in exactly one place. With two enumerated
+ *    arrays, adding a column and forgetting the read-only one would drop the
+ *    data for read-only accounts: information hidden by role without the role
+ *    justifying it, and no current test would see it.
+ * 2. The test asserts the very array the screen passes. Composed at the call
+ *    site, the test can only rebuild its own copy: swapping the ternary's
+ *    branches, or losing the write branch, would strip every action button on
+ *    desktop without failing a single test or the typecheck.
+ */
+export const COLONNES_CATEGORIES_ECRITURE: ColonneAdaptative<CategorieAffichee>[] =
+  [...COLONNES_CATEGORIES, COLONNE_ACTION_CATEGORIE]
 
 /**
  * Catalog categories screen: hierarchical list (parent > child),
@@ -97,8 +188,14 @@ function CategoriesPage() {
     onError: (err) => setErreur(err instanceof Error ? err.message : "Erreur"),
   })
 
+  const lignes: CategorieAffichee[] = listeCategories.map((cat) => ({
+    ...cat,
+    libelle: libelleCategorie(cat, parents),
+    surModifier: () => ouvrirEdition(cat),
+  }))
+
   return (
-    <div className="flex h-[calc(100dvh-3rem)] flex-col">
+    <div className="flex h-full flex-col">
       <div className="mb-6 flex items-center justify-between">
         <h1 className="text-xl font-semibold">Catégories</h1>
         {peutEcrire && (
@@ -141,7 +238,16 @@ function CategoriesPage() {
                     {(valeur: string) =>
                       valeur === ""
                         ? "— aucune —"
-                        : listeCategories.find((c) => c.id === valeur)?.name
+                        : // Two deliberately different fallbacks: "— aucune —"
+                          // asserts there is no parent, while an id the list no
+                          // longer resolves (parent deleted in another session,
+                          // list refreshed by invalidateQueries) means the
+                          // parent is unknown — saying "none" there would lie
+                          // about a parentId the form would still submit. A
+                          // render function makes `placeholder` inert, so
+                          // returning undefined would leave the trigger blank.
+                          (listeCategories.find((c) => c.id === valeur)?.name ??
+                          "— inconnue —")
                     }
                   </SelectValue>
                 </SelectTrigger>
@@ -169,57 +275,29 @@ function CategoriesPage() {
         </DialogContent>
       </Dialog>
 
-      <Table containerClassName="min-h-0 flex-1 overflow-y-auto">
-        <TableHeader sticky>
-          <TableRow>
-            <TableHead>Catégorie</TableHead>
-            {peutEcrire && <TableHead />}
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {isPending ? (
-            <TableSkeleton colonnes={peutEcrire ? 2 : 1} />
-          ) : listeCategories.length === 0 ? (
-            <TableRow>
-              <TableCell colSpan={peutEcrire ? 2 : 1}>
-                <EtatVide
-                  icon={FolderTree}
-                  titre="Aucune catégorie"
-                  message="Créez une catégorie pour organiser vos produits."
-                  action={
-                    peutEcrire ? (
-                      <Button onClick={ouvrirCreation}>
-                        Nouvelle catégorie
-                      </Button>
-                    ) : undefined
-                  }
-                />
-              </TableCell>
-            </TableRow>
-          ) : (
-            listeCategories.map((cat) => (
-              <TableRow key={cat.id}>
-                <TableCell className="font-medium">
-                  {cat.parentId
-                    ? `${parents.get(cat.parentId) ?? "?"} > ${cat.name}`
-                    : cat.name}
-                </TableCell>
-                {peutEcrire && (
-                  <TableCell>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => ouvrirEdition(cat)}
-                    >
-                      Modifier
-                    </Button>
-                  </TableCell>
-                )}
-              </TableRow>
-            ))
-          )}
-        </TableBody>
-      </Table>
+      <ListeAdaptative<CategorieAffichee>
+        colonnes={
+          peutEcrire ? COLONNES_CATEGORIES_ECRITURE : COLONNES_CATEGORIES
+        }
+        lignes={lignes}
+        cleLigne={(cat) => cat.id}
+        titre={titreCategorie}
+        chargement={isPending}
+        containerClassName="min-h-0 flex-1 overflow-y-auto"
+        actionCarte={peutEcrire ? boutonModifier : undefined}
+        etatVide={
+          <EtatVide
+            icon={FolderTree}
+            titre="Aucune catégorie"
+            message="Créez une catégorie pour organiser vos produits."
+            action={
+              peutEcrire ? (
+                <Button onClick={ouvrirCreation}>Nouvelle catégorie</Button>
+              ) : undefined
+            }
+          />
+        }
+      />
     </div>
   )
 }

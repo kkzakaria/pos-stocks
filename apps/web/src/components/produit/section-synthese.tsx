@@ -163,8 +163,28 @@ export function SectionSynthese({
             Annuler
           </Button>
         </div>
+        {/*
+          API messages can carry an unbroken token (a Zod field error quotes
+          the submitted value, an error code has underscores — neither is a CSS
+          break opportunity): without `break-words` the sentence pushed the
+          document to 587 px at a 375 px viewport.
+
+          `w-full` is what makes `break-words` SUFFICIENT here, and is not
+          decoration: this <p> is an item of a ROW flex container, so without a
+          definite main size its automatic minimum size falls back to
+          min-content — and `overflow-wrap: break-word` does NOT shrink
+          min-content. `w-full` gives the item a definite main size (and, under
+          `flex-wrap`, a line of its own), which is what lets the break apply.
+          Beware the look-alike: the fiche header (routes/_app/catalogue/
+          produits/$productId.tsx) solves the very same overflow with `min-w-0`
+          instead, because its items must stay side by side on one line. Same
+          symptom, two different enablers — do not swap one for the other.
+        */}
         {erreur && (
-          <p role="alert" className="w-full text-xs text-destructive">
+          <p
+            role="alert"
+            className="w-full text-xs break-words text-destructive"
+          >
             {erreur}
           </p>
         )}
