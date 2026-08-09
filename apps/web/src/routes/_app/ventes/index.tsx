@@ -171,9 +171,14 @@ export function HistoriqueVentes() {
               }}
             >
               <SelectTrigger id="v-boutique" className="w-full">
+                {/* base-ui ignores `placeholder` once a render function is
+                    given: the function runs even when empty, and returning
+                    undefined leaves a blank trigger. The fallback therefore
+                    lives in the lookup itself (documented pitfall). */}
                 <SelectValue placeholder="Choisir une boutique">
                   {(valeur: string) =>
-                    boutiques.find((b) => b.id === valeur)?.name
+                    boutiques.find((b) => b.id === valeur)?.name ??
+                    "Choisir une boutique"
                   }
                 </SelectValue>
               </SelectTrigger>

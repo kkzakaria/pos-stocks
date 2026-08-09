@@ -144,7 +144,9 @@ Il n'existe **aucune infrastructure E2E automatisée** dans ce dépôt (ni Playw
 Une PR par phase, chacune livrable et vérifiable au navigateur indépendamment.
 
 1. **Fondations + POS + deux tables témoins** — tiroir de navigation, composant générique table→carte, mock `matchMedia`, les deux correctifs de lisibilité, mise à jour de `DESIGN.md`, l'écran de vente POS complet (barre de synthèse, paliers 288/384 px, ouverture et fermeture de caisse, tickets du jour), **plus `stock/mouvements.tsx` (8 colonnes, la plus large) et `ventes/index.tsx`**.
-2. **Ventes et Rapports** (phase 2a) — deux chantiers transverses puis les écrans : retrait de `role="button"` sur les lignes de `ListeAdaptative` au profit d'un lien réel, composant de repli des filtres (`<details>` sous `md` avec compteur de filtres actifs), détail de vente, et les trois rapports (ventes, marges, valorisation).
+2. **Ventes et Rapports** (phase 2a) — deux chantiers transverses puis les écrans : retrait de `role="button"` sur les lignes de `ListeAdaptative`, composant de repli des filtres (`<details>` sous `md` avec compteur de filtres actifs), détail de vente, et les trois rapports (ventes, marges, valorisation).
+
+   Précision sur le premier chantier, pour ne pas promettre ce qui n'est pas encore livré : la phase 2a **retire** la sémantique de bouton (les lignes retrouvent leurs rôles natifs `row`/`listitem`) et **ne fournit aucun lien** — `surClicLigne` n'a aucun consommateur à l'issue de la phase. Le contrat « toute ligne cliquable expose un lien ou un bouton réel, en table comme en carte » vit dans la JSDoc du composant ; rien ne le teste ni ne l'applique tant qu'aucun écran ne s'en sert. Il sera exercé pour la première fois en **phase 2b**, sur la liste des produits, qui porte déjà un `<Link>` réel dans sa cellule « Nom ».
 3. **Catalogue** (phase 2b) — produits (liste, fiche, création), catégories, fournisseurs.
 4. **Stock** — niveaux, réceptions, transferts, inventaires.
 5. **Administration** — entrepôts, utilisateurs, paramètres, tableau de bord, mon compte. L'écran de connexion est déjà quasi conforme et ne demande qu'une vérification.

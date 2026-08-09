@@ -177,7 +177,7 @@ Sur les écrans à filtres, les contrôles passés en pleine largeur s'empilent 
 Créer `apps/web/src/components/ui/filtres-repliables.test.tsx` :
 
 ```tsx
-import { render, screen } from "@testing-library/react"
+import { render, screen, within } from "@testing-library/react"
 import { FiltresRepliables } from "./filtres-repliables"
 import { installerMatchMedia } from "@/test/media-query"
 

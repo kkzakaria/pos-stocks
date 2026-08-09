@@ -13,7 +13,10 @@ export const Route = createFileRoute("/_app/ventes/$saleId")({
   component: DetailVente,
 })
 
-const LIBELLES_METHODE: Record<string, string> = {
+// `Partial` on purpose: the API may send a payment method this map does not
+// know, and the `?? paiement.method` fallback below only type-checks as
+// meaningful if the lookup can actually be undefined.
+const LIBELLES_METHODE: Partial<Record<string, string>> = {
   cash: "Espèces",
   mobile_money: "Mobile money",
 }
