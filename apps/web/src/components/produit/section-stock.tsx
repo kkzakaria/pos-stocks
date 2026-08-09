@@ -10,6 +10,7 @@ import {
   TableHead,
   TableHeader,
   TableRow,
+  TEXTE_LIBRE,
 } from "@/components/ui/table"
 import { TableSkeleton } from "@/components/ui/table-skeleton"
 import type { ReactNode } from "react"
@@ -39,32 +40,6 @@ const ETAT_VIDE =
  * to the header's column count.
  */
 const COLONNES_NUMERIQUES = 3
-
-/**
- * The table's narrowest tier is 1024 px of viewport, not 375 px. Crossing
- * `lg` does two opposite things at once: the shell's sidebar becomes
- * permanent (−240 px) and the product sheet's grid splits into three columns,
- * of which this section takes two. Measured in Chrome on the product sheet,
- * this section's container goes from 991 px at a 1023 px viewport to 480 px
- * at 1024 px, and only climbs back to 651 px at 1280 px. Below `md` the hook
- * mounts cards instead — so 480 px is the narrowest table there is, and the
- * usual 375 / 768 / 1280 checkpoints all miss it.
- *
- * Warehouse and variant names are free user text. `TableCell` sets
- * `whitespace-nowrap`, and `table-layout: auto` sizes a column on its
- * content's *min-content* width — so an unbreakable token widens the table
- * without bound.
- *
- * `break-words` (`overflow-wrap: break-word`) is INERT here: it introduces no
- * break opportunity in the min-content calculation, so the column keeps the
- * whole token's width. Measured in that 480 px container on a 54-character
- * unbreakable warehouse name: 601 px of table untreated, and 601 px again
- * with `break-words`. `overflow-wrap: anywhere` does contribute to
- * min-content, and brings the same case back to 480 px — the container's own
- * width, no overflow left. `max-width` + `truncate` would also fit, but hides
- * the tail.
- */
-const TEXTE_LIBRE = "whitespace-normal wrap-anywhere"
 
 function cle(l: LigneStockProduit): string {
   return `${l.warehouseId}-${l.variantId}`
@@ -128,6 +103,32 @@ export function SectionStock({
 
 type PropsRendu = Props & { total: number; totalValeur: number }
 
+/**
+ * Table mode. Its narrowest tier is 1024 px of viewport, not 375 px. Crossing
+ * `lg` does two opposite things at once: the shell's sidebar becomes
+ * permanent (−240 px) and the product sheet's grid splits into three columns,
+ * of which this section takes two. Measured in Chrome on the product sheet,
+ * this section's container goes from 991 px at a 1023 px viewport to 480 px
+ * at 1024 px, and only climbs back to 651 px at 1280 px. Below `md` the hook
+ * mounts cards instead — so 480 px is the narrowest table there is, and the
+ * usual 375 / 768 / 1280 checkpoints all miss it. `section-variantes.tsx`
+ * sits in the same grid cell and inherits that tier.
+ *
+ * Those figures are for a page WITHOUT its own vertical scrollbar. This
+ * column takes two thirds of the grid, so Chrome's 15 px classic scrollbar
+ * costs it 10 px more: the very same container measures 470 px as soon as
+ * the sheet is longer than the viewport. Same box, two states — the number
+ * only means something with its scrollbar state attached.
+ *
+ * Warehouse and variant names are free user text, hence `TEXTE_LIBRE` on
+ * those cells — see its own JSDoc in `components/ui/table.tsx` for why
+ * `break-words` does not do the job. Here the naive fix is not merely
+ * insufficient but strictly inert: measured on a 54-character unbreakable
+ * warehouse name, 601 px of table untreated and 601 px again with
+ * `break-words`. No column of this table carries a space or a hyphen, so
+ * there is not one break opportunity to exploit — unlike the variants table
+ * next door, where the same fix shaves 24 % and still overflows.
+ */
 function TableStock({
   lignes,
   enChargement,
