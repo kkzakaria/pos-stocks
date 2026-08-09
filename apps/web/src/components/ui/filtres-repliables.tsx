@@ -13,11 +13,15 @@ import { cn } from "@/lib/utils"
  * at once would duplicate form controls in the DOM (duplicate `id`s, labels
  * bound twice).
  *
- * `open` is intentionally uncontrolled: it is only ever set from React on
- * mount and whenever `nbActifs > 0` changes value, which is what makes a
- * manual user toggle survive unrelated re-renders while an activated filter
- * still forces the panel back open (React skips re-applying the `open`
- * attribute when the computed value hasn't changed since the last render).
+ * `nbActifs` may only ever force the panel OPEN, never closed. Binding
+ * `open` straight to `nbActifs > 0` would slam the panel shut the moment the
+ * last active filter is cleared — e.g. clearing the search box the user is
+ * currently typing in, which sits inside this `<details>` and would vanish
+ * under the cursor, focus and all. So the open state is held locally,
+ * nudged open on the rising edge of `nbActifs` (adjusted during render, per
+ * the React docs' "adjusting state when a prop changes" pattern — an effect
+ * would open the panel one paint too late), and otherwise owned by the
+ * user's own toggles, fed back through `onToggle`.
  */
 function FiltresRepliables({
   nbActifs,
@@ -34,6 +38,15 @@ function FiltresRepliables({
 } & React.AriaAttributes &
   Pick<React.ComponentPropsWithoutRef<"details">, "id">) {
   const estLarge = useEstLarge()
+  const [ouvert, setOuvert] = React.useState(nbActifs > 0)
+  const [nbPrecedent, setNbPrecedent] = React.useState(nbActifs)
+
+  // Rising edge only: going from "no active filter" to at least one reveals
+  // the panel; the reverse transition leaves it exactly as the user left it.
+  if (nbActifs !== nbPrecedent) {
+    setNbPrecedent(nbActifs)
+    if (nbPrecedent === 0 && nbActifs > 0) setOuvert(true)
+  }
 
   if (estLarge) {
     // id/aria-*/className target the <details>/<summary> wrapper below md;
@@ -42,7 +55,14 @@ function FiltresRepliables({
   }
 
   return (
-    <details id={id} className={cn(className)} open={nbActifs > 0}>
+    <details
+      id={id}
+      className={cn(className)}
+      open={ouvert}
+      // The user's own toggle is the source of truth: mirror it back into
+      // state so a later re-render doesn't undo it.
+      onToggle={(e) => setOuvert(e.currentTarget.open)}
+    >
       <summary
         className={cn(
           "flex min-h-11 cursor-pointer items-center gap-1.5 border-b text-sm font-medium",

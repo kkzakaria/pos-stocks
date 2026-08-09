@@ -91,4 +91,44 @@ describe("FiltresRepliables", () => {
     expect(details.open).toBe(true)
     nettoyer()
   })
+
+  it("le dernier filtre effacé ne referme pas le panneau", () => {
+    const nettoyer = installerMatchMedia(375)
+    // Typing in the search field brings nbActifs to 1, then clearing it
+    // brings it back to 0 while the cursor is still in that field — which
+    // sits inside the <details>. Closing here would make it vanish.
+    const { rerender } = render(
+      <FiltresRepliables nbActifs={0}>{contenu()}</FiltresRepliables>
+    )
+    const details = document.querySelector("details")
+    expect(details).not.toBeNull()
+    if (!details) return
+
+    rerender(<FiltresRepliables nbActifs={1}>{contenu()}</FiltresRepliables>)
+    expect(details.open).toBe(true)
+
+    rerender(<FiltresRepliables nbActifs={0}>{contenu()}</FiltresRepliables>)
+    expect(details.open).toBe(true)
+    nettoyer()
+  })
+
+  it("une ouverture manuelle survit à l'effacement du dernier filtre", () => {
+    const nettoyer = installerMatchMedia(375)
+    const { rerender } = render(
+      <FiltresRepliables nbActifs={0}>{contenu()}</FiltresRepliables>
+    )
+    const details = document.querySelector("details")
+    expect(details).not.toBeNull()
+    if (!details) return
+    expect(details.open).toBe(false)
+
+    // Opened by hand, before any filter is set.
+    fireEvent.click(screen.getByText(/Filtres/))
+    expect(details.open).toBe(true)
+
+    rerender(<FiltresRepliables nbActifs={1}>{contenu()}</FiltresRepliables>)
+    rerender(<FiltresRepliables nbActifs={0}>{contenu()}</FiltresRepliables>)
+    expect(details.open).toBe(true)
+    nettoyer()
+  })
 })

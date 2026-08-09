@@ -79,15 +79,31 @@ function vignetteProduit(p: Produit) {
   )
 }
 
+/**
+ * `Produit` with the two pieces of context the row itself does not carry:
+ * `currency` is an organization-wide setting fetched once (not a product
+ * field), and `recherche` is this screen's live filter state, read from the
+ * URL. Splicing them into every row is what keeps `COLONNES_PRODUITS` a
+ * static module-level array instead of a factory — the same trade already
+ * made by `LigneVenteAffichee` (`routes/_app/ventes/$saleId.tsx`, where the
+ * currency is carried once by the sale, not by each line) and by
+ * `LigneVentesBoutiqueAffichee` (`rapports/rapport-ventes.tsx`, which
+ * splices a screen-level scalar, `totalCa`).
+ */
+export type ProduitAffiche = Produit & {
+  currency: string
+  recherche: RechercheProduits
+}
+
 /** The one real link to the product sheet — used verbatim by the table's
  * "Nom" cell and by the card's title, so the two renderings can never drift
  * apart. */
-function lienNomProduit(p: Produit, recherche: RechercheProduits) {
+function lienNomProduit(p: ProduitAffiche) {
   return (
     <Link
       to="/catalogue/produits/$productId"
       params={{ productId: p.id }}
-      search={recherche}
+      search={p.recherche}
       className="min-w-0 rounded-sm outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring/30"
     >
       {p.name}
@@ -98,82 +114,76 @@ function lienNomProduit(p: Produit, recherche: RechercheProduits) {
 /** Card mode: thumbnail plus the real link to the product sheet — the same
  * contract table mode exposes via the "Nom" column, so a keyboard or
  * screen-reader user reaches the sheet identically in both tiers. */
-export function titreProduit(p: Produit, recherche: RechercheProduits) {
+export function titreProduit(p: ProduitAffiche) {
   return (
     <span className="flex items-center gap-2">
       {vignetteProduit(p)}
-      {lienNomProduit(p, recherche)}
+      {lienNomProduit(p)}
     </span>
   )
 }
 
-/** Card mode: the SKU as the secondary line under the title. */
+/** Card mode: the SKU as the secondary line under the title. `font-mono`
+ * rides on the returned content rather than only on the column's
+ * `classeCellule`, which never reaches the card's subtitle: an
+ * identification code must not change typeface with the screen width. */
 export function sousTitreProduit(p: Produit) {
-  return p.sku
+  return <span className="font-mono">{p.sku}</span>
 }
 
-/** `devise` and `recherche` come from the live URL/query state, so this is a
- * factory rather than a static array — reusing `lienNomProduit` and
- * `sousTitreProduit` as `cellule` is what keeps the table and card
- * renderings from drifting apart (see `titreProduit`). */
-export function COLONNES_PRODUITS(
-  devise: string,
-  recherche: RechercheProduits
-): ColonneAdaptative<Produit>[] {
-  return [
-    {
-      cle: "vignette",
-      entete: "",
-      // Purely decorative (alt=""); resurfaces via titreProduit.
-      masquerEnCarte: true,
-      cellule: vignetteProduit,
+export const COLONNES_PRODUITS: ColonneAdaptative<ProduitAffiche>[] = [
+  {
+    cle: "vignette",
+    entete: "",
+    // Purely decorative (alt=""); resurfaces via titreProduit.
+    masquerEnCarte: true,
+    cellule: vignetteProduit,
+  },
+  {
+    cle: "nom",
+    entete: "Nom",
+    // Resurfaces via titreProduit, which renders this same link.
+    masquerEnCarte: true,
+    classeCellule: "font-medium",
+    cellule: lienNomProduit,
+  },
+  {
+    cle: "sku",
+    entete: "SKU",
+    // Resurfaces via sousTitreProduit.
+    masquerEnCarte: true,
+    classeCellule: "font-mono text-xs",
+    cellule: sousTitreProduit,
+  },
+  {
+    cle: "prix",
+    entete: "Prix",
+    numeric: true,
+    cellule: (p) => formaterMontant(p.price, p.currency),
+  },
+  {
+    cle: "variantes",
+    entete: "Variantes",
+    numeric: true,
+    cellule: (p) => {
+      const actives = p.variants.filter((v) => v.isActive).length
+      return actives > 0 ? (
+        actives
+      ) : (
+        <span className="text-muted-foreground">—</span>
+      )
     },
-    {
-      cle: "nom",
-      entete: "Nom",
-      // Resurfaces via titreProduit, which renders this same link.
-      masquerEnCarte: true,
-      classeCellule: "font-medium",
-      cellule: (p) => lienNomProduit(p, recherche),
-    },
-    {
-      cle: "sku",
-      entete: "SKU",
-      // Resurfaces via sousTitreProduit.
-      masquerEnCarte: true,
-      classeCellule: "font-mono text-xs",
-      cellule: sousTitreProduit,
-    },
-    {
-      cle: "prix",
-      entete: "Prix",
-      numeric: true,
-      cellule: (p) => formaterMontant(p.price, devise),
-    },
-    {
-      cle: "variantes",
-      entete: "Variantes",
-      numeric: true,
-      cellule: (p) => {
-        const actives = p.variants.filter((v) => v.isActive).length
-        return actives > 0 ? (
-          actives
-        ) : (
-          <span className="text-muted-foreground">—</span>
-        )
-      },
-    },
-    {
-      cle: "statut",
-      entete: "Statut",
-      cellule: (p) => (
-        <Badge variant={p.isActive ? "success" : "secondary"}>
-          {p.isActive ? "Actif" : "Inactif"}
-        </Badge>
-      ),
-    },
-  ]
-}
+  },
+  {
+    cle: "statut",
+    entete: "Statut",
+    cellule: (p) => (
+      <Badge variant={p.isActive ? "success" : "secondary"}>
+        {p.isActive ? "Actif" : "Inactif"}
+      </Badge>
+    ),
+  },
+]
 
 /**
  * Catalog products list: search (name, SKU, barcode), filter by
@@ -247,6 +257,11 @@ function ProduitsPage() {
 
   const rechercheListeActuelle = rechercheListe(q, categorie, page)
   const liste = produits.data?.products ?? []
+  const lignes: ProduitAffiche[] = liste.map((p) => ({
+    ...p,
+    currency: devise,
+    recherche: rechercheListeActuelle,
+  }))
 
   // Only filters actually set by the user: the search and category filters
   // live in the URL, so at mount they may already hold values restored from
@@ -328,11 +343,11 @@ function ProduitsPage() {
       </FiltresRepliables>
 
       <div className="mt-4 flex min-h-0 flex-1 flex-col">
-        <ListeAdaptative<Produit>
-          colonnes={COLONNES_PRODUITS(devise, rechercheListeActuelle)}
-          lignes={liste}
+        <ListeAdaptative<ProduitAffiche>
+          colonnes={COLONNES_PRODUITS}
+          lignes={lignes}
           cleLigne={(p) => p.id}
-          titre={(p) => titreProduit(p, rechercheListeActuelle)}
+          titre={titreProduit}
           sousTitre={sousTitreProduit}
           chargement={produits.isPending}
           containerClassName="min-h-0 flex-1 overflow-y-auto"
