@@ -1,14 +1,42 @@
-import { render, screen, within, fireEvent } from "@testing-library/react"
+import {
+  render,
+  screen,
+  within,
+  fireEvent,
+  waitFor,
+} from "@testing-library/react"
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { ListeAdaptative } from "@/components/ui/liste-adaptative"
 import { installerMatchMedia } from "@/test/media-query"
 import { jetons } from "@/test/jetons"
 import {
   COLONNES_FOURNISSEURS,
   COLONNES_FOURNISSEURS_ECRITURE,
+  FournisseursPage,
   boutonBascule,
   titreFournisseur,
 } from "./fournisseurs"
 import type { FournisseurAffiche } from "./fournisseurs"
+
+// The screen reads the writing permission from the router context, which no
+// test mounts: the toggle only exists for a write-capable account.
+vi.mock("@/lib/permissions", () => ({ usePeutEcrire: () => true }))
+
+vi.mock("@/lib/api", () => ({
+  apiFetch: vi.fn((_chemin: string, init?: RequestInit) => {
+    // The PATCH never settles: the whole point of the concurrency case is to
+    // observe the screen WHILE two writes are still travelling.
+    if (init?.method === "PATCH") return new Promise(() => undefined)
+    return Promise.resolve({
+      suppliers: [
+        { id: "f1", name: "Alpha", contact: null, phone: null, isActive: true },
+        { id: "f2", name: "Beta", contact: null, phone: null, isActive: true },
+        { id: "f3", name: "Gamma", contact: null, phone: null, isActive: true },
+      ],
+    })
+  }),
+  apiUrl: (chemin: string) => chemin,
+}))
 
 /** One mock per row, never shared: a closure that captured the wrong row
  * (`basculer.mutate(fournisseurs[0])` instead of `mutate(f)`) would still
@@ -222,5 +250,52 @@ describe("colonnes de la liste des fournisseurs", () => {
       expect(jetons(cellule)).not.toContain("wrap-anywhere")
       expect(jetons(cellule)).not.toContain("whitespace-normal")
     }
+  })
+})
+
+describe("FournisseursPage — bascules concurrentes", () => {
+  let nettoyer: (() => void) | undefined
+
+  afterEach(() => {
+    nettoyer?.()
+    nettoyer = undefined
+  })
+
+  /** Re-queried on every call: each re-render replaces the DOM nodes, and a
+   * button captured before a click would be asserted after it has been
+   * detached — always reporting its stale `disabled`. */
+  function boutonLigne(nom: string): HTMLButtonElement {
+    const ligne = screen.getByText(nom).closest("tr")
+    if (!ligne) throw new Error(`Aucune ligne pour « ${nom} »`)
+    return within(ligne).getByRole<HTMLButtonElement>("button")
+  }
+
+  it("désactive les boutons de TOUTES les bascules en vol, pas seulement la dernière", async () => {
+    // Two toggles fired before the first answer. Tracking only the mutation's
+    // last observed variables re-enables the FIRST supplier's button while its
+    // PATCH is still travelling: a second click sends a second PATCH, and each
+    // one FLIPS the flag — the supplier lands active again, which nobody asked
+    // for. The untouched third row proves the guard stays row-scoped and does
+    // not freeze the list.
+    nettoyer = installerMatchMedia(1280)
+    render(
+      <QueryClientProvider
+        client={
+          new QueryClient({ defaultOptions: { queries: { retry: false } } })
+        }
+      >
+        <FournisseursPage />
+      </QueryClientProvider>
+    )
+
+    await screen.findByText("Alpha")
+    fireEvent.click(boutonLigne("Alpha"))
+    fireEvent.click(boutonLigne("Beta"))
+
+    await waitFor(() => {
+      expect(boutonLigne("Alpha").disabled).toBe(true)
+      expect(boutonLigne("Beta").disabled).toBe(true)
+    })
+    expect(boutonLigne("Gamma").disabled).toBe(false)
   })
 })

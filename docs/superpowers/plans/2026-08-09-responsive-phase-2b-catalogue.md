@@ -182,13 +182,27 @@ Le découpage n'est pas un détail de mise en œuvre, chaque moitié a sa raison
 
 Ajouter un état d'attente visible pendant la préparation — une photo de 5 Mo prend un moment et le champ ne doit pas paraître figé.
 
+**Rendre le gestionnaire `async` crée une course qui n'existait pas** : deux sélections rapprochées A puis B peuvent se résoudre dans l'ordre B puis A, et A remettrait alors au parent un fichier que l'utilisateur a déjà remplacé — silencieusement, sans erreur ni trace. Poser une **garde par compteur de génération** : un `useRef` numérique, chaque sélection réclame son jeton (`const jeton = ++generation.current`), et seule celle qui détient encore le dernier jeton (`generation.current === jeton`) a le droit de publier son résultat ; les autres retournent sans rien faire.
+
+Trois chemins invalident une préparation en vol, et les trois doivent incrémenter le compteur :
+
+- **une nouvelle sélection** — c'est le cas nominal, la dernière gagne ;
+- **le retrait de l'image** (« Retirer l'image ») — sans lui, une préparation encore en vol ressusciterait l'image que l'utilisateur vient d'enlever ;
+- **l'annulation de l'édition** (Step 3, `section-identite.tsx`) — sortir du mode édition doit empêcher l'envoi, pas le différer.
+
+Attention au chemin qui n'entre jamais dans le `try` : un refus de type MIME survenant **pendant** une préparation a déjà invalidé celle-ci en réclamant son jeton, or la préparation invalidée retourne par sa garde **avant** de rendre l'état d'attente. Plus personne ne le remet à `false` : le label reste `pointer-events-none` et le champ est mort jusqu'au rechargement. Ce chemin doit donc rendre l'état d'attente explicitement — un `finally` ne peut pas le faire à sa place.
+
+Chaque chemin porte son test dédié.
+
 **Conserver impérativement** : la remise à `""` de `input.value` après chaque tentative (sans elle, resélectionner le même fichier ne déclenche plus rien), et **l'ordre `<input class="peer">` immédiatement suivi du `<label>`** — un test assert ce motif, et le `peer-focus-visible` de Tailwind ne matche que les frères généraux.
 
 - [ ] **Step 3: Brancher le chemin d'édition**
 
 `section-identite.tsx` poste l'image **sans aucune validation cliente** : ni taille, ni MIME. Un fichier de 5 Mo part et se fait rejeter par le serveur.
 
-Lui appliquer les mêmes validations que `ChampImage`, **dans le même ordre qu'au Step 2** et pour les mêmes raisons. Extraire les constantes de plafond et de types acceptés pour qu'elles ne soient définies qu'une fois.
+Lui appliquer les mêmes validations que `ChampImage`, **dans le même ordre qu'au Step 2** et pour les mêmes raisons. Il ne s'agit **pas** de dupliquer les deux contrôles : le chemin d'édition doit appeler `preparerImage` **entre** eux — **type MIME → `preparerImage` → taille → envoi** — et poster le fichier *préparé*, jamais l'original. Sans cet appel, l'édition contournerait le point de passage unique et la compression, le jour où elle atterrira dans `preparerImage`, ne s'appliquerait qu'à la création : la tâche perdrait son objet.
+
+La garde par compteur de génération du Step 2 vaut ici aussi, avec son troisième chemin d'invalidation propre à cet écran (l'annulation de l'édition). Extraire les constantes de plafond et de types acceptés, ainsi que les messages d'erreur, pour qu'ils ne soient définis qu'une fois.
 
 Attention à la collision d'`id` : `section-identite.tsx` code `id="p-image"` en dur, qui est aussi la valeur par défaut de `ChampImage`. Ils ne coexistent jamais aujourd'hui, mais la prop `id` de `ChampImage` existe précisément pour ça.
 

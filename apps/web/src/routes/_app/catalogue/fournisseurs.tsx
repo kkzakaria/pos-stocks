@@ -1,6 +1,11 @@
 import { useState } from "react"
 import { createFileRoute } from "@tanstack/react-router"
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import {
+  useMutation,
+  useMutationState,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query"
 import { apiFetch } from "@/lib/api"
 import { cn } from "@/lib/utils"
 import { usePeutEcrire } from "@/lib/permissions"
@@ -158,10 +163,21 @@ export const COLONNES_FOURNISSEURS_ECRITURE: ColonneAdaptative<FournisseurAffich
   [...COLONNES_FOURNISSEURS, COLONNE_ACTION_FOURNISSEUR]
 
 /**
+ * Identifies the activation-toggle mutation in the mutation cache so that
+ * `useMutationState` can observe EVERY pending call, not just the last one.
+ *
+ * Its own key, exact-matched: the creation mutation on this screen carries no
+ * `mutationKey` at all (and no other mutation in the app does either), so
+ * nothing else can be picked up — and an exact match also rules out a future
+ * `["suppliers", …]` key being swept in by the default partial matching.
+ */
+const CLE_BASCULE_FOURNISSEUR = ["suppliers", "bascule"] as const
+
+/**
  * Suppliers screen: list with active/inactive status, creation of a
  * supplier (name, contact, phone), and activation toggle.
  */
-function FournisseursPage() {
+export function FournisseursPage() {
   const peutEcrire = usePeutEcrire()
   const queryClient = useQueryClient()
 
@@ -204,6 +220,7 @@ function FournisseursPage() {
   })
 
   const basculer = useMutation({
+    mutationKey: CLE_BASCULE_FOURNISSEUR,
     mutationFn: (f: Fournisseur) =>
       apiFetch(`/api/v1/suppliers/${f.id}`, {
         method: "PATCH",
@@ -218,15 +235,36 @@ function FournisseursPage() {
       setErreurBascule(err instanceof Error ? err.message : "Erreur"),
   })
 
-  // `basculer.variables` holds the argument of the call currently in flight —
-  // the supplier itself. Comparing its id is what scopes the pending state to
-  // the row that was actually clicked, instead of the whole list. The result
-  // being a discriminated union on `isPending`, the guard also narrows
-  // `variables` away from `undefined`; no optional chain is needed.
+  /**
+   * Ids of the suppliers whose toggle is currently in flight — ALL of them.
+   *
+   * `basculer.variables` would only expose the LAST observed call: two calls
+   * to the same mutation run in parallel by default, and the hook's own state
+   * is an aggregate, not a queue. Clicking A then B before A answered would
+   * re-enable A's button while its PATCH is still travelling, and a second
+   * click would send a second PATCH — each one FLIPS the flag, so the supplier
+   * lands on a state the user never asked for.
+   *
+   * `useMutationState` reads the mutation cache instead, which does hold every
+   * pending call, and is scoped by `CLE_BASCULE_FOURNISSEUR`.
+   */
+  const idsEnBascule = useMutationState({
+    filters: {
+      mutationKey: CLE_BASCULE_FOURNISSEUR,
+      exact: true,
+      status: "pending",
+    },
+    // The cache stores variables as `unknown` — the mutation's own typing is
+    // not carried into it. The assertion holds because the exact-matched key
+    // is set in this file and nowhere else, right next to `mutationFn`.
+    select: (mutation) => (mutation.state.variables as Fournisseur).id,
+  })
+  const enBascule = new Set(idsEnBascule)
+
   const lignes: FournisseurAffiche[] = fournisseurs.map((f) => ({
     ...f,
     surBascule: () => basculer.mutate(f),
-    basculeEnCours: basculer.isPending && basculer.variables.id === f.id,
+    basculeEnCours: enBascule.has(f.id),
   }))
 
   return (
