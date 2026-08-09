@@ -43,6 +43,20 @@ function afficher(
 }
 
 describe("ListeAdaptative", () => {
+  // Cleared by afterEach rather than at the end of the test: a failing
+  // assertion would otherwise leak the matchMedia stub into the next test and
+  // bury the real cause under a cascade of unrelated failures. Named apart
+  // from the `nettoyer` locals below, which restore the stub between the
+  // ITERATIONS of a loop over several widths — installing twice in a row
+  // without restoring makes the second install capture the first stub, so
+  // those cases cannot defer their cleanup to afterEach.
+  let nettoyerViewport: (() => void) | undefined
+
+  afterEach(() => {
+    nettoyerViewport?.()
+    nettoyerViewport = undefined
+  })
+
   it("rend une table à partir de md", () => {
     const nettoyer = installerMatchMedia(1280)
     afficher()
@@ -60,14 +74,13 @@ describe("ListeAdaptative", () => {
   })
 
   it('porte un role="list" explicite sur la liste de cartes', () => {
-    const nettoyer = installerMatchMedia(375)
+    nettoyerViewport = installerMatchMedia(375)
     const { container } = afficher()
     // Redundant in plain HTML, so `getByRole("list")` passes with or without
     // it. Tailwind's Preflight sets `list-style: none` on every `<ul>`, and
     // VoiceOver on Safari/iOS then drops the list role — the ATTRIBUTE is
     // what restores it, so the attribute is what must be asserted.
     expect(container.querySelector("ul")?.getAttribute("role")).toBe("list")
-    nettoyer()
   })
 
   it("ne duplique jamais une valeur entre les deux modes", () => {

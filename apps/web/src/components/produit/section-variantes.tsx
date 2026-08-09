@@ -87,8 +87,17 @@ function afficheLots(produit: Produit, v: Variante): boolean {
  */
 const NOM_LISTE_VARIANTES = "Variantes"
 
+/**
+ * The SKU is part of the name, and not decoration: a variant NAME carries no
+ * uniqueness constraint in the database (only the SKU does, per organisation),
+ * so two variants of the same product can legitimately be called "Standard".
+ * Named on the name alone, their two lots lists would be indistinguishable to
+ * a reader jumping from one list to the next — the very ambiguity these names
+ * exist to remove. The SKU is the discriminating datum, so it is what
+ * separates them.
+ */
 function nomListeLots(v: Variante): string {
-  return `Lots de ${v.name}`
+  return `Lots de ${v.name} (${v.sku})`
 }
 
 /**

@@ -23,6 +23,7 @@ const ACTIF: FournisseurAffiche = {
   phone: "+225 07 00 00 00",
   isActive: true,
   surBascule: BASCULE_ACTIF,
+  basculeEnCours: false,
 }
 
 const INACTIF: FournisseurAffiche = {
@@ -32,6 +33,7 @@ const INACTIF: FournisseurAffiche = {
   phone: null,
   isActive: false,
   surBascule: BASCULE_INACTIF,
+  basculeEnCours: false,
 }
 
 /**
@@ -137,6 +139,23 @@ describe("colonnes de la liste des fournisseurs", () => {
     fireEvent.click(within(carte).getByRole("button", { name: "Réactiver" }))
     expect(BASCULE_INACTIF).toHaveBeenCalledTimes(1)
     expect(BASCULE_ACTIF).not.toHaveBeenCalled()
+  })
+
+  it("désactive le bouton de la ligne en cours de bascule, et de celle-là seule", () => {
+    // A second click before the PATCH lands sends a second PATCH: the supplier
+    // returns to its starting state without the user understanding why, and
+    // two writes are recorded for nothing. The disabling is row-scoped, so the
+    // untouched supplier must stay clickable — freezing the whole list would
+    // block rows that have nothing to do with the call in flight.
+    afficher(1280, [{ ...ACTIF, basculeEnCours: true }, INACTIF])
+    const enCours = screen.getByRole<HTMLButtonElement>("button", {
+      name: "Désactiver",
+    })
+    const autre = screen.getByRole<HTMLButtonElement>("button", {
+      name: "Réactiver",
+    })
+    expect(enCours.disabled).toBe(true)
+    expect(autre.disabled).toBe(false)
   })
 
   it("n'expose ni colonne d'action ni action de carte en lecture seule", () => {

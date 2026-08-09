@@ -104,11 +104,23 @@ function DialogContent({
   )
 }
 
+/**
+ * Right gutter sized on the close button, which is absolutely positioned over
+ * this header's own band. Load-bearing since that button gained an opaque
+ * `bg-popover`: a long title used to merely run behind a transparent glyph,
+ * it would now be CUT by the opaque square. The button measures 24px at rest
+ * and 44px under `pointer-coarse` (`size-icon-sm` in `button.tsx`), sits 8px
+ * from the popup edge, and the header starts 16px in (`p-4`) — so it intrudes
+ * 16px, then 36px, into the header. The gutter is the button's own width in
+ * each case, i.e. the intrusion plus an 8px breathing gap, so the title never
+ * touches the square either. Invisible on a short title: this is padding on a
+ * left-aligned block, not a margin.
+ */
 function DialogHeader({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
       data-slot="dialog-header"
-      className={cn("flex flex-col gap-1", className)}
+      className={cn("flex flex-col gap-1 pr-6 pointer-coarse:pr-11", className)}
       {...props}
     />
   )

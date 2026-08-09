@@ -173,7 +173,14 @@ Test : l'identité préserve le contenu, le type MIME et le nom du fichier.
 
 Aujourd'hui la validation taille/MIME vit **en ligne** dans le gestionnaire `onChange` et s'exécute **avant** toute transformation : une photo de 3 Mo est rejetée avant d'avoir pu être réduite.
 
-Extraire le gestionnaire en fonction nommée **`async`**, et rétablir l'ordre : `preparerImage` → valider → remettre au parent. Ajouter un état d'attente visible pendant la préparation — une photo de 5 Mo prend un moment et le champ ne doit pas paraître figé.
+Extraire le gestionnaire en fonction nommée **`async`**, et rétablir l'ordre que la spec fixe (§ « Compression d'image », amendée en cours de phase) : **valider le type MIME → `preparerImage` → valider la taille → remettre au parent**.
+
+Le découpage n'est pas un détail de mise en œuvre, chaque moitié a sa raison :
+
+- **le type MIME AVANT** — c'est une garde d'entrée : on ne passe pas un fichier arbitraire à un décodeur d'image. Un PDF doit dire « Formats acceptés : JPEG, PNG, WebP », pas produire une erreur de décodage du navigateur ;
+- **la taille APRÈS** — c'est le fichier *préparé* qui doit tenir sous le plafond, jamais l'original : valider avant, c'est rejeter la photo de 3 Mo avant qu'elle ait eu sa chance d'être réduite, ce qui est précisément le défaut que cette tâche corrige.
+
+Ajouter un état d'attente visible pendant la préparation — une photo de 5 Mo prend un moment et le champ ne doit pas paraître figé.
 
 **Conserver impérativement** : la remise à `""` de `input.value` après chaque tentative (sans elle, resélectionner le même fichier ne déclenche plus rien), et **l'ordre `<input class="peer">` immédiatement suivi du `<label>`** — un test assert ce motif, et le `peer-focus-visible` de Tailwind ne matche que les frères généraux.
 
@@ -181,7 +188,7 @@ Extraire le gestionnaire en fonction nommée **`async`**, et rétablir l'ordre :
 
 `section-identite.tsx` poste l'image **sans aucune validation cliente** : ni taille, ni MIME. Un fichier de 5 Mo part et se fait rejeter par le serveur.
 
-Le faire passer par `preparerImage` puis par les mêmes validations que `ChampImage`. Extraire les constantes de plafond et de types acceptés pour qu'elles ne soient définies qu'une fois.
+Lui appliquer les mêmes validations que `ChampImage`, **dans le même ordre qu'au Step 2** et pour les mêmes raisons. Extraire les constantes de plafond et de types acceptés pour qu'elles ne soient définies qu'une fois.
 
 Attention à la collision d'`id` : `section-identite.tsx` code `id="p-image"` en dur, qui est aussi la valeur par défaut de `ChampImage`. Ils ne coexistent jamais aujourd'hui, mais la prop `id` de `ChampImage` existe précisément pour ça.
 

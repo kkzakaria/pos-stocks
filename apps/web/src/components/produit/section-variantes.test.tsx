@@ -202,6 +202,26 @@ function produitVarianteSansLot(): Produit {
 }
 
 /**
+ * Two active variants sharing a NAME and differing only by SKU — a state the
+ * database allows, since no uniqueness constraint covers a variant name. It
+ * is what forces the accessible name of a lots list to carry the SKU.
+ */
+function produitVariantesHomonymes(): Produit {
+  return {
+    ...produitAvec(true),
+    variants: [
+      VARIANTE_ACTIVE,
+      {
+        ...VARIANTE_ACTIVE,
+        id: "v4",
+        sku: "PRD-1-BIS",
+        lots: [{ id: "l4", lotNumber: "LOT-D", expiryDate: null }],
+      },
+    ],
+  }
+}
+
+/**
  * The variant cards. Card mode nests a lots list inside each card, so
  * `getAllByRole("listitem")` legitimately returns lot items too — hence the
  * named outer list, and the parent check that keeps only its own items.
@@ -213,9 +233,14 @@ function cartes(): HTMLElement[] {
     .filter((item) => item.parentElement === liste)
 }
 
-/** The lots list of one variant, in either tree — they share their name. */
-function listeLots(nomVariante: string): HTMLElement {
-  return screen.getByRole("list", { name: `Lots de ${nomVariante}` })
+/**
+ * The lots list of one variant, in either tree — they share their name. The
+ * SKU is required, not optional: a variant name is not unique in the database,
+ * so it alone cannot designate a list. Spelled out here rather than imported
+ * from the component, so a name that stopped carrying the SKU fails here.
+ */
+function listeLots(nomVariante: string, sku: string): HTMLElement {
+  return screen.getByRole("list", { name: `Lots de ${nomVariante} (${sku})` })
 }
 
 /**
@@ -259,11 +284,27 @@ describe("SectionVariantes — mode table (≥ 768 px)", () => {
     // with several lots a screen-reader user can no longer tell which number
     // the "Expiré" badge belongs to. Losing that to width alone is the very
     // defect the explicit `role="list"` guards against on the other side.
-    const liste = listeLots("Standard")
+    const liste = listeLots("Standard", "PRD-1-STD")
     expect(within(liste).getAllByRole("listitem")).toHaveLength(2)
     // Named, so the two levels of list are told apart by a reader jumping
     // from one to the next — and by this suite, without a test-only slot.
     expect(liste.getAttribute("role")).toBe("list")
+  })
+
+  it("distingue deux listes de lots de variantes homonymes", () => {
+    // A variant NAME carries no uniqueness constraint in the database (only
+    // the SKU does, per organisation), so two variants of one product can
+    // legitimately share a name. Named on the name alone, their lots lists
+    // would be indistinguishable to a reader jumping from list to list — and
+    // `getByRole` would throw on the ambiguity, which is what makes this case
+    // bite.
+    afficher(produitVariantesHomonymes())
+    expect(
+      within(listeLots("Standard", "PRD-1-STD")).getAllByRole("listitem")
+    ).toHaveLength(2)
+    expect(
+      within(listeLots("Standard", "PRD-1-BIS")).getAllByRole("listitem")
+    ).toHaveLength(1)
   })
 
   it("fait couvrir à la ligne de lots toute la largeur, colonne d'action comprise", () => {
@@ -302,7 +343,9 @@ describe("SectionVariantes — mode table (≥ 768 px)", () => {
   it("variante sans lot : le libellé d'absence et le bouton d'ajout restent", () => {
     afficher(produitVarianteSansLot())
     expect(within(celluleLots()).getByText("aucun")).toBeTruthy()
-    expect(screen.queryByRole("list", { name: "Lots de Petit" })).toBeNull()
+    expect(
+      screen.queryByRole("list", { name: "Lots de Petit (PRD-1-PTT)" })
+    ).toBeNull()
     // The empty list is exactly where the button matters: it is the only way
     // a first lot can be created, so gating it on `lots.length` would make
     // the feature unreachable — silently, since nothing else would change.
@@ -429,9 +472,9 @@ describe("SectionVariantes — mode carte (< 768 px)", () => {
     // éléments" twice with no way to tell which is which, and the visible
     // « Lots : » label has no programmatic tie to the list it introduces.
     expect(screen.getByRole("list", { name: "Variantes" })).toBeTruthy()
-    expect(within(listeLots("Standard")).getAllByRole("listitem")).toHaveLength(
-      2
-    )
+    expect(
+      within(listeLots("Standard", "PRD-1-STD")).getAllByRole("listitem")
+    ).toHaveLength(2)
   })
 
   it("compose la carte : nom en titre, prix en vis-à-vis, puis SKU, attributs et statut", () => {
@@ -462,7 +505,7 @@ describe("SectionVariantes — mode carte (< 768 px)", () => {
     const [active, inactive] = cartes()
 
     // Audit information: it survives the fallback to cards in full.
-    const bloc = listeLots("Standard")
+    const bloc = listeLots("Standard", "PRD-1-STD")
     expect(bloc.parentElement?.closest("li")).toBe(active)
     expect(within(bloc).getByText("LOT-A")).toBeTruthy()
     expect(within(bloc).getByText("Expiré")).toBeTruthy()
@@ -486,7 +529,9 @@ describe("SectionVariantes — mode carte (< 768 px)", () => {
     const [carte] = cartes()
     expect(within(carte).getByText("Lots :")).toBeTruthy()
     expect(within(carte).getByText("aucun")).toBeTruthy()
-    expect(screen.queryByRole("list", { name: "Lots de Petit" })).toBeNull()
+    expect(
+      screen.queryByRole("list", { name: "Lots de Petit (PRD-1-PTT)" })
+    ).toBeNull()
     // Same reason as in table mode: an empty list is precisely the state the
     // button exists for.
     expect(

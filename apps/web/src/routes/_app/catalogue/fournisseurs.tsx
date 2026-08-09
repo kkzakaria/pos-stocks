@@ -34,14 +34,19 @@ type Fournisseur = {
 }
 
 /**
- * `Fournisseur` with the one piece of context the row itself does not carry:
+ * `Fournisseur` with the two pieces of context the row itself does not carry:
  * toggling activation is a mutation owned by the screen, not a supplier
- * field. Splicing it into every row is what keeps the column arrays static
+ * field, and so is knowing whether THIS row's toggle is currently in flight.
+ * Splicing them into every row is what keeps the column arrays static
  * module-level constants instead of a factory — the same trade already made
  * by `ProduitAffiche` (`catalogue/produits/index.tsx`) and by
  * `LigneVenteAffichee` (`ventes/$saleId.tsx`).
  */
-export type FournisseurAffiche = Fournisseur & { surBascule: () => void }
+export type FournisseurAffiche = Fournisseur & {
+  surBascule: () => void
+  /** This row's own toggle is awaiting its PATCH — see `boutonBascule`. */
+  basculeEnCours: boolean
+}
 
 /** Card mode: the supplier's name identifies the row. Reused verbatim as the
  * "Nom" column's cell so the two renderings can never drift apart. */
@@ -52,10 +57,22 @@ export function titreFournisseur(f: Fournisseur) {
 /** The single toggle button, shared by the table's action column and by the
  * card's trailing action — it therefore exists exactly once per row in
  * either tier. Its label depends on the row's own state, so it resolves
- * inside the cell rather than through any screen-level branch. */
+ * inside the cell rather than through any screen-level branch.
+ *
+ * Disabled while its OWN toggle is in flight: two quick clicks would send two
+ * PATCHes, and the supplier would land back on its starting state — two
+ * writes for no visible change, which is exactly the kind of silent
+ * contradiction the audit trail must not carry. Row-scoped on purpose:
+ * disabling on the bare `isPending` of the shared mutation would freeze every
+ * other supplier's button too. */
 export function boutonBascule(f: FournisseurAffiche) {
   return (
-    <Button variant="outline" size="sm" onClick={f.surBascule}>
+    <Button
+      variant="outline"
+      size="sm"
+      disabled={f.basculeEnCours}
+      onClick={f.surBascule}
+    >
       {f.isActive ? "Désactiver" : "Réactiver"}
     </Button>
   )
@@ -201,9 +218,15 @@ function FournisseursPage() {
       setErreurBascule(err instanceof Error ? err.message : "Erreur"),
   })
 
+  // `basculer.variables` holds the argument of the call currently in flight —
+  // the supplier itself. Comparing its id is what scopes the pending state to
+  // the row that was actually clicked, instead of the whole list. The result
+  // being a discriminated union on `isPending`, the guard also narrows
+  // `variables` away from `undefined`; no optional chain is needed.
   const lignes: FournisseurAffiche[] = fournisseurs.map((f) => ({
     ...f,
     surBascule: () => basculer.mutate(f),
+    basculeEnCours: basculer.isPending && basculer.variables.id === f.id,
   }))
 
   return (
