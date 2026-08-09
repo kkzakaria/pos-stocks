@@ -81,10 +81,16 @@ function DialogContent({
         {showCloseButton && (
           <DialogPrimitive.Close
             data-slot="dialog-close"
+            // `bg-popover` is load-bearing since the body became a scroller:
+            // this button sits outside it, so scrolled content now passes
+            // UNDER it. `ghost` is transparent, which left two glyphs
+            // superimposed (measured: a select chevron landing on the exact
+            // centre of the close button). The hover/focus states of `ghost`
+            // still win, being more specific.
             render={
               <Button
                 variant="ghost"
-                className="absolute top-2 right-2"
+                className="absolute top-2 right-2 bg-popover"
                 size="icon-sm"
               />
             }

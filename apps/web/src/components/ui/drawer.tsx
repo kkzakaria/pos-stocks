@@ -69,9 +69,9 @@ function DrawerContent({
           {children}
           <DrawerPrimitive.Close
             data-slot="drawer-close"
-            // `icon` and not `icon-sm`: both now grow to 44px on a coarse
-            // pointer, but this drawer only ever exists below `md`, so it takes
-            // the size that is already touch-sized at rest.
+            // `icon` rather than `icon-sm`: both reach 44px on a coarse
+            // pointer since `icon-sm` gained the same rule, so this is now a
+            // free choice kept as-is rather than a constraint.
             render={
               <Button
                 variant="ghost"

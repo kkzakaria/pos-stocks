@@ -212,6 +212,16 @@ function TableStock({
  * `data-slot="stock-total"`, the DS convention already used across
  * `table.tsx`, so it can be targeted without depending on its classes.
  *
+ * `section-variantes.tsx` resolves its own targeting ambiguity the opposite
+ * way — `role` plus `aria-label`, explicitly without a test-only attribute —
+ * and the two positions do not conflict: that file names LISTS, which have a
+ * natural role to carry a name. This total is neither a list nor a list item;
+ * it has no role of its own to name, so the pair would have to be invented
+ * for it, adding an announcement to the screen reader purely to serve a test.
+ * `data-slot` stays invisible to the accessibility tree. Rule of thumb: name
+ * the role when the element already has one, fall back to `data-slot` when it
+ * does not.
+ *
  * The list carries an explicit `role="list"`, redundant in plain HTML but not
  * here: Tailwind's Preflight sets `list-style: none` on every `<ul>`, which
  * makes VoiceOver on Safari/iOS drop the list role — the reader then hears a
@@ -230,7 +240,11 @@ function CartesStock({
   if (enChargement) {
     return (
       <div className="flex flex-col gap-2">
-        {Array.from({ length: 3 }, (_, i) => (
+        {/* Four cards, like `ListeAdaptative`: the card grammar is aligned to
+            the pixel with it, and a section flashing three lines where every
+            other list of the app flashes four would read as a different
+            component. */}
+        {Array.from({ length: 4 }, (_, i) => (
           <div key={i} className="rounded-md border p-3">
             <Skeleton className="h-4 w-2/3" />
             <Skeleton className="mt-2 h-3 w-1/3" />

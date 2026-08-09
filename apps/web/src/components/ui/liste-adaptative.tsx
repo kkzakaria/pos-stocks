@@ -228,6 +228,12 @@ export function ListeAdaptative<T>({
             <dl className="mt-2 flex flex-col gap-1">
               {paires.map((c) => (
                 <div key={c.cle} className="flex justify-between gap-3">
+                  {/* `min-w-0` and `break-words` are kept on purpose next to
+                      the `shrink-0` that makes them inert: they keep the label
+                      protected the day a consumer drops the `shrink-0`, and
+                      they let the two hand-written copies of this pair
+                      (`section-stock.tsx`, `section-variantes.tsx`) stay
+                      token-for-token faithful to their source. */}
                   <dt className="min-w-0 shrink-0 break-words text-muted-foreground">
                     {c.libelle ?? c.entete}
                   </dt>

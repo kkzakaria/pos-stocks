@@ -27,6 +27,15 @@ const buttonVariants = cva(
         sm: "h-6 gap-1 px-2 text-xs/relaxed has-data-[icon=inline-end]:pr-1.5 has-data-[icon=inline-start]:pl-1.5 pointer-coarse:min-h-11 [&_svg:not([class*='size-'])]:size-3",
         lg: "h-8 gap-1 px-2.5 text-xs/relaxed has-data-[icon=inline-end]:pr-2 has-data-[icon=inline-start]:pl-2 pointer-coarse:min-h-11 [&_svg:not([class*='size-'])]:size-4",
         icon: "size-7 pointer-coarse:size-11 [&_svg:not([class*='size-'])]:size-3.5",
+        // `icon-xs` and `icon-lg` stay deliberately out of this phase's scope,
+        // hence no `pointer-coarse` growth here: neither governs a control of
+        // the catalogue screens. `icon-xs` is only reachable through
+        // `ComboboxChipRemove`, which no screen mounts today (the combobox
+        // trigger and clear buttons carry `icon-xs` from `input-group.tsx`'s
+        // own scale, not from this one), and `icon-lg` has no consumer at all
+        // in the repo. Growing either would demand its own browser check on
+        // the screens that come to use it, since a 44px target reflows the
+        // row it sits in.
         "icon-xs": "size-5 rounded-sm [&_svg:not([class*='size-'])]:size-2.5",
         "icon-sm":
           "size-6 pointer-coarse:size-11 [&_svg:not([class*='size-'])]:size-3",
