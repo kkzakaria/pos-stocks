@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from "vitest"
-import { render, screen, within } from "@testing-library/react"
+import { render, screen, within, fireEvent } from "@testing-library/react"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { SectionVariantes } from "@/components/produit/section-variantes"
 import { installerMatchMedia } from "@/test/media-query"
@@ -148,6 +148,34 @@ function produitHostile(): Produit {
         sku: NOM_HOSTILE,
         attributes: JSON.stringify({ conditionnement: NOM_HOSTILE }),
         lots: [{ id: "l1", lotNumber: LOT_HOSTILE, expiryDate: null }],
+      },
+    ],
+  }
+}
+
+/**
+ * The same hostile lot, given an expiry date: the exact pairing the 1024 px
+ * measurement caught, where one cell holds a value that MUST fold (the
+ * supplier reference) next to one that must never be broken (the date).
+ * A fixture of its own rather than an expiry added to `produitHostile`, so
+ * the cases asserting on "sans péremption" keep their subject.
+ */
+const PEREMPTION_HOSTILE = "2027-03-15"
+
+function produitHostileAvecPeremption(): Produit {
+  const [variante] = produitHostile().variants
+  return {
+    ...produitAvec(true),
+    variants: [
+      {
+        ...variante,
+        lots: [
+          {
+            id: "l1",
+            lotNumber: LOT_HOSTILE,
+            expiryDate: PEREMPTION_HOSTILE,
+          },
+        ],
       },
     ],
   }
@@ -305,6 +333,63 @@ describe("SectionVariantes — mode table (≥ 768 px)", () => {
       // `whitespace-nowrap`, which forbids any wrap in the first place.
       expect(jetons(cellule)).toContain("whitespace-normal")
     }
+  })
+
+  // The mirror image of the case above, and the reason it is a separate one:
+  // `TEXTE_LIBRE` sets `overflow-wrap: anywhere` on the cell and that property
+  // INHERITS, so it reached a value that must never be broken. Measured in
+  // Chrome at the 1024 px tier — where this section's container is at its
+  // narrowest, 470 px — "15/03/2027" was laid out over TWO line boxes,
+  // "15/0" then "3/2027"; with `whitespace-nowrap` it is back to one, at 375
+  // and 1280 as well, and the container still measures 470 px with no
+  // overflow. jsdom checks the class, not the effect.
+  it("ne coupe pas une date de péremption, sans désarmer le numéro de lot", () => {
+    afficher(produitHostileAvecPeremption())
+
+    const date = screen.getByText("15/03/2027")
+    expect(jetons(date)).toContain("whitespace-nowrap")
+
+    // The other half of the contract: the supplier lot number IS free text
+    // and must keep folding, otherwise the cell overflows again. A blanket
+    // `whitespace-nowrap` on the whole row would pass the assertion above and
+    // fail here.
+    const numero = screen.getByText(LOT_HOSTILE)
+    expect(jetons(numero)).toContain("break-words")
+    expect(jetons(numero)).not.toContain("whitespace-nowrap")
+    expect(jetons(celluleLots())).toContain("wrap-anywhere")
+  })
+})
+
+describe("SectionVariantes — dialogue « Nouvelle variante »", () => {
+  /**
+   * The attribute pairs stack below `sm`, where the gap INSIDE a pair and the
+   * gap BETWEEN two pairs are the only thing telling one pair from the next.
+   * Measured in Chrome at 375 px: 8 px inside, 12 px between — a ratio of 1.5,
+   * i.e. a 4 px difference in a dialog whose other transitions measure 32 to
+   * 38 px, so the pairs read as one run of anonymous fields. `gap-6` takes the
+   * outer gap to 24 px (ratio 3.0) while staying below those transitions, so a
+   * pair stays inside the "Attributs" group instead of reading as a section.
+   * `sm:gap-2` is asserted alongside: from `sm` on each pair is a single row
+   * and needs no separation, and the measured desktop gap must stay 8 px.
+   * jsdom resolves no media query here — it checks the classes, not the px.
+   */
+  it("sépare les paires d'attributs empilées sans toucher à la géométrie desktop", () => {
+    nettoyer = installerMatchMedia(375)
+    rendre(produitDeuxVariantes(), true)
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Ajouter une variante" })
+    )
+    const paire = screen.getByLabelText("Clé de l'attribut 1").parentElement
+    const enveloppe = paire?.parentElement ?? null
+
+    expect(jetons(enveloppe)).toContain("gap-6")
+    expect(jetons(enveloppe)).toContain("sm:gap-2")
+    // The premise: the outer gap only separates anything while the pair is a
+    // COLUMN. Turn the pair into a row below `sm` and the two gaps stop being
+    // comparable, which would leave the assertion above green and meaningless.
+    expect(jetons(paire)).toContain("flex-col")
+    expect(jetons(paire)).toContain("gap-2")
   })
 })
 

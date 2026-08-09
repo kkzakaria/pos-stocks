@@ -2,6 +2,7 @@ import { useState } from "react"
 import { createFileRoute } from "@tanstack/react-router"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { apiFetch } from "@/lib/api"
+import { cn } from "@/lib/utils"
 import { usePeutEcrire } from "@/lib/permissions"
 import { Truck } from "lucide-react"
 import { EtatVide } from "@/components/etat-vide"
@@ -16,6 +17,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
+import { TEXTE_LIBRE } from "@/components/ui/table"
 import { ListeAdaptative } from "@/components/ui/liste-adaptative"
 import type { ColonneAdaptative } from "@/components/ui/liste-adaptative"
 
@@ -59,18 +61,43 @@ export function boutonBascule(f: FournisseurAffiche) {
   )
 }
 
-/** The four data columns — exactly what a read-only account sees. */
+/**
+ * The four data columns — exactly what a read-only account sees.
+ *
+ * Name, contact and phone are all typed by the user, so all three carry
+ * `TEXTE_LIBRE` (its JSDoc in `components/ui/table.tsx` holds the mechanism and
+ * why `break-words` alone is inert). Measured at the 1024px tier, where this
+ * screen's container is 736px: 1 578px of table, columns at Nom 576 · Contact
+ * 502 · Téléphone 348, i.e. 842px of horizontal scroll. The contact carries
+ * SPACES and still refused to fold, because `TableCell` sets
+ * `whitespace-nowrap` — which is exactly the half of the pair `wrap-anywhere`
+ * cannot supply on its own.
+ *
+ * The status column is left untouched on purpose: a badge is a fixed
+ * two-word label from a closed set, not user text, and breaking it mid-word
+ * would only make it harder to read.
+ */
 export const COLONNES_FOURNISSEURS: ColonneAdaptative<FournisseurAffiche>[] = [
   {
     cle: "nom",
     entete: "Nom",
     // Resurfaces via titreFournisseur, which renders this same name.
     masquerEnCarte: true,
-    classeCellule: "font-medium",
+    classeCellule: cn("font-medium", TEXTE_LIBRE),
     cellule: titreFournisseur,
   },
-  { cle: "contact", entete: "Contact", cellule: (f) => f.contact ?? "—" },
-  { cle: "telephone", entete: "Téléphone", cellule: (f) => f.phone ?? "—" },
+  {
+    cle: "contact",
+    entete: "Contact",
+    classeCellule: TEXTE_LIBRE,
+    cellule: (f) => f.contact ?? "—",
+  },
+  {
+    cle: "telephone",
+    entete: "Téléphone",
+    classeCellule: TEXTE_LIBRE,
+    cellule: (f) => f.phone ?? "—",
+  },
   {
     cle: "statut",
     entete: "Statut",

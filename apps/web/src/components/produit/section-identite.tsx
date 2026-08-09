@@ -350,7 +350,13 @@ export function SectionIdentite({
               checked={actif}
               onCheckedChange={(valeur) => setActif(valeur === true)}
             />
-            <Label htmlFor="id-actif">Produit actif</Label>
+            {/* `Checkbox` already grows its own hit area to 44px on a coarse
+                pointer via a `::before` pseudo-element, but the label is the
+                wider half of the control and had none — so the effective touch
+                band was the box's 16px. Same fix as `produits/nouveau.tsx`. */}
+            <Label htmlFor="id-actif" className="pointer-coarse:min-h-11">
+              Produit actif
+            </Label>
           </div>
           {/* Same reason as the image error above: an API message may carry an
               unbroken token (quoted value, error code with underscores). */}

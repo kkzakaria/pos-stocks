@@ -3,6 +3,7 @@ import { render, screen, fireEvent, act, waitFor } from "@testing-library/react"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { FormulaireCreationProduit } from "@/routes/_app/catalogue/produits/nouveau"
 import { apiFetch } from "@/lib/api"
+import { jetons } from "@/test/jetons"
 import { preparerImage } from "@/lib/image"
 import type * as ModuleImage from "@/lib/image"
 
@@ -201,5 +202,22 @@ describe("FormulaireCreationProduit", () => {
     expect(
       screen.getByRole("button", { name: "Créer le produit" })
     ).toBeTruthy()
+  })
+
+  // jsdom has neither a layout engine nor a CSS cascade — and no pointer media
+  // either: this case guards that the class is APPLIED, never that it produces
+  // its effect. The effect was measured in Chrome at 375 px with
+  // `pointer-coarse` on: the label went from 184 x 14 px to 184 x 44 px, the
+  // box staying 16 px and centred inside that band (top 894, bottom 910 within
+  // 880-924). At a fine pointer the label measures 158 x 12 px, i.e. unchanged.
+  it("donne au libellé de la case « Suivre les lots » la cible tactile de 44 px", () => {
+    monter()
+    const label = document.querySelector("label[for='p-suivi-lots']")
+
+    // `Checkbox` already grows a 44 px `before:` overlay on touch, so the box
+    // itself was covered. Its label was not, and it is the wider half of the
+    // control — the reachable band was 14 px over most of the row's length
+    // while every other target of this screen is at 44.
+    expect(jetons(label)).toContain("pointer-coarse:min-h-11")
   })
 })

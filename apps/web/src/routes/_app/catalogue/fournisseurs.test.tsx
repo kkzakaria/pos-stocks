@@ -1,6 +1,7 @@
 import { render, screen, within, fireEvent } from "@testing-library/react"
 import { ListeAdaptative } from "@/components/ui/liste-adaptative"
 import { installerMatchMedia } from "@/test/media-query"
+import { jetons } from "@/test/jetons"
 import {
   COLONNES_FOURNISSEURS,
   COLONNES_FOURNISSEURS_ECRITURE,
@@ -159,5 +160,48 @@ describe("colonnes de la liste des fournisseurs", () => {
     expect(valeurPaire(carte, "Contact")).toBe("—")
     expect(valeurPaire(carte, "Téléphone")).toBe("—")
     expect(valeurPaire(carte, "Statut")).toBe("Inactif")
+  })
+
+  // jsdom has neither a layout engine nor a CSS cascade: these two cases guard
+  // that the classes are APPLIED to the right cells, never that they produce
+  // their effect. The effect was measured in Chrome on this very screen at the
+  // 1024 px tier, where its container is 736 px: 1 578 px of table — Nom 576 ·
+  // Contact 502 · Téléphone 348 — i.e. 842 px of horizontal scroll. With the
+  // pair on those three columns: 736 px of table, Nom 216 · Contact 204 ·
+  // Téléphone 164, no scroll left.
+  it("porte les deux jetons de texte libre sur le nom, le contact et le téléphone", () => {
+    afficher(1280, [ACTIF])
+    const cellules = [
+      screen.getByText("Sotra Distribution").closest("td"),
+      screen.getByText("Awa Koné").closest("td"),
+      screen.getByText("+225 07 00 00 00").closest("td"),
+    ]
+
+    for (const cellule of cellules) {
+      expect(jetons(cellule)).toContain("wrap-anywhere")
+      // `wrap-anywhere` alone is inert: `TableCell` sets `whitespace-nowrap`,
+      // which forbids any wrap in the first place. The contact is the proof
+      // that the second token is not decoration — it carries SPACES and still
+      // refused to fold at 502 px. See the JSDoc of `TEXTE_LIBRE` in
+      // `components/ui/table.tsx`.
+      expect(jetons(cellule)).toContain("whitespace-normal")
+    }
+  })
+
+  it("laisse le statut et l'action sans traitement de texte libre", () => {
+    afficher(1280, [ACTIF])
+    // A badge and a button label are fixed words from closed sets, not user
+    // text: breaking them mid-word would only cost readability. Asserted so
+    // that a blanket `classeCellule` on every column fails here rather than
+    // shipping.
+    const cellules = [
+      screen.getByText("Actif").closest("td"),
+      screen.getByRole("button", { name: "Désactiver" }).closest("td"),
+    ]
+
+    for (const cellule of cellules) {
+      expect(jetons(cellule)).not.toContain("wrap-anywhere")
+      expect(jetons(cellule)).not.toContain("whitespace-normal")
+    }
   })
 })

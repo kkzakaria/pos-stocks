@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react"
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router"
 import { useQuery } from "@tanstack/react-query"
 import { apiFetch, apiUrl } from "@/lib/api"
+import { cn } from "@/lib/utils"
 import { formaterMontant } from "@/lib/format"
 import { usePeutEcrire } from "@/lib/permissions"
 import { validerRechercheProduits } from "@/lib/recherche-produits"
@@ -21,6 +22,7 @@ import {
   ComboboxItem,
   ComboboxList,
 } from "@/components/ui/combobox"
+import { TEXTE_LIBRE } from "@/components/ui/table"
 import { ListeAdaptative } from "@/components/ui/liste-adaptative"
 import type { ColonneAdaptative } from "@/components/ui/liste-adaptative"
 import { FiltresRepliables } from "@/components/ui/filtres-repliables"
@@ -131,6 +133,20 @@ export function sousTitreProduit(p: Produit) {
   return <span className="font-mono">{p.sku}</span>
 }
 
+/**
+ * `TEXTE_LIBRE` on the two free-text columns only — the product name, and the
+ * SKU, whose tail is normalised from attribute VALUES the user typed and can
+ * therefore be arbitrarily long and unbreakable. Its JSDoc in
+ * `components/ui/table.tsx` holds the mechanism, including why `break-words`
+ * alone contributes nothing here. Measured at the 1024px tier, where this
+ * screen's container is 736px: a single long product name sized the Nom column
+ * at 576px and the table at 940px, i.e. 204px of horizontal scroll.
+ *
+ * The four other columns are deliberately left alone: the thumbnail carries no
+ * text, Prix is a formatted amount and Variantes a count — atomic figures that
+ * must never be broken mid-number — and Statut is a fixed one-word badge from
+ * a closed set.
+ */
 export const COLONNES_PRODUITS: ColonneAdaptative<ProduitAffiche>[] = [
   {
     cle: "vignette",
@@ -144,7 +160,7 @@ export const COLONNES_PRODUITS: ColonneAdaptative<ProduitAffiche>[] = [
     entete: "Nom",
     // Resurfaces via titreProduit, which renders this same link.
     masquerEnCarte: true,
-    classeCellule: "font-medium",
+    classeCellule: cn("font-medium", TEXTE_LIBRE),
     cellule: lienNomProduit,
   },
   {
@@ -152,7 +168,7 @@ export const COLONNES_PRODUITS: ColonneAdaptative<ProduitAffiche>[] = [
     entete: "SKU",
     // Resurfaces via sousTitreProduit.
     masquerEnCarte: true,
-    classeCellule: "font-mono text-xs",
+    classeCellule: cn("font-mono text-xs", TEXTE_LIBRE),
     cellule: sousTitreProduit,
   },
   {

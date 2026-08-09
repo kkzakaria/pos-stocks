@@ -1,6 +1,7 @@
 import { render, screen, within, fireEvent } from "@testing-library/react"
 import { ListeAdaptative } from "@/components/ui/liste-adaptative"
 import { installerMatchMedia } from "@/test/media-query"
+import { jetons } from "@/test/jetons"
 import {
   COLONNES_CATEGORIES,
   COLONNES_CATEGORIES_ECRITURE,
@@ -156,5 +157,39 @@ describe("colonnes des catégories", () => {
     const carte = screen.getAllByRole("listitem")[1]
     expect(within(carte).getByText(LIBELLE_ENFANT)).toBeTruthy()
     expect(screen.queryByRole("button", { name: "Modifier" })).toBeNull()
+  })
+
+  // jsdom has neither a layout engine nor a CSS cascade: this case guards that
+  // the two classes are APPLIED to the right cell, never that they produce
+  // their effect. The effect was measured in Chrome on this very screen, with
+  // the hierarchical label of a long ZZZRESP category: 1 075 px of table for a
+  // 736 px container at the 1024 px tier — 339 px of horizontal scroll, which
+  // pushed the "Modifier" button's right edge to 1 331 px against a container
+  // ending at 1 000. With the pair: 736 px of table, no scroll left, button
+  // right edge back at 992 px. Same reading at 768 (339 → 0) and at 1280
+  // (83 → 0).
+  it("porte les deux jetons de texte libre sur la cellule du libellé", () => {
+    afficher(1280, COLONNES_CATEGORIES_ECRITURE, boutonModifier)
+    const cellule = screen.getByText(LIBELLE_ENFANT).closest("td")
+
+    expect(jetons(cellule)).toContain("wrap-anywhere")
+    // `wrap-anywhere` alone is inert: `TableCell` sets `whitespace-nowrap`,
+    // which forbids any wrap in the first place. The two go together or not
+    // at all — see the JSDoc of `TEXTE_LIBRE` in `components/ui/table.tsx`.
+    expect(jetons(cellule)).toContain("whitespace-normal")
+  })
+
+  it("laisse la colonne d'action sans traitement de texte libre", () => {
+    afficher(1280, COLONNES_CATEGORIES_ECRITURE, boutonModifier)
+    // A button label is a fixed word from a closed set, not user text:
+    // breaking it mid-word would only cost readability. Asserted so that a
+    // future blanket `classeCellule` on every column fails here instead of
+    // shipping.
+    const cellule = screen
+      .getAllByRole("button", { name: "Modifier" })[0]
+      .closest("td")
+
+    expect(jetons(cellule)).not.toContain("wrap-anywhere")
+    expect(jetons(cellule)).not.toContain("whitespace-normal")
   })
 })

@@ -2,6 +2,7 @@ import { useState } from "react"
 import { createFileRoute } from "@tanstack/react-router"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { apiFetch } from "@/lib/api"
+import { cn } from "@/lib/utils"
 import { usePeutEcrire } from "@/lib/permissions"
 import { FolderTree } from "lucide-react"
 import { EtatVide } from "@/components/etat-vide"
@@ -21,6 +22,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import { TEXTE_LIBRE } from "@/components/ui/table"
 import { ListeAdaptative } from "@/components/ui/liste-adaptative"
 import type { ColonneAdaptative } from "@/components/ui/liste-adaptative"
 
@@ -76,12 +78,21 @@ export function boutonModifier(cat: CategorieAffichee) {
   )
 }
 
+/**
+ * The one free-text column of this screen: the label is built from category
+ * NAMES the user typed, so a long one (or an unbreakable reference pasted as a
+ * name) sizes the column at its own min-content width and the whole table
+ * overflows its container — measured 1 075px of table for a 736px container at
+ * the 1024px tier, which pushed the "Modifier" button 331px out of view. Hence
+ * `TEXTE_LIBRE`; see its JSDoc in `components/ui/table.tsx` for why the two
+ * tokens are needed together and why `break-words` alone would be inert.
+ */
 const COLONNE_CATEGORIE: ColonneAdaptative<CategorieAffichee> = {
   cle: "categorie",
   entete: "Catégorie",
   // Resurfaces via titreCategorie, which renders this same label.
   masquerEnCarte: true,
-  classeCellule: "font-medium",
+  classeCellule: cn("font-medium", TEXTE_LIBRE),
   cellule: titreCategorie,
 }
 

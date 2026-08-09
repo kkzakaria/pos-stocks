@@ -171,12 +171,17 @@ export function FormulaireVariantes({
 
       <div className="flex flex-col gap-1.5">
         <Label>Attributs</Label>
-        {/* Own wrapper so the gap BETWEEN pairs (12px) beats the gap INSIDE a
-            stacked pair (8px) below `sm`. Without it the two gaps would read
-            6px vs 8px and the pairs would visually merge into one column of
-            anonymous fields. Back to the parent's rhythm from `sm` on, where
-            each pair is a single row again. */}
-        <div className="flex flex-col gap-3 sm:gap-1.5">
+        {/* Own wrapper so the gap BETWEEN pairs beats the gap INSIDE a stacked
+            pair (8px) below `sm`. Without it the two gaps would read 6px vs
+            8px and the pairs would visually merge into one column of anonymous
+            fields. 24px and not the 12px first shipped: a 1.5 ratio satisfies
+            the "external > internal" rule on paper and still reads as one run
+            of fields, the two gaps differing by 4px. At 3.0 the pair is the
+            unit the eye picks up first. Kept identical to the sheet's variant
+            dialog (`section-variantes.tsx`), which repeats this block rather
+            than sharing it. Back to the parent's rhythm from `sm` on, where
+            each pair is a single row again and needs no separation. */}
+        <div className="flex flex-col gap-6 sm:gap-1.5">
           {attributs.map((paire, index) => (
             // Stacked below `sm`: side by side, the pair shrinks to 132px per
             // field once "Retirer" takes its 62px — under the readable width
@@ -242,8 +247,16 @@ export function FormulaireVariantes({
         </Button>
       </div>
 
+      {/* `w-full sm:w-auto` on the three wrappers. As bare flex items they are
+          `flex: 0 1 auto`, so each one sat at its content's width — 252px
+          measured at 375px — in a 343px row, wrapping to three lines anyway
+          and leaving 91px unused on the right, while every product field above
+          takes the full 343px. Full width below `sm` lines them up with those;
+          `sm:w-auto` restores `width: auto` from `sm` on, so the desktop row
+          (three fields side by side at their natural width) is unchanged.
+          Same treatment as the filter row of `routes/_app/ventes/index.tsx`. */}
       <div className="flex flex-wrap gap-3">
-        <div className="flex flex-col gap-1.5">
+        <div className="flex w-full flex-col gap-1.5 sm:w-auto">
           <Label htmlFor="v-prix">Prix (optionnel)</Label>
           <Input
             id="v-prix"
@@ -254,7 +267,7 @@ export function FormulaireVariantes({
             onChange={(e) => setPrix(e.target.value)}
           />
         </div>
-        <div className="flex flex-col gap-1.5">
+        <div className="flex w-full flex-col gap-1.5 sm:w-auto">
           <Label htmlFor="v-plancher">Plancher (optionnel)</Label>
           <Input
             id="v-plancher"
@@ -265,7 +278,7 @@ export function FormulaireVariantes({
             onChange={(e) => setPlancher(e.target.value)}
           />
         </div>
-        <div className="flex flex-col gap-1.5">
+        <div className="flex w-full flex-col gap-1.5 sm:w-auto">
           <Label htmlFor="v-barcode">Code-barres (optionnel)</Label>
           <Input
             id="v-barcode"

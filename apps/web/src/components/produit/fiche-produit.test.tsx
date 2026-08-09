@@ -66,7 +66,15 @@ vi.mock("@tanstack/react-router", async (importOriginal) => {
   const original = await importOriginal<typeof ReactRouter>()
   return {
     ...original,
-    Link: ({ children }: { children: React.ReactNode }) => <a>{children}</a>,
+    // `className` is forwarded: the back link's touch target lives there and
+    // a mock that swallowed it would make that case unfalsifiable.
+    Link: ({
+      children,
+      className,
+    }: {
+      children: React.ReactNode
+      className?: string
+    }) => <a className={className}>{children}</a>,
     createFileRoute: () => () => ({
       useParams: () => ({ productId: "p1" }),
       useSearch: () => ({}),
@@ -137,5 +145,22 @@ describe("FicheProduit", () => {
     expect(jetons(titre)).toContain("break-words")
     expect(jetons(sku)).toContain("min-w-0")
     expect(jetons(sku)).toContain("break-words")
+  })
+
+  // jsdom has neither a layout engine, a CSS cascade, nor a pointer media
+  // query: this case guards that the class is APPLIED, never that it produces
+  // its effect. The effect was measured in Chrome at 375 px with
+  // `pointer-coarse` on: 72 x 19 px before, 72 x 44 px after — the height the
+  // back link of the creation form, one navigation away, already had (91 x 44).
+  // At a fine pointer the link measures 65 x 16 px, i.e. unchanged.
+  it("en-tête : le lien de retour porte la cible tactile de 44 px", async () => {
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <FicheProduit productId="p1" />
+      </QueryClientProvider>
+    )
+
+    const retour = await screen.findByText("Produits")
+    expect(jetons(retour.closest("a"))).toContain("pointer-coarse:min-h-11")
   })
 })

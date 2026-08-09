@@ -298,7 +298,18 @@ export function FormulaireCreationProduit({
             checked={suiviLots}
             onCheckedChange={(valeur) => setSuiviLots(valeur === true)}
           />
-          <Label htmlFor="p-suivi-lots">Suivre les lots (péremption)</Label>
+          {/* `pointer-coarse:min-h-11` — the same 44px means button, input and
+              select already use. The box itself is covered: `Checkbox` grows a
+              44px `before:` overlay on touch. Its label is not, and it is the
+              wider half of the control (measured 184 x 14px at 375px against
+              the box's 16px), so the reachable band was the label's 14px over
+              most of its length while every other target on this screen is at
+              44. The label is `flex items-center`, so `min-h` centres the text
+              rather than pushing it up, and the row's own `items-center` keeps
+              the box aligned on it. */}
+          <Label htmlFor="p-suivi-lots" className="pointer-coarse:min-h-11">
+            Suivre les lots (péremption)
+          </Label>
         </div>
       </section>
 

@@ -282,14 +282,22 @@ export function SectionVariantes({
                 </div>
                 <div className="flex flex-col gap-2">
                   <Label>Attributs</Label>
-                  {/* Own wrapper so the gap BETWEEN pairs (12px) beats the gap
-                      INSIDE a stacked pair (8px) below `sm`. Without it both
-                      would be 8px and the pairs would visually merge into one
-                      column of anonymous fields — a readability defect
-                      CREATED by the responsive fix. Back to the parent's 8px
-                      rhythm from `sm` on, where each pair is a row again, so
-                      the desktop rendering is unchanged. */}
-                  <div className="flex flex-col gap-3 sm:gap-2">
+                  {/* Own wrapper so the gap BETWEEN pairs beats the gap INSIDE
+                      a stacked pair (8px) below `sm`. Without it both would be
+                      8px and the pairs would visually merge into one column of
+                      anonymous fields — a readability defect CREATED by the
+                      responsive fix. 24px and not the 12px first shipped: a
+                      1.5 ratio satisfies the "external > internal" rule on
+                      paper and still reads as one run of fields, since the two
+                      gaps differ by 4px in a dialog whose other transitions
+                      measure 32 to 38px. At 3.0 the pair is the unit the eye
+                      picks up first, and 24px still sits below those section
+                      transitions, so the pairs stay INSIDE the "Attributs"
+                      group rather than reading as sections of their own. Back
+                      to the parent's 8px rhythm from `sm` on, where each pair
+                      is a row again and needs no separation, so the desktop
+                      rendering is unchanged. */}
+                  <div className="flex flex-col gap-6 sm:gap-2">
                     {attributs.map((a, index) => (
                       // Stacked below `sm`: side by side at 375px the pair
                       // sits at 144px per field, under the readable width for
@@ -698,7 +706,25 @@ function LigneLot({ lot }: { lot: Lot }) {
   return (
     <>
       <span className="min-w-0 font-mono break-words">{lot.lotNumber}</span>
-      <span className="text-muted-foreground">
+      {/*
+        `whitespace-nowrap` on the expiry only. `TEXTE_LIBRE` on the lots cell
+        sets `overflow-wrap: anywhere`, which INHERITS, and a formatted date is
+        an atomic token: measured at the 1024px tier — where this column's
+        container is at its narrowest, 470px — "15/03/2027" was laid out over
+        two line boxes as "15/0" then "3/2027". A date read half a line lower
+        is a date read wrong.
+
+        Scoped to this span, and to it alone: the cell keeps `TEXTE_LIBRE` and
+        the lot number above keeps its own `break-words`, so the free supplier
+        reference — the one thing in this cell that genuinely has to fold —
+        still breaks (measured at 1024px, the 55-character lot number lays out
+        over two lines and the container stays at 470px with no overflow).
+        `white-space: nowrap` removes every soft wrap opportunity inside the
+        span, so the inherited `overflow-wrap` no longer applies to it — no
+        need to also reset it. It costs at most the width of "sans péremption",
+        far below the cell's own.
+      */}
+      <span className="whitespace-nowrap text-muted-foreground">
         {lot.expiryDate ? formatDateJour(lot.expiryDate) : "sans péremption"}
       </span>
       {estDateExpiree(lot.expiryDate) && (

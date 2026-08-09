@@ -52,13 +52,32 @@ function DialogContent({
       <DialogOverlay />
       <DialogPrimitive.Popup
         data-slot="dialog-content"
+        // Two-box layout on purpose. The popup is the OUTER box: it is capped
+        // at the viewport (`max-h-[calc(100dvh-2rem)]`, `dvh` so mobile address
+        // bars are accounted for) and never scrolls, so the absolutely
+        // positioned close button stays reachable whatever the scroll offset.
+        // `flex-col` + `max-h` keeps the dialog centered while it fits and only
+        // bounds it once it overflows.
         className={cn(
-          "fixed top-1/2 left-1/2 z-50 grid w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 gap-4 rounded-xl bg-popover p-4 text-xs/relaxed text-popover-foreground ring-1 ring-foreground/10 duration-100 outline-none sm:max-w-sm data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
+          "fixed top-1/2 left-1/2 z-50 flex max-h-[calc(100dvh-2rem)] w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 flex-col rounded-xl bg-popover p-4 text-xs/relaxed text-popover-foreground ring-1 ring-foreground/10 duration-100 outline-none sm:max-w-sm data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
           className
         )}
         {...props}
       >
-        {children}
+        {/*
+          INNER box: carries the grid the consumers rely on plus the vertical
+          scroll. `min-h-0` is required for a flex child to shrink below its
+          content height; `*:min-w-0` lets the grid tracks shrink below their
+          children's min-content width (a `nowrap` select trigger or a long
+          unbreakable label would otherwise silently widen the dialog past its
+          `max-w` and push the footer buttons off-screen).
+        */}
+        <div
+          data-slot="dialog-body"
+          className="grid min-h-0 gap-4 overflow-y-auto *:min-w-0"
+        >
+          {children}
+        </div>
         {showCloseButton && (
           <DialogPrimitive.Close
             data-slot="dialog-close"

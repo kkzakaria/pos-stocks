@@ -93,10 +93,18 @@ export function FicheProduit({
   return (
     <div className="flex flex-col gap-4">
       <div>
+        {/* `pointer-coarse:min-h-11` — the 44px this repo gives every touch
+            target, here through the same class `Button`'s size variants and
+            the user menu's trigger use. Measured at 375px this link was
+            72 x 19px while the back link of the creation form, one navigation
+            away and doing the same job, was 91 x 44: the sheet asked for a
+            finer aim than its own neighbour. `items-center` was already
+            there, so the extra height centres the arrow and the label rather
+            than pushing them. */}
         <Link
           to="/catalogue/produits"
           search={rechercheListe}
-          className="mb-2 inline-flex items-center gap-1 rounded-sm text-xs text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/30 [&>svg]:size-3.5"
+          className="mb-2 inline-flex items-center gap-1 rounded-sm text-xs text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/30 pointer-coarse:min-h-11 [&>svg]:size-3.5"
         >
           <ArrowLeft />
           Produits

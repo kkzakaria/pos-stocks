@@ -193,4 +193,44 @@ describe("colonnes de la liste des produits", () => {
     const carte = screen.getAllByRole("listitem")[0]
     expect(jetons(within(carte).getByText("PRD-0001"))).toContain("font-mono")
   })
+
+  // jsdom has neither a layout engine nor a CSS cascade: these two cases guard
+  // that the classes are APPLIED to the right cells, never that they produce
+  // their effect. The effect was measured in Chrome on this very screen at the
+  // 1024 px tier, where its container is 736 px, with a long ZZZRESP product
+  // name: 940 px of table and a Nom column at 576 px, i.e. 204 px of
+  // horizontal scroll. With the pair: 736 px of table, Nom at 383 px, no
+  // scroll left.
+  it("porte les deux jetons de texte libre sur le nom et le SKU", () => {
+    afficher(1280)
+    const cellules = [
+      screen.getByText("Marteau").closest("td"),
+      screen.getByText("PRD-0001").closest("td"),
+    ]
+
+    for (const cellule of cellules) {
+      expect(jetons(cellule)).toContain("wrap-anywhere")
+      // `wrap-anywhere` alone is inert: `TableCell` sets `whitespace-nowrap`,
+      // which forbids any wrap in the first place. See the JSDoc of
+      // `TEXTE_LIBRE` in `components/ui/table.tsx`.
+      expect(jetons(cellule)).toContain("whitespace-normal")
+    }
+  })
+
+  it("laisse le prix, le compte de variantes et le statut sans traitement de texte libre", () => {
+    afficher(1280)
+    // A formatted amount, a count and a badge are atomic values: breaking a
+    // figure across two lines would make it unreadable — the exact defect the
+    // expiry dates of the product sheet suffered. Asserted so that a blanket
+    // `classeCellule` on every column fails here rather than shipping.
+    const cellules = [
+      screen.getByText(texteMontant(12500, DEVISE)).closest("td"),
+      screen.getByText("Actif").closest("td"),
+    ]
+
+    for (const cellule of cellules) {
+      expect(jetons(cellule)).not.toContain("wrap-anywhere")
+      expect(jetons(cellule)).not.toContain("whitespace-normal")
+    }
+  })
 })
