@@ -1,5 +1,7 @@
 import { describe, it, expect, vi } from "vitest"
 import { render, screen, fireEvent } from "@testing-library/react"
+import { jetons } from "@/test/jetons"
+import { texteMontant } from "@/test/texte-montant"
 import { ModalePaiement } from "./modale-paiement"
 
 function rendre(total = 1400, onValider = vi.fn()) {
@@ -157,5 +159,64 @@ describe("ModalePaiement — piège de focus durci (différé P6)", () => {
     const dehors = screen.getByRole("button", { name: "Dehors" })
     dehors.focus()
     expect(document.activeElement).toBe(screen.getByRole("dialog"))
+  })
+})
+
+// jsdom has neither a layout engine nor a CSS cascade: these cases guard that
+// the classes are APPLIED, never that they produce their effect. The effect
+// was measured in Chrome (mobile emulation, coarse pointer) at 375 x 812 with
+// a 39 513 672 F CFA total — the modal is `position: fixed`, so
+// `documentElement.scrollWidth` stays equal to `clientWidth` and NO
+// document-level overflow assertion can see any of this; only element
+// rectangles and `document.elementFromPoint` can.
+//
+//   before → panel x 16..504 (488 px wide in a 375 px viewport),
+//            « Fermer » x 440..484 and « Montant exact » x 370..484, both
+//            missed by `elementFromPoint` at their centre;
+//   after  → panel x 16..359 (343 px), « Fermer » x 295..339 (44 x 44) and
+//            every pad button returned by `elementFromPoint`, the pad folding
+//            5 + 2 instead of overflowing on one line.
+//   1280 x 900, before === after: panel x 384..896 (512 x 328), the seven pad
+//            buttons on one row from x 404 to x 876, total rendered at 48 px.
+describe("ModalePaiement — tenue à 375 px (mesurée au navigateur)", () => {
+  it("le calque met sa colonne à minimum zéro au lieu du plancher min-content", () => {
+    rendre(1400)
+    // `place-items-center` alone leaves the implicit column in `auto`, whose
+    // base size is the panel's MIN-content — free space is distributed only
+    // while it is positive, so a panel that overflows keeps the track at that
+    // floor and drags `w-full` past the viewport. `grid-cols-1` is
+    // `minmax(0, 1fr)`: the zero MINIMUM is what corrects this, and `1fr`
+    // alone (`minmax(auto, 1fr)`) would not.
+    const calque = screen.getByRole("dialog").parentElement
+    expect(jetons(calque)).toContain("grid")
+    expect(jetons(calque)).toContain("grid-cols-1")
+  })
+
+  it("l'en-tête laisse le bouton « Fermer » à sa place", () => {
+    rendre(1400)
+    // An amount is a single unbreakable run (U+202F thousands separators,
+    // U+00A0 before the currency), so the amount block's automatic minimum
+    // size is its full width: without `min-w-0` it refuses to shrink and
+    // pushes the close button out of the panel.
+    const bloc = screen.getByText("Total à encaisser").parentElement
+    expect(jetons(bloc)).toContain("min-w-0")
+    expect(jetons(screen.getByRole("button", { name: "Fermer" }))).toContain(
+      "shrink-0"
+    )
+  })
+
+  it("le total descend d'un cran sous sm et garde text-5xl au-delà", () => {
+    rendre(1400)
+    const bloc = screen.getByText("Total à encaisser").parentElement
+    const montant = bloc?.lastElementChild ?? null
+    // Confirms the node under test really is the total, not the label.
+    expect(montant?.textContent).toMatch(texteMontant(1400))
+    // At 375 the header leaves 259 px next to the 44 px target, where
+    // `text-5xl` renders 273 px for the SMALLEST realistic total (7 500 F CFA)
+    // and 404 px for a multi-million one; `text-3xl` renders 171 to 252 px.
+    expect(jetons(montant)).toContain("text-3xl")
+    expect(jetons(montant)).toContain("sm:text-5xl")
+    // The unprefixed class would win at every width and undo the step.
+    expect(jetons(montant)).not.toContain("text-5xl")
   })
 })
