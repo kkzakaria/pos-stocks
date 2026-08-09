@@ -123,7 +123,15 @@ Le serveur plafonne l'image à **2 Mo** et n'accepte que `image/jpeg`, `image/pn
 
 La phase 2b ne livre pas la compression elle-même, mais doit **rendre son insertion triviale**. Trois obstacles structurels aujourd'hui :
 
-1. **L'ordre est inversé.** La validation taille/MIME vit en ligne dans le gestionnaire `onChange` de `ChampImage` et s'exécute **avant** toute transformation possible. Une photo de 3 Mo est rejetée avant d'avoir pu être réduite. Il faut : *transformer, puis valider, puis remettre au parent*.
+1. **L'ordre est inversé.** La validation taille/MIME vit en ligne dans le gestionnaire `onChange` de `ChampImage` et s'exécute **avant** toute transformation possible. Une photo de 3 Mo est rejetée avant d'avoir pu être réduite.
+
+   L'ordre retenu et implémenté n'est pas « transformer puis valider » d'un bloc : les **deux validations sont dissociées**, et se lisent, dans les deux chemins d'envoi, comme *valider le type → préparer → valider la taille → remettre au parent (ou poster)*.
+
+   - **Le type MIME se valide AVANT `preparerImage`** — c'est une garde d'entrée : on ne passe pas un fichier arbitraire à un décodeur d'image. Un PDF doit produire « Formats acceptés : JPEG, PNG, WebP », pas une erreur de décodage du navigateur.
+   - **La taille se valide APRÈS `preparerImage`** — c'est le fichier *préparé* qui doit tenir sous le plafond, jamais l'original : valider avant, c'est rejeter la photo de 3 Mo avant qu'elle ait eu sa chance d'être réduite.
+
+   Ce découpage est la raison d'être de la tâche ; ne pas le « simplifier » en regroupant les deux validations d'un même côté de la préparation.
+
 2. **Le gestionnaire est synchrone.** Décoder et ré-encoder une image est asynchrone ; le handler doit devenir une fonction nommée `async`, avec un état d'attente visible — une photo de 5 Mo prend un moment, et le champ ne doit pas paraître figé.
 3. **Les deux chemins d'envoi divergent.** La création (`ChampImage`) valide ; l'édition (`section-identite.tsx`) ne valide **rien** côté client et poste directement, pour se faire rejeter par le serveur. Les deux doivent passer par le même point.
 

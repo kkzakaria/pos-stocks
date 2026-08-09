@@ -1,10 +1,18 @@
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { Upload } from "lucide-react"
 import { Button, buttonVariants } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
-
-const TAILLE_MAX = 2 * 1024 * 1024
-const TYPES_ACCEPTES = ["image/jpeg", "image/png", "image/webp"]
+import {
+  ACCEPT_IMAGE,
+  AIDE_IMAGE,
+  ERREUR_PREPARATION_IMAGE,
+  ERREUR_TAILLE_IMAGE,
+  ERREUR_TYPE_IMAGE,
+  TAILLE_IMAGE_MAX,
+  TYPES_IMAGE_ACCEPTES,
+  preparerImage,
+} from "@/lib/image"
+import type { ChangeEvent } from "react"
 
 /**
  * Controlled image field: validates the file locally for immediate feedback,
@@ -23,6 +31,14 @@ export function ChampImage({
 }) {
   const [erreur, setErreur] = useState<string | null>(null)
   const [apercu, setApercu] = useState<string | null>(null)
+  const [enPreparation, setEnPreparation] = useState(false)
+  // Generation token: each selection claims a number, and only the selection
+  // still holding the latest number is allowed to publish its result. Chosen
+  // over an AbortController because `preparerImage` takes no signal — forcing
+  // one into its contract before the compression exists would be designing
+  // blind — and over a "last file wins" comparison, which cannot tell two
+  // selections of the same file apart.
+  const generation = useRef(0)
 
   // The object URL is rebuilt on every file change and revoked on cleanup:
   // leaving it alive would retain the file for the page's lifetime.
@@ -35,6 +51,68 @@ export function ChampImage({
     setApercu(url)
     return () => URL.revokeObjectURL(url)
   }, [value])
+
+  /**
+   * Order matters and is NOT interchangeable — do not "simplify" this by
+   * grouping the two validations together:
+   *
+   * 1. MIME type BEFORE `preparerImage`: an entry guard. An arbitrary file must
+   *    never reach a future image decoder, and a PDF must yield "format not
+   *    accepted", not a decoding error.
+   * 2. `preparerImage`, which will one day shrink the file.
+   * 3. Size AFTER `preparerImage`: it is the *prepared* file that has to fit
+   *    under the cap, not the original — otherwise a 3 MB phone photo is
+   *    rejected before it ever had a chance to be reduced.
+   */
+  const choisir = async (evenement: ChangeEvent<HTMLInputElement>) => {
+    // evenement.target.files is nullable (FileList | null): the optional chain
+    // is legitimate for no-unnecessary-condition.
+    const input = evenement.target
+    const fichier = input.files?.[0]
+    // Reset after every attempt: otherwise re-selecting the SAME file
+    // does not fire onChange.
+    input.value = ""
+    if (!fichier) return
+
+    const jeton = ++generation.current
+    const obsolete = () => generation.current !== jeton
+
+    if (!TYPES_IMAGE_ACCEPTES.includes(fichier.type)) {
+      setErreur(ERREUR_TYPE_IMAGE)
+      // Mandatory, and a `finally` could NOT do it: this attempt never enters
+      // the `try`. Claiming the token above already invalidated any in-flight
+      // preparation, which will now return through its `obsolete()` guard
+      // BEFORE its own setEnPreparation(false). Without this line nobody owns
+      // the busy state any more: the label stays pointer-events-none for the
+      // component's lifetime and the field is dead until a page reload.
+      setEnPreparation(false)
+      return
+    }
+
+    setErreur(null)
+    setEnPreparation(true)
+    let prepare: File
+    try {
+      prepare = await preparerImage(fichier)
+    } catch {
+      if (obsolete()) return
+      setEnPreparation(false)
+      // Fixed French sentence: the browser's own decoding errors are English.
+      setErreur(ERREUR_PREPARATION_IMAGE)
+      return
+    }
+    // A newer selection took over while we were preparing: drop this result
+    // silently. Promises are not guaranteed to settle in call order, so
+    // without this the first (slower) file would overwrite the second one.
+    if (obsolete()) return
+    setEnPreparation(false)
+
+    if (prepare.size > TAILLE_IMAGE_MAX) {
+      setErreur(ERREUR_TAILLE_IMAGE)
+      return
+    }
+    onChange(prepare)
+  }
 
   return (
     <div className="flex flex-col gap-2">
@@ -55,28 +133,10 @@ export function ChampImage({
         <input
           id={id}
           type="file"
-          accept="image/jpeg,image/png,image/webp"
+          accept={ACCEPT_IMAGE}
           aria-label="Choisir une image"
-          onChange={(e) => {
-            // e.target.files is nullable (FileList | null): the optional chain is
-            // legitimate for no-unnecessary-condition.
-            const input = e.target
-            const fichier = input.files?.[0]
-            // Reset after every attempt: otherwise re-selecting the SAME file
-            // does not fire onChange.
-            input.value = ""
-            if (!fichier) return
-            if (fichier.size > TAILLE_MAX) {
-              setErreur("L'image dépasse 2 Mo")
-              return
-            }
-            if (!TYPES_ACCEPTES.includes(fichier.type)) {
-              setErreur("Formats acceptés : JPEG, PNG, WebP")
-              return
-            }
-            setErreur(null)
-            onChange(fichier)
-          }}
+          aria-busy={enPreparation}
+          onChange={(e) => void choisir(e)}
           // "peer" must be an immediate previous sibling of the label for
           // peer-focus-visible: to apply — Tailwind's peer combinator only
           // matches general siblings, not ancestors/descendants.
@@ -86,11 +146,14 @@ export function ChampImage({
           htmlFor={id}
           className={cn(
             buttonVariants({ variant: "outline", size: "sm" }),
-            "w-fit cursor-pointer peer-focus-visible:ring-2 peer-focus-visible:ring-ring/30"
+            "w-fit cursor-pointer peer-focus-visible:ring-2 peer-focus-visible:ring-ring/30",
+            // Neutralises the label while preparing: the input stays enabled
+            // so the busy state is announced rather than made unreachable.
+            enPreparation && "pointer-events-none opacity-50"
           )}
         >
           <Upload />
-          Choisir une image
+          {enPreparation ? "Préparation…" : "Choisir une image"}
         </label>
         {value && (
           <Button
@@ -98,6 +161,10 @@ export function ChampImage({
             variant="ghost"
             size="sm"
             onClick={() => {
+              // Invalidates any in-flight preparation too: otherwise it would
+              // resurrect the image the user just removed.
+              generation.current++
+              setEnPreparation(false)
               setErreur(null)
               onChange(null)
             }}
@@ -106,9 +173,7 @@ export function ChampImage({
           </Button>
         )}
       </div>
-      <p className="text-xs text-muted-foreground">
-        JPEG, PNG, WebP — 2 Mo max
-      </p>
+      <p className="text-xs text-muted-foreground">{AIDE_IMAGE}</p>
       {erreur && (
         <p role="alert" className="text-xs text-destructive">
           {erreur}
