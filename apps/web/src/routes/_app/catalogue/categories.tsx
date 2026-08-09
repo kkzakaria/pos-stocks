@@ -227,7 +227,16 @@ function CategoriesPage() {
                     {(valeur: string) =>
                       valeur === ""
                         ? "— aucune —"
-                        : listeCategories.find((c) => c.id === valeur)?.name
+                        : // Two deliberately different fallbacks: "— aucune —"
+                          // asserts there is no parent, while an id the list no
+                          // longer resolves (parent deleted in another session,
+                          // list refreshed by invalidateQueries) means the
+                          // parent is unknown — saying "none" there would lie
+                          // about a parentId the form would still submit. A
+                          // render function makes `placeholder` inert, so
+                          // returning undefined would leave the trigger blank.
+                          (listeCategories.find((c) => c.id === valeur)?.name ??
+                          "— inconnue —")
                     }
                   </SelectValue>
                 </SelectTrigger>
