@@ -133,7 +133,11 @@ export function FormulaireVariantes({
               key={`${variante.name}-${index}`}
               className="flex items-center justify-between gap-2 px-2 py-1.5"
             >
-              <span className="text-xs">
+              {/* min-w-0 + break-words: an attribute VALUE is free text, and a
+                  long unbroken one (a supplier reference pasted in) used to set
+                  the flex item's automatic minimum to its own width and push
+                  the whole page 200px past the viewport, "Retirer" included. */}
+              <span className="min-w-0 text-xs break-words">
                 {variante.name}{" "}
                 <span className="text-muted-foreground">
                   ·{" "}
@@ -167,50 +171,66 @@ export function FormulaireVariantes({
 
       <div className="flex flex-col gap-1.5">
         <Label>Attributs</Label>
-        {attributs.map((paire, index) => (
-          <div key={index} className="flex gap-2">
-            <Input
-              aria-label={`Attribut ${index + 1} — nom`}
-              placeholder="taille"
-              value={paire.cle}
-              onChange={(e) =>
-                setAttributs(
-                  attributs.map((item, i) =>
-                    i === index ? { ...item, cle: e.target.value } : item
+        {/* Own wrapper so the gap BETWEEN pairs (12px) beats the gap INSIDE a
+            stacked pair (8px) below `sm`. Without it the two gaps would read
+            6px vs 8px and the pairs would visually merge into one column of
+            anonymous fields. Back to the parent's rhythm from `sm` on, where
+            each pair is a single row again. */}
+        <div className="flex flex-col gap-3 sm:gap-1.5">
+          {attributs.map((paire, index) => (
+            // Stacked below `sm`: side by side, the pair shrinks to 132px per
+            // field once "Retirer" takes its 62px — under the readable width
+            // for a free-text attribute.
+            <div key={index} className="flex flex-col gap-2 sm:flex-row">
+              <Input
+                aria-label={`Attribut ${index + 1} — nom`}
+                placeholder="taille"
+                value={paire.cle}
+                onChange={(e) =>
+                  setAttributs(
+                    attributs.map((item, i) =>
+                      i === index ? { ...item, cle: e.target.value } : item
+                    )
                   )
-                )
-              }
-            />
-            <Input
-              aria-label={`Attribut ${index + 1} — valeur`}
-              placeholder="M"
-              value={paire.valeur}
-              onChange={(e) =>
-                setAttributs(
-                  attributs.map((item, i) =>
-                    i === index ? { ...item, valeur: e.target.value } : item
-                  )
-                )
-              }
-            />
-            {/* Adding pairs without being able to remove one forced the user to
-                abandon the whole draft over a single mistyped key. The last
-                remaining pair stays, since a variant needs one attribute. */}
-            {attributs.length > 1 && (
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                aria-label={`Retirer l'attribut ${index + 1}`}
-                onClick={() =>
-                  setAttributs(attributs.filter((_, i) => i !== index))
                 }
-              >
-                Retirer
-              </Button>
-            )}
-          </div>
-        ))}
+              />
+              <Input
+                aria-label={`Attribut ${index + 1} — valeur`}
+                placeholder="M"
+                value={paire.valeur}
+                onChange={(e) =>
+                  setAttributs(
+                    attributs.map((item, i) =>
+                      i === index ? { ...item, valeur: e.target.value } : item
+                    )
+                  )
+                }
+              />
+              {/* Adding pairs without being able to remove one forced the user
+                  to abandon the whole draft over a single mistyped key. The
+                  last remaining pair stays, since a variant needs one
+                  attribute. */}
+              {attributs.length > 1 && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  // `self-start` only matters while stacked, where the default
+                  // stretch would blow the button up to the full width. From
+                  // `sm` on it is inert: the button has a fixed height, so
+                  // stretch already resolved to flex-start.
+                  className="self-start"
+                  aria-label={`Retirer l'attribut ${index + 1}`}
+                  onClick={() =>
+                    setAttributs(attributs.filter((_, i) => i !== index))
+                  }
+                >
+                  Retirer
+                </Button>
+              )}
+            </div>
+          ))}
+        </div>
         <Button
           type="button"
           variant="outline"
@@ -257,8 +277,15 @@ export function FormulaireVariantes({
         </div>
       </div>
 
+      {/* break-words: these messages quote what the user typed — an attribute
+          key, or the normalised SKU suffix built from attribute VALUES. A
+          60-character supplier reference pasted as a value overflows the 343px
+          available at 375px and <main> does not clip, exactly like the variant
+          list above. No min-w-0 needed here, unlike the <span> in that list:
+          this <p> is a block in a column, its width is already the
+          container's. */}
       {erreur && (
-        <p role="alert" className="text-xs text-destructive">
+        <p role="alert" className="text-xs break-words text-destructive">
           {erreur}
         </p>
       )}

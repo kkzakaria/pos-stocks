@@ -2,6 +2,7 @@ import { useState } from "react"
 import { createFileRoute, useNavigate } from "@tanstack/react-router"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { apiFetch } from "@/lib/api"
+import { cn } from "@/lib/utils"
 import { usePeutEcrire } from "@/lib/permissions"
 import { validerRechercheProduits } from "@/lib/recherche-produits"
 import { Button } from "@/components/ui/button"
@@ -103,6 +104,7 @@ export function FormulaireCreationProduit({
   const [seuilAlerte, setSeuilAlerte] = useState("")
   const [suiviLots, setSuiviLots] = useState(false)
   const [image, setImage] = useState<File | null>(null)
+  const [preparationImage, setPreparationImage] = useState(false)
   const [variantes, setVariantes] = useState<VarianteSaisie[]>([])
   const [blocVariantes, setBlocVariantes] = useState(false)
   const [erreur, setErreur] = useState<string | null>(null)
@@ -156,6 +158,18 @@ export function FormulaireCreationProduit({
       className="flex max-w-2xl flex-col gap-6"
       onSubmit={(e) => {
         e.preventDefault()
+        // Defence in depth, NOT a keyboard workaround: implicit submission
+        // (Enter in a text field) fires a click on the form's default button
+        // and does nothing when that button is disabled, so the `disabled`
+        // below already covers the keyboard. This guard is what survives
+        // someone dropping that `disabled`, and it is the only thing covering
+        // a programmatic `requestSubmit()`.
+        // What it protects, in both cases a write that cannot be replayed:
+        // submitting mid-preparation creates the product WITHOUT its image
+        // (the field hands the prepared file over through `onChange` only at
+        // the end, so the preparation lands nowhere), and submitting while a
+        // creation is in flight creates a SECOND product.
+        if (preparationImage || creer.isPending) return
         setErreur(null)
         creer.mutate()
       }}
@@ -230,7 +244,9 @@ export function FormulaireCreationProduit({
 
       <section className="flex flex-col gap-3">
         <h2 className="text-sm font-medium">Prix</h2>
-        <div className="flex gap-3">
+        {/* Side by side from `sm` on. Below it the two amounts would sit at
+            165px each, which fits but leaves a XOF amount barely readable. */}
+        <div className="flex flex-col gap-3 sm:flex-row">
           <div className="flex flex-1 flex-col gap-1.5">
             <Label htmlFor="p-prix">Prix de vente</Label>
             <Input
@@ -293,7 +309,11 @@ export function FormulaireCreationProduit({
             (facultatif)
           </span>
         </h2>
-        <ChampImage value={image} onChange={setImage} />
+        <ChampImage
+          value={image}
+          onChange={setImage}
+          surPreparation={setPreparationImage}
+        />
       </section>
 
       <section className="flex flex-col gap-3">
@@ -317,19 +337,59 @@ export function FormulaireCreationProduit({
         )}
       </section>
 
+      {/* break-words: the API phrases its conflicts around user text — « Le
+          SKU « … » de la variante « … » est déjà utilisé » — where the variant
+          name is raw input and the SKU tail a normalised attribute value. An
+          unbroken 60-character token overflows the 343px available at 375px,
+          and <main> does not clip. No min-w-0 needed, unlike the flex item in
+          the variant list: this <p> is a block in a column, its width is
+          already the container's. */}
       {erreur && (
-        <p role="alert" className="text-sm text-destructive">
+        <p role="alert" className="text-sm break-words text-destructive">
           {erreur}
         </p>
       )}
 
-      <div className="flex gap-2">
+      {/* Says WHY the button is unavailable: a disabled control with no
+          explanation is a dead end. Mounted AT ALL TIMES, only its text
+          toggles — a live region that enters the DOM in the same mutation as
+          its content is routinely missed (VoiceOver on iOS/macOS notably),
+          which would leave exactly the screen-reader user facing the silent
+          dead end this paragraph exists to prevent. At rest `sr-only` is
+          position:absolute, so the region is not a flex item and adds no
+          `gap` row. `role="status"` and not `role="alert"`: nothing went
+          wrong, and a progress update must not interrupt. */}
+      <p
+        id="p-preparation-image"
+        role="status"
+        className={cn(
+          "text-sm text-muted-foreground",
+          !preparationImage && "sr-only"
+        )}
+      >
+        {preparationImage
+          ? "Préparation de l'image en cours — la création sera possible dès qu'elle est terminée."
+          : ""}
+      </p>
+
+      {/* flex-wrap and not flex-col: at 375px the pair only takes 200 of the
+          343 available, so stacking would cost a line for nothing. The wrap is
+          there for the day a third action joins, since both buttons carry
+          `shrink-0 whitespace-nowrap` and could not shrink out of trouble. */}
+      <div className="flex flex-wrap gap-2">
         {surAnnulation && (
           <Button type="button" variant="outline" onClick={surAnnulation}>
             Annuler
           </Button>
         )}
-        <Button type="submit" disabled={creer.isPending}>
+        {/* aria-describedby rather than mere proximity: the reason is tied to
+            the control it disables, so it is read when the button is reached,
+            not only if the user happens to wander past the paragraph. */}
+        <Button
+          type="submit"
+          aria-describedby="p-preparation-image"
+          disabled={creer.isPending || preparationImage}
+        >
           {creer.isPending ? "Création…" : "Créer le produit"}
         </Button>
       </div>

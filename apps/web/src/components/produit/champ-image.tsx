@@ -22,10 +22,22 @@ import type { ChangeEvent } from "react"
 export function ChampImage({
   value,
   onChange,
+  surPreparation,
   id = "p-image",
 }: {
   value: File | null
   onChange: (fichier: File | null) => void
+  /**
+   * Notified whenever a preparation starts (`true`) or ends (`false`).
+   *
+   * Optional: the field is fully usable without it. It exists so an enclosing
+   * form can BLOCK its own submission while a file is in flight — the field
+   * hands over the prepared file through `onChange` only once preparation
+   * succeeds, so a form submitted meanwhile ships with no image at all, and
+   * the preparation then lands nowhere. Pass a stable reference (a `useState`
+   * setter qualifies).
+   */
+  surPreparation?: (enPreparation: boolean) => void
   /** DOM id of the file input; override when two instances share a view. */
   id?: string
 }) {
@@ -51,6 +63,19 @@ export function ChampImage({
     setApercu(url)
     return () => URL.revokeObjectURL(url)
   }, [value])
+
+  // Mirrored from the STATE, not from each branch that flips it: five call
+  // sites already set `enPreparation`, and a notification bolted onto every one
+  // of them would drift the day a sixth branch appears.
+  // The cleanup also releases the parent when the field unmounts mid-flight —
+  // a form that stops rendering it would otherwise stay blocked with nothing
+  // left to unblock it. It runs on every dependency change too, but React
+  // batches the false/true pair inside one flush, so no intermediate state is
+  // ever rendered.
+  useEffect(() => {
+    surPreparation?.(enPreparation)
+    return () => surPreparation?.(false)
+  }, [enPreparation, surPreparation])
 
   /**
    * Order matters and is NOT interchangeable — do not "simplify" this by
