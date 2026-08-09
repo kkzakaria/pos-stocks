@@ -6,6 +6,7 @@ import {
   ERREUR_PREPARATION_IMAGE,
   preparerImage,
 } from "@/lib/image"
+import { jetons } from "@/test/jetons"
 import type * as ModuleImage from "@/lib/image"
 
 // The real module is kept (identity implementation, shared constants); only
@@ -126,7 +127,7 @@ describe("ChampImage", () => {
     vi.mocked(preparerImage).mockImplementationOnce(
       () => new Promise<File>((r) => (resoudre = r))
     )
-    // `value` non nul : « Retirer l'image » n'est rendu que dans ce cas.
+    // Non-null `value`: "Retirer l'image" is only rendered in that case.
     render(
       <ChampImage value={fichierJpeg(4, "ancien.jpg")} onChange={onChange} />
     )
@@ -142,8 +143,8 @@ describe("ChampImage", () => {
       resoudre(fichierJpeg(4, "nouveau.jpg"))
     })
 
-    // Sans l'incrément du jeton dans « Retirer l'image », la préparation en
-    // vol remonterait le fichier que l'utilisateur vient d'écarter.
+    // Without the token increment in "Retirer l'image", the in-flight
+    // preparation would report back the file the user just discarded.
     expect(onChange).toHaveBeenCalledTimes(1)
   })
 
@@ -157,8 +158,8 @@ describe("ChampImage", () => {
 
     fireEvent.change(entree, { target: { files: [fichierJpeg()] } })
 
-    // Message français fixe : jamais `err.message`, qui vient du navigateur
-    // en anglais.
+    // Fixed French message: never `err.message`, which comes from the browser
+    // in English.
     expect((await screen.findByRole("alert")).textContent).toBe(
       ERREUR_PREPARATION_IMAGE
     )
@@ -169,7 +170,7 @@ describe("ChampImage", () => {
 
   it("un refus de type pendant une préparation ne bloque pas le champ", async () => {
     const onChange = vi.fn()
-    // Préparation qui ne se résout jamais : la première sélection reste en vol.
+    // Preparation that never settles: the first selection stays in flight.
     vi.mocked(preparerImage).mockImplementationOnce(
       () => new Promise<File>(() => undefined)
     )
@@ -187,18 +188,16 @@ describe("ChampImage", () => {
     fireEvent.change(entree, { target: { files: [gif] } })
 
     expect((await screen.findByRole("alert")).textContent).toContain("JPEG")
-    // Le refus de type a incrémenté le jeton : la préparation n°1 sortira par
-    // sa garde `obsolete()` AVANT son propre setEnPreparation(false). Si la
-    // branche de refus ne libère pas l'attente, plus personne ne la possède —
-    // le label reste neutralisé à vie, sans issue sur mobile.
+    // The type refusal incremented the token: preparation #1 will exit through
+    // its `obsolete()` guard BEFORE its own setEnPreparation(false). If the
+    // refusal branch does not release the pending state, nobody owns it any
+    // more — the label stays disabled forever, with no way out on mobile.
     expect(entree.getAttribute("aria-busy")).toBe("false")
     expect(screen.getByText("Choisir une image")).toBeTruthy()
-    // Comparaison par jeton exact : les variantes du bouton portent déjà
-    // `disabled:pointer-events-none` et `[&_svg]:pointer-events-none`, qu'une
-    // recherche de sous-chaîne confondrait avec la classe de neutralisation.
-    const classes =
-      container.querySelector("label[for='p-image']")?.className.split(/\s+/) ??
-      []
+    // Exact token comparison: the button variants already carry
+    // `disabled:pointer-events-none` and `[&_svg]:pointer-events-none`, which a
+    // substring search would confuse with the disabling class.
+    const classes = jetons(container.querySelector("label[for='p-image']"))
     expect(classes).not.toContain("pointer-events-none")
     expect(classes).not.toContain("opacity-50")
   })
@@ -206,8 +205,8 @@ describe("ChampImage", () => {
   it("affiche la phrase d'aide partagée, plafond compris", () => {
     render(<ChampImage value={null} onChange={vi.fn()} />)
 
-    // Rendue depuis la constante : porter le plafond à 5 Mo ne peut pas
-    // laisser un « 2 Mo » écrit en dur dans le composant.
+    // Rendered from the constant: raising the cap to 5 MB cannot leave a
+    // hard-coded "2 Mo" behind in the component.
     expect(screen.getByText(AIDE_IMAGE)).toBeTruthy()
   })
 

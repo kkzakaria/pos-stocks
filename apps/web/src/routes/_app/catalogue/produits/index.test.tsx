@@ -2,6 +2,7 @@ import { render, screen, within, fireEvent } from "@testing-library/react"
 import { ListeAdaptative } from "@/components/ui/liste-adaptative"
 import { installerMatchMedia } from "@/test/media-query"
 import { texteMontant } from "@/test/texte-montant"
+import { jetons } from "@/test/jetons"
 import { COLONNES_PRODUITS, titreProduit, sousTitreProduit } from "./index"
 import type { ProduitAffiche } from "./index"
 import type { RechercheProduits } from "@/lib/recherche-produits"
@@ -190,8 +191,6 @@ describe("colonnes de la liste des produits", () => {
   it("garde le SKU en chasse fixe en mode carte", () => {
     afficher(375)
     const carte = screen.getAllByRole("listitem")[0]
-    expect(
-      within(carte).getByText("PRD-0001").className.split(/\s+/)
-    ).toContain("font-mono")
+    expect(jetons(within(carte).getByText("PRD-0001"))).toContain("font-mono")
   })
 })

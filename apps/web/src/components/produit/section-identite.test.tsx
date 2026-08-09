@@ -8,6 +8,7 @@ import {
   ERREUR_PREPARATION_IMAGE,
   preparerImage,
 } from "@/lib/image"
+import { jetons } from "@/test/jetons"
 import type * as ModuleImage from "@/lib/image"
 import type { Produit } from "@/components/produit/types"
 
@@ -79,6 +80,28 @@ describe("SectionIdentite", () => {
     expect(screen.getByText("Une description")).toBeTruthy()
   })
 
+  it("lecture : une valeur longue et insécable porte la classe qui la coupe", async () => {
+    const codeBarres = "01234567890123456789012345678901234567890123456789"
+    rendre({ produit: { ...produit, barcode: codeBarres } })
+
+    // Category name, barcode and description are free user text. A 50-digit
+    // barcode pushed the document to 430 px at a 375 px viewport. The row is a
+    // COLUMN flex container, so the box already stretches to the full width
+    // and only the inline text spilled: `break-words` alone is the fix — no
+    // `min-w-0`, which would be cargo cult here.
+    //
+    // jsdom has neither layout engine nor CSS cascade: no stylesheet is loaded,
+    // so `getComputedStyle` never resolves a Tailwind utility and
+    // offsetWidth/scrollWidth are constantly 0. This case therefore guards only
+    // that the class is PRESENT on the right nodes — that it actually stops the
+    // overflow is measured in the end-of-branch browser check.
+    expect(jetons(screen.getByText(codeBarres))).toContain("break-words")
+    // Same class on every value, not just the one under test.
+    expect(jetons(await screen.findByText("Outillage"))).toContain(
+      "break-words"
+    )
+  })
+
   it("sans écriture : ni Modifier ni upload d'image", () => {
     rendre({ peutEcrire: false })
     expect(screen.queryByRole("button", { name: "Modifier" })).toBeNull()
@@ -130,10 +153,11 @@ describe("SectionIdentite", () => {
     })
 
     expect((await screen.findByRole("alert")).textContent).toContain("JPEG")
-    // Déterministe, contrairement à `not.toHaveBeenCalledWith` sur apiFetch :
-    // le refus de type est synchrone, donc `findByRole` peut résoudre sans
-    // rien prouver de la suite asynchrone. La garde d'entrée, elle, interdit
-    // qu'un fichier arbitraire atteigne le futur décodeur d'image.
+    // Deterministic, unlike `not.toHaveBeenCalledWith` on apiFetch: the type
+    // refusal is synchronous, so `findByRole` can resolve without proving
+    // anything about the asynchronous continuation. The entry guard, on the
+    // other hand, forbids an arbitrary file from reaching the future image
+    // decoder.
     expect(preparerImage).not.toHaveBeenCalled()
     expect(apiFetch).not.toHaveBeenCalledWith(
       "/api/v1/products/p1/image",
@@ -142,7 +166,7 @@ describe("SectionIdentite", () => {
   })
 
   it("édition : un refus de type pendant une préparation ne bloque pas le champ", async () => {
-    // Préparation qui ne se résout jamais : la première sélection reste en vol.
+    // A preparation that never settles: the first selection stays in flight.
     vi.mocked(preparerImage).mockImplementationOnce(
       () => new Promise<File>(() => undefined)
     )
@@ -164,17 +188,14 @@ describe("SectionIdentite", () => {
     })
 
     expect((await screen.findByRole("alert")).textContent).toContain("JPEG")
-    // Le jeton vient d'être incrémenté : la préparation n°1 sortira par sa
-    // garde `obsolete()` AVANT son propre setPreparationImage(false). Sans
-    // libération dans la branche de refus, l'attente reste à true à vie.
+    // The token has just been incremented: preparation #1 will exit through its
+    // `obsolete()` guard BEFORE its own setPreparationImage(false). Without a
+    // release in the refusal branch, the pending state stays true forever.
     expect(entree.getAttribute("aria-busy")).toBe("false")
-    // Comparaison par jeton exact : les variantes du bouton portent déjà
-    // `disabled:pointer-events-none`, qu'une recherche de sous-chaîne
-    // confondrait avec la classe de neutralisation.
-    const classes =
-      container
-        .querySelector("label[for='id-image']")
-        ?.className.split(/\s+/) ?? []
+    // Exact-token comparison: the button variants already carry
+    // `disabled:pointer-events-none`, which a substring search would confuse
+    // with the neutralisation class.
+    const classes = jetons(container.querySelector("label[for='id-image']"))
     expect(classes).not.toContain("pointer-events-none")
     expect(classes).not.toContain("opacity-50")
   })
@@ -216,9 +237,9 @@ describe("SectionIdentite", () => {
       resoudre(fichierJpeg())
     })
 
-    // Démonter le bloc image n'annule rien : sans incrément du jeton dans
-    // « Annuler », l'image serait écrite sur le produit alors que
-    // l'utilisateur a explicitement annulé, et sans aucun retour visible.
+    // Unmounting the image block cancels nothing: without incrementing the
+    // token in "Annuler", the image would be written to the product even though
+    // the user explicitly cancelled, and with no visible feedback.
     expect(apiFetch).not.toHaveBeenCalledWith(
       "/api/v1/products/p1/image",
       expect.anything()
@@ -240,8 +261,8 @@ describe("SectionIdentite", () => {
     fireEvent.click(screen.getByRole("button", { name: "Annuler" }))
     fireEvent.click(screen.getByRole("button", { name: "Modifier" }))
 
-    // `ouvrir` réinitialisait l'erreur générale mais pas celle de l'image :
-    // le refus d'une session précédente réapparaissait tel quel.
+    // `ouvrir` used to reset the general error but not the image one: the
+    // refusal from a previous session reappeared as-is.
     expect(screen.queryByRole("alert")).toBeNull()
   })
 
@@ -252,9 +273,9 @@ describe("SectionIdentite", () => {
     const entree = screen.getByLabelText("Choisir une image")
     const label = container.querySelector("label[for='id-image']")
 
-    // peer-focus-visible: compile vers un combinateur de frères généraux
-    // (.peer:focus-visible ~ .cible) : sans relation de fratrie réelle, la
-    // règle ne s'applique jamais — et l'échec est silencieux.
+    // peer-focus-visible: compiles to a general sibling combinator
+    // (.peer:focus-visible ~ .target): without a real sibling relationship the
+    // rule never applies — and the failure is silent.
     expect(entree.nextElementSibling).toBe(label)
     expect(entree.className).toContain("peer")
     expect(label?.className).toContain("peer-focus-visible:ring-2")
@@ -265,8 +286,8 @@ describe("SectionIdentite", () => {
     rendre()
     fireEvent.click(screen.getByRole("button", { name: "Modifier" }))
 
-    // Rendue depuis la constante : les deux chemins d'envoi ne peuvent pas
-    // annoncer deux plafonds différents.
+    // Rendered from the constant: the two upload paths cannot announce two
+    // different caps.
     expect(screen.getByText(AIDE_IMAGE)).toBeTruthy()
   })
 
