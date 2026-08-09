@@ -7,6 +7,7 @@ import {
   periodePreset,
   telechargerCsv,
 } from "@/lib/rapports"
+import type { LigneMarge } from "@/lib/rapports"
 import {
   ErreurEtRetry,
   SelecteurPeriode,
@@ -15,15 +16,8 @@ import {
 import { EtatVide } from "@/components/etat-vide"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
-import { TableSkeleton } from "@/components/ui/table-skeleton"
+import { ListeAdaptative } from "@/components/ui/liste-adaptative"
+import type { ColonneAdaptative } from "@/components/ui/liste-adaptative"
 
 /** "estimé" badge flagging a margin whose cost was approximated (weighted average cost unavailable for a lot). */
 function BadgeEstime() {
@@ -33,6 +27,79 @@ function BadgeEstime() {
     </Badge>
   )
 }
+
+/** Card mode: the product name is the dominant identity line. */
+export function titreLigneMarge(item: LigneMarge) {
+  return item.productName
+}
+
+export function sousTitreLigneMarge(item: LigneMarge) {
+  return item.sku
+}
+
+/**
+ * Amount + "estimé" badge, shared verbatim between the `marge` column (table
+ * mode) and the card headline (`valeur`). The `marge` column is
+ * `masquerEnCarte`, so this is the ONLY place it renders in card mode —
+ * reusing the same function for both rules out the figure appearing twice.
+ * The badge is audit information (it flags an approximated cost), so it
+ * travels along with the figure rather than staying table-only.
+ */
+export function valeurLigneMarge(item: LigneMarge) {
+  return (
+    <span className="inline-flex items-center">
+      {formaterMontant(item.marge)}
+      {item.estime && <BadgeEstime />}
+    </span>
+  )
+}
+
+export const COLONNES_MARGES: ColonneAdaptative<LigneMarge>[] = [
+  {
+    cle: "produit",
+    entete: "Produit",
+    masquerEnCarte: true,
+    classeCellule: "font-medium",
+    cellule: titreLigneMarge,
+  },
+  {
+    cle: "variante",
+    entete: "Variante",
+    cellule: (ligne) => ligne.variantName,
+  },
+  {
+    cle: "sku",
+    entete: "SKU",
+    masquerEnCarte: true,
+    classeCellule: "font-mono text-xs text-muted-foreground",
+    cellule: sousTitreLigneMarge,
+  },
+  {
+    cle: "quantite",
+    entete: "Quantité",
+    numeric: true,
+    cellule: (ligne) => ligne.quantite,
+  },
+  {
+    cle: "ca",
+    entete: "CA",
+    numeric: true,
+    cellule: (ligne) => formaterMontant(ligne.ca),
+  },
+  {
+    cle: "cout",
+    entete: "Coût",
+    numeric: true,
+    cellule: (ligne) => formaterMontant(ligne.cout),
+  },
+  {
+    cle: "marge",
+    entete: "Marge",
+    numeric: true,
+    masquerEnCarte: true,
+    cellule: valeurLigneMarge,
+  },
+]
 
 /** Per-product margins report over a period: revenue, cost, and margin (an "estimé" badge when approximated), summary tiles, and CSV export. */
 export function RapportMarges() {
@@ -75,14 +142,7 @@ export function RapportMarges() {
         </p>
       )}
       {rapport.isPending && periodeValide && (
-        <>
-          <TuilesSkeleton nombre={3} />
-          <Table className="mt-4">
-            <TableBody>
-              <TableSkeleton colonnes={7} />
-            </TableBody>
-          </Table>
-        </>
+        <TuilesSkeleton nombre={3} classeGrille="grid-cols-1 sm:grid-cols-3" />
       )}
       {rapport.isError && (
         <ErreurEtRetry
@@ -95,75 +155,49 @@ export function RapportMarges() {
         />
       )}
       {rapport.isSuccess && (
-        <>
-          <div className="mt-4 grid grid-cols-3 gap-3">
-            <div className="rounded-md bg-card p-3 ring-1 ring-foreground/10">
-              <p className="text-xs text-muted-foreground">CA</p>
-              <p className="mt-1 font-semibold tabular-nums">
-                {formaterMontant(rapport.data.total.ca)}
-              </p>
-            </div>
-            <div className="rounded-md bg-card p-3 ring-1 ring-foreground/10">
-              <p className="text-xs text-muted-foreground">Coût</p>
-              <p className="mt-1 font-semibold tabular-nums">
-                {formaterMontant(rapport.data.total.cout)}
-              </p>
-            </div>
-            <div className="rounded-md bg-card p-3 ring-1 ring-foreground/10">
-              <p className="text-xs text-muted-foreground">
-                Marge
-                {rapport.data.total.estime && <BadgeEstime />}
-              </p>
-              <p className="mt-1 font-semibold tabular-nums">
-                {formaterMontant(rapport.data.total.marge)}
-              </p>
-            </div>
+        <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <div className="rounded-md bg-card p-3 ring-1 ring-foreground/10">
+            <p className="text-xs text-muted-foreground">CA</p>
+            <p className="mt-1 font-semibold tabular-nums">
+              {formaterMontant(rapport.data.total.ca)}
+            </p>
           </div>
-          {rapport.data.lignes.length === 0 ? (
-            <EtatVide
-              className="mt-6"
-              icon={Receipt}
-              titre="Aucune vente sur cette période"
-              message="Ajustez la période ou vérifiez qu'un ticket a bien été encaissé."
-            />
-          ) : (
-            <Table className="mt-4">
-              <TableHeader sticky>
-                <TableRow>
-                  <TableHead>Produit</TableHead>
-                  <TableHead>Variante</TableHead>
-                  <TableHead>SKU</TableHead>
-                  <TableHead numeric>Quantité</TableHead>
-                  <TableHead numeric>CA</TableHead>
-                  <TableHead numeric>Coût</TableHead>
-                  <TableHead numeric>Marge</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {rapport.data.lignes.map((ligne) => (
-                  <TableRow key={ligne.variantId}>
-                    <TableCell className="font-medium">
-                      {ligne.productName}
-                    </TableCell>
-                    <TableCell>{ligne.variantName}</TableCell>
-                    <TableCell className="font-mono text-xs text-muted-foreground">
-                      {ligne.sku}
-                    </TableCell>
-                    <TableCell numeric>{ligne.quantite}</TableCell>
-                    <TableCell numeric>{formaterMontant(ligne.ca)}</TableCell>
-                    <TableCell numeric>{formaterMontant(ligne.cout)}</TableCell>
-                    <TableCell numeric>
-                      <span className="inline-flex items-center">
-                        {formaterMontant(ligne.marge)}
-                        {ligne.estime && <BadgeEstime />}
-                      </span>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
-        </>
+          <div className="rounded-md bg-card p-3 ring-1 ring-foreground/10">
+            <p className="text-xs text-muted-foreground">Coût</p>
+            <p className="mt-1 font-semibold tabular-nums">
+              {formaterMontant(rapport.data.total.cout)}
+            </p>
+          </div>
+          <div className="rounded-md bg-card p-3 ring-1 ring-foreground/10">
+            <p className="text-xs text-muted-foreground">
+              Marge
+              {rapport.data.total.estime && <BadgeEstime />}
+            </p>
+            <p className="mt-1 font-semibold tabular-nums">
+              {formaterMontant(rapport.data.total.marge)}
+            </p>
+          </div>
+        </div>
+      )}
+      {periodeValide && !rapport.isError && (
+        <div className="mt-4">
+          <ListeAdaptative<LigneMarge>
+            colonnes={COLONNES_MARGES}
+            lignes={rapport.data?.lignes ?? []}
+            chargement={rapport.isPending}
+            cleLigne={(ligne) => ligne.variantId}
+            titre={titreLigneMarge}
+            valeur={valeurLigneMarge}
+            sousTitre={sousTitreLigneMarge}
+            etatVide={
+              <EtatVide
+                icon={Receipt}
+                titre="Aucune vente sur cette période"
+                message="Ajustez la période ou vérifiez qu'un ticket a bien été encaissé."
+              />
+            }
+          />
+        </div>
       )}
     </div>
   )

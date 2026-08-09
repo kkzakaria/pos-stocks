@@ -1,4 +1,4 @@
-import type { KeyboardEvent, MouseEvent, ReactNode } from "react"
+import type { MouseEvent, ReactNode } from "react"
 import { useEstLarge } from "@/lib/use-media-query"
 import { cn } from "@/lib/utils"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -60,10 +60,12 @@ type Props<T> = {
   actionCarte?: (ligne: T) => ReactNode
   /**
    * Makes the whole row clickable (e.g. navigate to a detail page), applied
-   * to `<TableRow>` in table mode and to `<li>` in card mode. Both get
-   * `role="button"`, `tabIndex={0}` and an Enter/Space `onKeyDown` handler
-   * so a clickable row is reachable and activatable by keyboard in either
-   * mode, matching the click behavior exactly.
+   * to `<TableRow>` in table mode and to `<li>` in card mode. This is mouse
+   * convenience only: the row stays a plain `row`/`listitem`, not focusable
+   * or activatable by keyboard, so it never replaces an accessible action.
+   * Any screen that passes `surClicLigne` MUST also expose a real link or
+   * button inside the row — in table mode and in card mode — that a
+   * keyboard or screen-reader user can reach on their own.
    */
   surClicLigne?: (ligne: T) => void
   /** Extra classes for the row itself (table `<TableRow>` / card `<li>`), merged through `cn()`. */
@@ -81,16 +83,16 @@ type Props<T> = {
  * title line, its headline figure sits opposite it, and only the remaining
  * columns become pairs underneath.
  */
-// A row click/keydown must not also fire an interactive descendant's own
-// action — a `<Link>` in a cell, or `actionCarte`'s button, both bubble up
-// to the row. `closest()` from the event target finds the nearest
-// interactive ancestor; if it sits strictly inside the row boundary (not the
-// row itself, which also carries `role="button"`), the event originates from
-// that descendant and the row handler stands down.
+// A row click must not also fire an interactive descendant's own action — a
+// `<Link>` in a cell, or `actionCarte`'s button, both bubble up to the row.
+// `closest()` from the event target finds the nearest interactive ancestor;
+// if it sits strictly inside the row boundary (not the row itself, which is
+// no longer interactive on its own), the event originates from that
+// descendant and the row handler stands down.
 const SELECTEUR_INTERACTIF =
   'a[href], button, input, select, textarea, [role="button"], [role="link"], [tabindex]'
 
-function depuisDescendantInteractif(e: MouseEvent | KeyboardEvent): boolean {
+function depuisDescendantInteractif(e: MouseEvent): boolean {
   const cible = e.target
   const limite = e.currentTarget
   if (!(cible instanceof Element) || !(limite instanceof Element)) return false
@@ -123,17 +125,6 @@ export function ListeAdaptative<T>({
     }
   }
 
-  // Enter/Space activates the row the same way a click would — the same
-  // handler powers both table and card mode so the two never drift apart.
-  function gererClavierLigne(ligne: T) {
-    return (e: KeyboardEvent) => {
-      if (e.key !== "Enter" && e.key !== " ") return
-      if (depuisDescendantInteractif(e)) return
-      e.preventDefault()
-      surClicLigne?.(ligne)
-    }
-  }
-
   if (estLarge) {
     return (
       <Table containerClassName={containerClassName}>
@@ -162,9 +153,6 @@ export function ListeAdaptative<T>({
                   classeLigne?.(ligne)
                 )}
                 onClick={surClicLigne ? gererClicLigne(ligne) : undefined}
-                onKeyDown={surClicLigne ? gererClavierLigne(ligne) : undefined}
-                tabIndex={surClicLigne ? 0 : undefined}
-                role={surClicLigne ? "button" : undefined}
               >
                 {colonnes.map((c) => (
                   <TableCell
@@ -213,9 +201,6 @@ export function ListeAdaptative<T>({
             classeLigne?.(ligne)
           )}
           onClick={surClicLigne ? gererClicLigne(ligne) : undefined}
-          onKeyDown={surClicLigne ? gererClavierLigne(ligne) : undefined}
-          tabIndex={surClicLigne ? 0 : undefined}
-          role={surClicLigne ? "button" : undefined}
         >
           <div className="flex items-start justify-between gap-3">
             <p className="min-w-0 flex-1 font-medium break-words">
