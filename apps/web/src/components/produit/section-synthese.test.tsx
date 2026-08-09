@@ -2,8 +2,9 @@ import { describe, it, expect, vi, afterEach } from "vitest"
 import { render, screen, fireEvent, waitFor } from "@testing-library/react"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { SectionSynthese } from "@/components/produit/section-synthese"
-import { formaterMontant } from "@/lib/format"
 import { apiFetch } from "@/lib/api"
+import { jetons } from "@/test/jetons"
+import { texteMontant } from "@/test/texte-montant"
 import type { Produit } from "@/components/produit/types"
 
 vi.mock("@/lib/api", () => ({
@@ -12,15 +13,6 @@ vi.mock("@/lib/api", () => ({
 }))
 
 afterEach(() => vi.clearAllMocks())
-
-// Amounts use narrow no-break spaces (U+202F): match via regex so Testing
-// Library's normalizer applies to both sides (same motif as pos tests).
-function texteMontant(montant: number): RegExp {
-  const echappe = formaterMontant(montant)
-    .replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
-    .replace(/\s+/g, "\\s+")
-  return new RegExp(`^${echappe}$`)
-}
 
 const produit: Produit = {
   id: "p1",
@@ -109,6 +101,35 @@ describe("SectionSynthese", () => {
         }),
       })
     )
+  })
+
+  it("erreur d'enregistrement : le message porte les classes qui le coupent", async () => {
+    // API messages are not guaranteed to be breakable prose: a Zod field error
+    // quotes the submitted value and an error code is UPPERCASE_WITH_UNDERSCORES
+    // — neither underscores nor digits are CSS break opportunities. Without
+    // `break-words` the sentence pushed the document to 587 px at 375 px.
+    //
+    // jsdom has neither layout engine nor CSS cascade: no stylesheet is loaded,
+    // so `getComputedStyle` never resolves a Tailwind utility and
+    // offsetWidth/scrollWidth are constantly 0. This case therefore guards only
+    // that the classes are PRESENT on the right node — that they actually stop
+    // the overflow is measured in the end-of-branch browser check.
+    vi.mocked(apiFetch).mockRejectedValueOnce(
+      new Error("CONTRAINTE_UNICITE_VIOLEE_SUR_LA_COLONNE_PRODUCTS_SKU")
+    )
+    rendre()
+    fireEvent.click(screen.getByRole("button", { name: "Modifier" }))
+    fireEvent.click(screen.getByRole("button", { name: "Enregistrer" }))
+
+    const alerte = await screen.findByRole("alert")
+    expect(alerte.textContent).toContain("CONTRAINTE_UNICITE")
+    // Both halves of the fix, or the guard only holds half of it: the <p> is an
+    // item of a ROW flex container, so `break-words` alone is inert — its
+    // automatic minimum size would fall back to min-content, which
+    // `overflow-wrap: break-word` does not reduce. `w-full` gives the item a
+    // definite main size and is what makes `break-words` bite.
+    expect(jetons(alerte)).toContain("w-full")
+    expect(jetons(alerte)).toContain("break-words")
   })
 
   it("Annuler restaure l'affichage sans PATCH", () => {

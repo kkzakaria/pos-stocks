@@ -43,7 +43,13 @@ function Definition({ libelle, valeur }: { libelle: string; valeur: string }) {
   return (
     <div className="flex flex-col">
       <span className="text-xs text-muted-foreground">{libelle}</span>
-      <span className="text-sm">{valeur || "—"}</span>
+      {/*
+        Category name, barcode and description are free user text. The row is a
+        COLUMN flex container, so the box already stretches to the full width
+        and no `min-w-0` is needed; only the inline text spilled — a 50-digit
+        barcode pushed the document to 430 px at a 375 px viewport.
+      */}
+      <span className="text-sm break-words">{valeur || "—"}</span>
     </div>
   )
 }
@@ -266,7 +272,7 @@ export function SectionIdentite({
           </label>
           <p className="text-xs text-muted-foreground">{AIDE_IMAGE}</p>
           {erreurImage && (
-            <p role="alert" className="text-xs text-destructive">
+            <p role="alert" className="text-xs break-words text-destructive">
               {erreurImage}
             </p>
           )}
@@ -346,8 +352,10 @@ export function SectionIdentite({
             />
             <Label htmlFor="id-actif">Produit actif</Label>
           </div>
+          {/* Same reason as the image error above: an API message may carry an
+              unbroken token (quoted value, error code with underscores). */}
           {erreur && (
-            <p role="alert" className="text-xs text-destructive">
+            <p role="alert" className="text-xs break-words text-destructive">
               {erreur}
             </p>
           )}

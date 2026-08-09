@@ -101,9 +101,20 @@ export function FicheProduit({
           <ArrowLeft />
           Produits
         </Link>
-        <div className="flex items-center gap-3">
-          <h1 className="text-xl font-semibold">{produit.name}</h1>
-          <span className="font-mono text-xs text-muted-foreground">
+        {/*
+          Name and SKU are free user text. In a ROW flex container their
+          `min-width: auto` resolves to min-content, so a single unbreakable
+          token pins the item at its own width and pushes the whole document:
+          measured 813 px of document scroll width at a 375 px viewport.
+          `min-w-0` lets them shrink to the line, `break-words` breaks the
+          token, and `flex-wrap` drops the SKU and the badge to a second line
+          instead of crushing the title.
+        */}
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+          <h1 className="min-w-0 text-xl font-semibold break-words">
+            {produit.name}
+          </h1>
+          <span className="min-w-0 font-mono text-xs break-words text-muted-foreground">
             {produit.sku}
           </span>
           <Badge variant={produit.isActive ? "success" : "secondary"}>
