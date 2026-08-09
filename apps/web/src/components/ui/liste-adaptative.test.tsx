@@ -59,6 +59,17 @@ describe("ListeAdaptative", () => {
     nettoyer()
   })
 
+  it('porte un role="list" explicite sur la liste de cartes', () => {
+    const nettoyer = installerMatchMedia(375)
+    const { container } = afficher()
+    // Redundant in plain HTML, so `getByRole("list")` passes with or without
+    // it. Tailwind's Preflight sets `list-style: none` on every `<ul>`, and
+    // VoiceOver on Safari/iOS then drops the list role — the ATTRIBUTE is
+    // what restores it, so the attribute is what must be asserted.
+    expect(container.querySelector("ul")?.getAttribute("role")).toBe("list")
+    nettoyer()
+  })
+
   it("ne duplique jamais une valeur entre les deux modes", () => {
     const nettoyer = installerMatchMedia(375)
     afficher()
