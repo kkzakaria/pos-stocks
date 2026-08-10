@@ -2,6 +2,7 @@ import { useEffect, useState } from "react"
 import { createFileRoute, useNavigate } from "@tanstack/react-router"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { apiFetch } from "@/lib/api"
+import { cn } from "@/lib/utils"
 import { formaterMontant } from "@/lib/format"
 import { useAccesStock } from "@/lib/permissions"
 import { PackagePlus } from "lucide-react"
@@ -36,14 +37,9 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
+import { TEXTE_LIBRE } from "@/components/ui/table"
+import { ListeAdaptative } from "@/components/ui/liste-adaptative"
+import type { ColonneAdaptative } from "@/components/ui/liste-adaptative"
 
 export const Route = createFileRoute("/_app/stock/receptions/$purchaseId")({
   component: ReceptionDetailPage,
@@ -87,6 +83,127 @@ type ProduitCatalogue = {
   trackLots: boolean
   variants: Array<{ id: string; name: string; sku: string; isActive: boolean }>
 }
+
+/**
+ * `LigneReception` with the two screen-owned handlers a row does not carry
+ * on its own: opening the edit dialog and removing the line. Same trade
+ * already made by `NiveauStockAffiche` (`stock/index.tsx`) and
+ * `FournisseurAffiche` (`catalogue/fournisseurs.tsx`).
+ */
+export type LigneReceptionAffichee = LigneReception & {
+  surModifier: () => void
+  surRetirer: () => void
+}
+
+/**
+ * Card mode: reproduces `titreNiveau`'s identity shape (`stock/index.tsx`)
+ * token-for-token — same dominant product name, same muted
+ * `variantName (sku)` trailer.
+ */
+export function titreLigneReception(l: LigneReceptionAffichee) {
+  return (
+    <>
+      {l.productName}{" "}
+      <span className="font-normal text-muted-foreground">
+        {l.variantName} ({l.sku})
+      </span>
+    </>
+  )
+}
+
+/**
+ * The five data columns — exactly what a read-only account sees.
+ *
+ * Article and Lot carry `TEXTE_LIBRE`: a supplier's lot number is an
+ * arbitrary, often unbreakable token, same reasoning as the product/variant
+ * names it sits next to. Péremption does NOT carry it — a formatted expiry
+ * date is atomic, and cutting it in half is precisely the defect the
+ * product sheet suffered. Quantité and Coût unitaire are formatted numbers,
+ * not human text, so neither carries it either.
+ *
+ * No `valeur`/`sousTitre`: five columns read fine as a title plus four
+ * pairs, and inventing a per-line total would surface data the table
+ * doesn't actually carry.
+ */
+export const COLONNES_LIGNES_RECEPTION: ColonneAdaptative<LigneReceptionAffichee>[] =
+  [
+    {
+      cle: "article",
+      entete: "Article",
+      // Resurfaces via titreLigneReception.
+      masquerEnCarte: true,
+      classeCellule: TEXTE_LIBRE,
+      cellule: (l) => (
+        <>
+          <span className="font-medium">{l.productName}</span>{" "}
+          <span className="text-sm text-muted-foreground">
+            {l.variantName} ({l.sku})
+          </span>
+        </>
+      ),
+    },
+    {
+      cle: "quantite",
+      entete: "Quantité",
+      numeric: true,
+      cellule: (l) => l.quantity,
+    },
+    {
+      cle: "cout",
+      entete: "Coût unitaire",
+      numeric: true,
+      cellule: (l) => formaterMontant(l.unitCost),
+    },
+    {
+      cle: "lot",
+      entete: "Lot",
+      classeCellule: cn("font-mono text-xs", TEXTE_LIBRE),
+      cellule: (l) => l.lotNumber ?? "—",
+    },
+    {
+      cle: "peremption",
+      entete: "Péremption",
+      classeCellule: "text-sm",
+      cellule: (l) =>
+        l.expiryDate ? new Date(l.expiryDate).toLocaleDateString("fr-FR") : "—",
+    },
+  ]
+
+/** The two write actions, shared by the table's action column and by the
+ * card's trailing action — the buttons therefore exist exactly once per row
+ * in either tier. */
+export function actionsLigneReception(l: LigneReceptionAffichee) {
+  return (
+    <span className="flex gap-2">
+      <Button variant="outline" size="sm" onClick={l.surModifier}>
+        Modifier
+      </Button>
+      <Button variant="outline" size="sm" onClick={l.surRetirer}>
+        Retirer
+      </Button>
+    </span>
+  )
+}
+
+/** Appended only when the account can write on this draft. `masquerEnCarte`
+ * keeps the buttons out of the card's pairs: `actionCarte` renders the very
+ * same node there instead. Module-private: the screen and its test consume
+ * the composed array below, never this column on its own. */
+const COLONNE_ACTION_LIGNE_RECEPTION: ColonneAdaptative<LigneReceptionAffichee> =
+  {
+    cle: "action",
+    entete: "",
+    masquerEnCarte: true,
+    cellule: actionsLigneReception,
+  }
+
+/**
+ * Write-capable roles get the trailing action column. Derived from
+ * `COLONNES_LIGNES_RECEPTION`, not re-enumerated — see the same reasoning
+ * in `catalogue/fournisseurs.tsx`.
+ */
+export const COLONNES_LIGNES_RECEPTION_ECRITURE: ColonneAdaptative<LigneReceptionAffichee>[] =
+  [...COLONNES_LIGNES_RECEPTION, COLONNE_ACTION_LIGNE_RECEPTION]
 
 /**
  * Supplier receipt detail: editing a draft's lines (item, quantity,
@@ -281,6 +398,10 @@ function ReceptionDetailPage() {
   const peutEcrire =
     acces.ecritureTous ||
     acces.entrepotsEcriture.includes(reception.warehouseId)
+  // Named once, right after its two operands: says what it AUTHORIZES (line
+  // editing), not how it is computed. Every raw-predicate occurrence in the
+  // file collapses to this one constant — see the plan's arbitrage D.
+  const ligneModifiable = brouillon && peutEcrire
   const total = reception.items.reduce(
     (somme, item) => somme + item.quantity * item.unitCost,
     0
@@ -288,11 +409,11 @@ function ReceptionDetailPage() {
 
   return (
     <div>
-      <div className="mb-2 flex items-center gap-3">
-        <h1 className="text-xl font-semibold">
+      <div className="mb-2 flex flex-wrap items-center gap-3">
+        <h1 className="min-w-0 text-xl font-semibold break-words">
           Réception — {reception.supplierName}
         </h1>
-        <Badge variant={brouillon ? "warning" : "success"}>
+        <Badge variant={brouillon ? "warning" : "success"} className="shrink-0">
           {brouillon ? "Brouillon" : "Validée"}
         </Badge>
       </div>
@@ -308,85 +429,42 @@ function ReceptionDetailPage() {
         <h2 className="text-base font-semibold">
           Lignes — total {formaterMontant(total)}
         </h2>
-        {brouillon && peutEcrire && (
+        {ligneModifiable && (
           <Button variant="outline" size="sm" onClick={ouvrirCreation}>
             Ajouter une ligne
           </Button>
         )}
       </div>
 
-      <Table>
-        <TableHeader sticky>
-          <TableRow>
-            <TableHead>Article</TableHead>
-            <TableHead numeric>Quantité</TableHead>
-            <TableHead numeric>Coût unitaire</TableHead>
-            <TableHead>Lot</TableHead>
-            <TableHead>Péremption</TableHead>
-            {brouillon && peutEcrire && <TableHead />}
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {reception.items.map((item) => (
-            <TableRow key={item.id}>
-              <TableCell>
-                <span className="font-medium">{item.productName}</span>{" "}
-                <span className="text-sm text-muted-foreground">
-                  {item.variantName} ({item.sku})
-                </span>
-              </TableCell>
-              <TableCell numeric>{item.quantity}</TableCell>
-              <TableCell numeric>{formaterMontant(item.unitCost)}</TableCell>
-              <TableCell className="font-mono text-xs">
-                {item.lotNumber ?? "—"}
-              </TableCell>
-              <TableCell className="text-sm">
-                {item.expiryDate
-                  ? new Date(item.expiryDate).toLocaleDateString("fr-FR")
-                  : "—"}
-              </TableCell>
-              {brouillon && peutEcrire && (
-                <TableCell>
-                  <span className="flex gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => ouvrirEdition(item)}
-                    >
-                      Modifier
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        setErreurSuppressionLigne(null)
-                        supprimerLigne.mutate(item.id)
-                      }}
-                    >
-                      Retirer
-                    </Button>
-                  </span>
-                </TableCell>
-              )}
-            </TableRow>
-          ))}
-          {reception.items.length === 0 && (
-            <TableRow>
-              <TableCell colSpan={brouillon && peutEcrire ? 6 : 5}>
-                <EtatVide
-                  icon={PackagePlus}
-                  titre="Aucune ligne"
-                  message={
-                    brouillon && peutEcrire
-                      ? "Ajoutez une ligne pour composer cette réception avant de la valider."
-                      : "Cette réception ne comporte aucune ligne."
-                  }
-                />
-              </TableCell>
-            </TableRow>
-          )}
-        </TableBody>
-      </Table>
+      <ListeAdaptative<LigneReceptionAffichee>
+        colonnes={
+          ligneModifiable
+            ? COLONNES_LIGNES_RECEPTION_ECRITURE
+            : COLONNES_LIGNES_RECEPTION
+        }
+        lignes={reception.items.map((item) => ({
+          ...item,
+          surModifier: () => ouvrirEdition(item),
+          surRetirer: () => {
+            setErreurSuppressionLigne(null)
+            supprimerLigne.mutate(item.id)
+          },
+        }))}
+        cleLigne={(l) => l.id}
+        titre={titreLigneReception}
+        actionCarte={ligneModifiable ? actionsLigneReception : undefined}
+        etatVide={
+          <EtatVide
+            icon={PackagePlus}
+            titre="Aucune ligne"
+            message={
+              ligneModifiable
+                ? "Ajoutez une ligne pour composer cette réception avant de la valider."
+                : "Cette réception ne comporte aucune ligne."
+            }
+          />
+        }
+      />
 
       {erreurSuppressionLigne && (
         <p role="alert" className="mt-3 text-sm text-destructive">
@@ -394,7 +472,7 @@ function ReceptionDetailPage() {
         </p>
       )}
 
-      {brouillon && peutEcrire && (
+      {ligneModifiable && (
         <div className="mt-6 flex flex-wrap items-center gap-3">
           <AlertDialog>
             <AlertDialogTrigger
@@ -515,7 +593,12 @@ function ReceptionDetailPage() {
                       onValueChange={(valeur) => setVariantId(valeur as string)}
                     >
                       <SelectTrigger id="l-variante" className="w-full">
-                        <SelectValue placeholder="— choisir —" />
+                        <SelectValue>
+                          {(valeur: string) =>
+                            variantes.find((v) => v.variantId === valeur)
+                              ?.libelle ?? "— choisir —"
+                          }
+                        </SelectValue>
                       </SelectTrigger>
                       <SelectContent>
                         {variantes.map((v) => (
