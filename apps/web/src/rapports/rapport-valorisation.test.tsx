@@ -13,21 +13,7 @@ import * as rapports from "@/lib/rapports"
 import type { LigneValorisation } from "@/lib/rapports"
 import { ListeAdaptative } from "@/components/ui/liste-adaptative"
 import { texteMontant } from "@/test/texte-montant"
-
-/**
- * Card mode renders non-hidden columns as `<dt>`/`<dd>` pairs inside a
- * `<dl>` — reading the `<dd>` next to a given `<dt>` label targets that
- * specific pair instead of the whole card's `textContent`, which other
- * fields can satisfy by coincidence. Same helper as `$saleId.test.tsx`.
- */
-function valeurPaire(carte: HTMLElement, libelle: string): string {
-  const dt = within(carte).getByText(libelle)
-  const dd = dt.nextElementSibling
-  if (!(dd instanceof HTMLElement)) {
-    throw new Error(`Aucune <dd> associée au libellé « ${libelle} »`)
-  }
-  return dd.textContent
-}
+import { valeurPaire } from "@/test/valeur-paire"
 
 const ligneCiment: LigneValorisation = {
   variantId: "v1",

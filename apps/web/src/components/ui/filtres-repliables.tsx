@@ -34,7 +34,20 @@ function FiltresRepliables({
   nbActifs: number
   children: React.ReactNode
   className?: string
-  label?: string
+  /**
+   * Rendered only inside the `<summary>`, i.e. only below `md` — the
+   * desktop tier (which renders no wrapper at all) is unaffected. Widened
+   * from `string` to `React.ReactNode` additively (default unchanged, no
+   * existing plain-string caller breaks) so a screen composing free-typed
+   * text into the label — e.g. an entity name — can wrap it in its own
+   * `min-w-0 break-words` carrier. A bare string arrives in the
+   * `<summary>`'s flex-row layout as an anonymous flex item, which cannot
+   * carry a class of its own. See arbitrage A in
+   * `docs/superpowers/plans/2026-08-10-responsive-phase-3-stock.md`
+   * (`stock/index.tsx`'s composed "Filtres — {warehouse}" label), the only
+   * caller that needs this so far.
+   */
+  label?: React.ReactNode
 } & React.AriaAttributes &
   Pick<React.ComponentPropsWithoutRef<"details">, "id">) {
   const estLarge = useEstLarge()

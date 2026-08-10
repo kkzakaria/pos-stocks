@@ -2,6 +2,7 @@ import { render, screen, fireEvent } from "@testing-library/react"
 import { ListeAdaptative } from "./liste-adaptative"
 import type { ColonneAdaptative } from "./liste-adaptative"
 import { installerMatchMedia } from "@/test/media-query"
+import { jetons } from "@/test/jetons"
 
 type Mouvement = { id: string; article: string; delta: number; motif: string }
 
@@ -121,6 +122,18 @@ describe("ListeAdaptative", () => {
       unmount()
       nettoyer()
     }
+  })
+
+  // jsdom has neither a layout engine nor a CSS cascade: this guards that the
+  // class is APPLIED, not that it wraps. The effect is what matters — without
+  // it the inherited `whitespace-nowrap` of `TableCell` holds the sentence on
+  // one line and the table container gains a horizontal scrollbar.
+  it("laisse l'état vide se replier en mode table", () => {
+    const nettoyer = installerMatchMedia(1280)
+    afficher({ lignes: [], etatVide: <p>Aucun mouvement</p> })
+    const cellule = screen.getByText("Aucun mouvement").closest("td")
+    expect(jetons(cellule)).toContain("whitespace-normal")
+    nettoyer()
   })
 
   it("rend un squelette pendant le chargement dans les deux modes", () => {

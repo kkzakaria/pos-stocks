@@ -3,6 +3,7 @@ import { ListeAdaptative } from "@/components/ui/liste-adaptative"
 import { installerMatchMedia } from "@/test/media-query"
 import { texteMontant } from "@/test/texte-montant"
 import { jetons } from "@/test/jetons"
+import { valeurPaire } from "@/test/valeur-paire"
 import { COLONNES_PRODUITS, titreProduit, sousTitreProduit } from "./index"
 import type { ProduitAffiche } from "./index"
 import type { RechercheProduits } from "@/lib/recherche-produits"
@@ -68,21 +69,6 @@ const P: ProduitAffiche = {
   ],
   currency: DEVISE,
   recherche: FILTRES,
-}
-
-/**
- * Card mode renders non-hidden columns as `<dt>`/`<dd>` pairs inside a
- * `<dl>` — reading the `<dd>` next to a given `<dt>` label targets that
- * specific pair instead of the whole card's `textContent`, which other
- * fields can satisfy by coincidence.
- */
-function valeurPaire(carte: HTMLElement, libelle: string): string {
-  const dt = within(carte).getByText(libelle)
-  const dd = dt.nextElementSibling
-  if (!(dd instanceof HTMLElement)) {
-    throw new Error(`Aucune <dd> associée au libellé « ${libelle} »`)
-  }
-  return dd.textContent
 }
 
 describe("colonnes de la liste des produits", () => {

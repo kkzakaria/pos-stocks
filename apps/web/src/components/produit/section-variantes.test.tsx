@@ -5,6 +5,7 @@ import { SectionVariantes } from "@/components/produit/section-variantes"
 import { installerMatchMedia } from "@/test/media-query"
 import { texteMontant } from "@/test/texte-montant"
 import { jetons } from "@/test/jetons"
+import { valeurPaire } from "@/test/valeur-paire"
 import type { Produit, Variante } from "@/components/produit/types"
 
 vi.mock("@/lib/api", () => ({
@@ -241,21 +242,6 @@ function cartes(): HTMLElement[] {
  */
 function listeLots(nomVariante: string, sku: string): HTMLElement {
   return screen.getByRole("list", { name: `Lots de ${nomVariante} (${sku})` })
-}
-
-/**
- * Card mode renders the remaining columns as `<dt>`/`<dd>` pairs inside a
- * `<dl>` — reading the `<dd>` next to a given `<dt>` targets that specific
- * pair instead of the card's whole `textContent`, which another field can
- * satisfy by coincidence.
- */
-function valeurPaire(bloc: HTMLElement, libelle: string): string {
-  const dt = within(bloc).getByText(libelle)
-  const dd = dt.nextElementSibling
-  if (!(dd instanceof HTMLElement)) {
-    throw new Error(`Aucune <dd> associée au libellé « ${libelle} »`)
-  }
-  return dd.textContent
 }
 
 /** The full-width lots row of table mode, and the span it actually covers. */
