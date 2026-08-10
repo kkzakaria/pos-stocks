@@ -151,7 +151,18 @@ export function ListeAdaptative<T>({
             <TableSkeleton colonnes={colonnes.length} />
           ) : lignes.length === 0 ? (
             <TableRow>
-              <TableCell colSpan={colonnes.length}>{etatVide}</TableCell>
+              {/* `whitespace-normal` is load-bearing: `TableCell` defaults to
+                  `whitespace-nowrap`, and `white-space` INHERITS — so it
+                  reaches the empty state's own paragraph, which then holds on
+                  one line whatever its `max-w-*` says, and hands the table
+                  container a horizontal scrollbar. Empty-state copy is a full
+                  sentence, unlike every other cell here. */}
+              <TableCell
+                colSpan={colonnes.length}
+                className="whitespace-normal"
+              >
+                {etatVide}
+              </TableCell>
             </TableRow>
           ) : (
             lignes.map((ligne) => (
