@@ -613,3 +613,181 @@ Différés pour les phases suivantes:
   Trois obstacles structurels documentés dans la spec (ordre valider/transformer inversé,
   handler synchrone, chemins divergents) + 5 décisions ouvertes dont l'orientation EXIF,
   qui est le piège n°1 de toute compression cliente par <canvas>.
+
+## SPA responsive — phase 2b exécutée (catalogue, 2026-08-09)
+
+8 tâches, chacune implémentée par un subagent puis revue par un autre, avec vague de correction.
+Journal détaillé : .superpowers/sdd/2026-08-09-responsive-phase-2b-catalogue/progress.md
+48 fichiers de test / 420 tests verts, typecheck et lint propres.
+
+### ListeAdaptative a été OUVERT — une fois, et voici pourquoi
+role="list" ajouté sur le <ul> des cartes. La Preflight Tailwind pose list-style:none sur tout
+<ul>, ce qui suffit à VoiceOver/Safari pour RETIRER le rôle de liste : sur iPhone à 375 px —
+la cible de cette phase — l'utilisateur perdait la cardinalité (« liste, 3 éléments ») et la
+position, que le mode table lui donne gratuitement. Information STRUCTURELLE dégradée par la
+largeur, ce que la phase interdit. Additif (un attribut), aucune prop ajoutée, JSDoc + test.
+Appliqué simultanément à section-stock pour ne pas désaligner cet écran des sept autres.
+
+### Règles établies, à reprendre en phases 3 et 4
+- PAS DE FABRIQUE de colonnes. Tableau statique au niveau module ; quand une cellule a besoin
+  d'un contexte que la ligne ne porte pas (réglage d'organisation, état d'URL, gestionnaire
+  d'écran), type « Affichée » qui l'épisse dans la ligne. Le type peut transporter un
+  gestionnaire `sur*` — en contrepartie son câblage se teste avec un mock DISTINCT par ligne,
+  deux lignes rendues, clic sur la seconde, et assertion que la première n'a pas bougé.
+- Composition par droit d'écriture : COLONNES_X (base = vue lecture seule, exportée) ·
+  COLONNE_ACTION_X (module-privée) · COLONNES_X_ECRITURE (pré-composée par spread, exportée) ·
+  ternaire au point d'appel. Deux tableaux ÉNUMÉRÉS séparément se désynchronisent en silence.
+- TEXTE_LIBRE (whitespace-normal wrap-anywhere) vit dans components/ui/table.tsx, aux côtés du
+  TableCell dont il répare le whitespace-nowrap. DOUZE TABLES RESTENT À TRAITER en phases 3 et 4.
+- overflow-wrap:break-word NE CONTRIBUE JAMAIS au calcul du min-content — ni sur un jeton
+  insécable, ni sur du texte à espaces (sondé : 532→532 et 605→605). C'est whitespace-normal
+  qui grignotte les opportunités que le texte contient par hasard (espaces ET TIRETS). Dans une
+  table (table-layout:auto dimensionne sur le min-content) break-words est donc INERTE, et pire,
+  il peut faire tomber le total juste assez pour DONNER L'ILLUSION d'avoir réglé le problème
+  pendant que la pire colonne ne bouge pas. line-clamp a exactement le même défaut : il masque
+  à la peinture sans réduire la contribution au min-content.
+- Hors table : min-w-0 + break-words en conteneur flex-RANGÉE (indivisibles) ; break-words seul
+  en COLONNE ou sur un item portant déjà w-full (la taille est définie, min-w-0 serait inerte).
+- Les tests unitaires gardent que la CLASSE EST POSÉE, pas qu'elle produit son effet : jsdom n'a
+  ni moteur de mise en page ni cascade. L'effet se mesure en navigateur. À écrire dans les cas.
+- LE PALIER LE PLUS ÉTROIT DU MODE TABLE EST 1024 px, PAS 768 : à lg la barre latérale devient
+  permanente (-240 px) au moment exact où la grille passe à 3 colonnes. Conteneur mesuré :
+  991 px à 1023 → 480 px à 1024 → 651 px à 1280. Un défaut y est invisible aux paliers habituels.
+  AJOUTER 1024 À TOUTE CAMPAGNE DE VÉRIFICATION.
+
+### Pièges de mesure navigateur, vérifiés empiriquement
+- le JIT de Tailwind v4 ne génère que les classes présentes DANS LES SOURCES : injecter une
+  classe via className pour mesurer donne un faux négatif. Mesurer en style.cssText.
+- cn() (tailwind-merge) SUPPRIME whitespace-nowrap quand whitespace-normal est passé.
+- Chrome renvoie encore des rects de layout pour le contenu d'un <details> FERMÉ
+  (content-visibility:hidden) : chaque panneau de filtres replié produisait de fausses
+  occlusions et de fausses cibles sous-dimensionnées.
+- Chrome évalue les media queries sur innerWidth (barre comprise) mais clientWidth l'exclut.
+
+### DIFFÉRÉS de la phase 2b
+- [majeur] alert-dialog.tsx porte ENCORE la géométrie d'avant le correctif de dialogue (pas de
+  max-h, pas de défilement interne, pas de croix). Même bug que DialogContent, fichier jumeau
+  non touché, consommé par pos/panier.tsx. Latent car son contenu est court ; l'asymétrie est
+  assumée, pas accidentelle.
+- [mineur] Le correctif du sélecteur ÉCHANGE un mode d'échec : le déclencheur étant borné, la
+  liste ancrée hérite de sa largeur et une option longue est rognée EN PLEIN MOT, sans ellipse
+  (scrollWidth 474 contre clientWidth 311). Mieux qu'un bouton hors écran, mais désormais
+  l'échec visible. Toucher shrink-0/min-w-0 sur ItemText change ce que base-ui mesure pour
+  alignItemWithTrigger : passe dédiée requise.
+- [mineur] InputGroupButton size="icon-xs" reste à 24 px : c'est lui qui gouverne le bouton
+  « Effacer la sélection » des combobox, sur 3 écrans du catalogue. Table de variantes DISTINCTE
+  de buttonVariants, donc le correctif icon-sm ne l'atteint pas.
+- [mineur] Les rangées d'attributs du dialogue de variante S'ACCUMULENT à la réouverture :
+  l'état du formulaire n'est pas réinitialisé à la fermeture. Défaut fonctionnel, pas responsive.
+- [mineur] Densité de la fiche produit à 1024 px : conteneur à 470 px, colonnes de ~7 caractères
+  (« Standar / d »), hauteur de ligne 257 px. Rien n'est perdu, rien ne déborde ; conséquence
+  structurelle de lg:grid-cols-3 + barre latérale permanente.
+- [mineur] Quantités rendues sans séparateur de milliers alors que les montants passent par
+  formaterMontant. En tension avec « le chiffre est sacré ».
+- [mineur] PaireCarte et l'en-tête de carte sont recopiés entre section-stock et
+  section-variantes, avec DEUX SIGNATURES DIVERGENTES (numeric vs classeValeur) : la
+  factorisation future devra réconcilier deux contrats, pas déplacer un fichier.
+- [mineur] enregistrer.onSuccess de section-identite.tsx quitte l'édition sans invalider le
+  jeton de préparation : un PATCH réussi pendant une préparation en vol laisse partir l'upload
+  sans retour visible en cas d'échec.
+- [mineur] WEB_ORIGIN épinglé sur http://localhost:3000 : servir la SPA ailleurs fait rejeter
+  l'origine en 403, et routes/login.tsx mappe TOUT 403 sur « Compte désactivé ». Message
+  trompeur qui coûte du temps de diagnostic.
+- [phase 3] /stock/receptions/$purchaseId déborde à 375 px (scrollWidth 925 contre 375) : table
+  en whitespace-nowrap hors conteneur défilant. PRÉEXISTANT.
+- [phase 3/4] Le littéral h-[calc(100dvh-3rem)] survit dans stock/ (4) et administration/ (1).
+
+### Vérification des consommateurs HORS catalogue des composants partagés (phase 2b)
+
+8 dialogues ouverts et mesurés à 375x812 et 1280 (stock, administration), plus le chemin de
+défilement forcé en réduisant la hauteur du viewport. Le mécanisme à deux boîtes fait exactement
+ce qu'il annonce : popup plafonné à viewport-2rem (388 à 420 de haut, 268 à 300), popup qui ne
+défile JAMAIS, corps qui défile, croix atteignable avant ET après défilement (elementFromPoint),
+et AUCUNE barre parasite sur les 8 dialogues aux deux paliers — c'était le risque principal du
+correctif, il ne s'est pas matérialisé. Aucune largeur déclarée de Select n'a rétréci.
+Les trois scénarios du panneau de filtres passent sur ventes/ et stock/mouvements.
+
+CONSÉQUENCE DIRECTE DU CORRECTIF, CORRIGÉE (d774588) : le corps étant devenu défilant, le contenu
+passe SOUS la croix, qui reste volontairement hors de la boîte défilante. La variante ghost étant
+transparente, deux glyphes se superposaient (mesuré : un chevron de Select au centre exact de la
+croix). Fond bg-popover ajouté.
+
+DÉCOUVERT HORS PÉRIMÈTRE — BLOQUANT SUR UN ÉCRAN DÉJÀ EN PRODUCTION (phase 1) :
+la MODALE DE PAIEMENT DU POS mesure 488 px de large dans un viewport de 375 (+129). Le bouton
+« × » (Fermer) est à x 440..484, donc INTÉGRALEMENT HORS ÉCRAN et inatteignable ; « Montant
+exact » n'a que 5 px visibles. Cause : la rangée du pavé numérique (500/1000/2000/5000/10000/
+Montant exact/Effacer) ne se replie pas → min-content 448 + 40 de padding, sur un
+`w-full max-w-lg` centré.
+CE N'EST PAS UNE RÉGRESSION DE LA 2b : apps/web/src/pos/ n'a aucun diff sur la branche, et
+modale-paiement.tsx est un role="dialog" ÉCRIT À LA MAIN qui n'utilise pas DialogContent (comme
+modale-confirmation, dialogue-depannage, fermeture-caisse).
+POURQUOI LA VÉRIFICATION DE LA PHASE 1 L'A MANQUÉ : le calque est en position:fixed, donc
+documentElement.scrollWidth vaut 375 = clientWidth. AUCUNE ASSERTION AUTOMATIQUE DE DÉBORDEMENT
+NE PEUT VOIR CE DÉFAUT. Il faut mesurer les rects des éléments, pas le document.
+=> Leçon à appliquer aux phases 3 et 4 : un calque fixed masque le débordement au scrollWidth.
+
+AUTRES DIFFÉRÉS AJOUTÉS :
+- [majeur] /stock/receptions : les DEUX SelectValue affichent l'UUID BRUT au lieu du nom
+  (« 4d5231ad-ddca-… » pour l'entrepôt, idem fournisseur). Cause : <SelectValue placeholder>
+  sans fonction de rendu — base-ui retombe sur la valeur brute. Les écrans qui passent une
+  fonction (stock/, mouvements/, ventes/) affichent bien les noms. PRÉEXISTANT, phase 3.
+- [mineur] dialog-body n'a pas de scrollbar-gutter : 15 px de reflow de tout le contenu au moment
+  où il franchit le plafond (offsetWidth 480 → clientWidth 465). Non corrigé, l'utilitaire
+  demanderait une valeur arbitraire que les contraintes de phase interdisent. Nul à 375 (barres
+  en superposition).
+- [précision] Le débordement de /stock/receptions/$purchaseId n'est PAS structurel : il est
+  déclenché par un jeton insécable dans le <h1> du nom de fournisseur (844 px de large, badge
+  projeté à 925). Avec un nom normal, scrollWidth = 375. TEXTE_LIBRE traite les cellules, pas
+  les titres de page.
+- [mineur] Tableau de bord à 375 : 4 <section> mesurent 371,8 px dans une piste de 343 (+13 de
+  débordement document). Déjà tracé en phase 2a, confirmé, phase 4.
+
+TROUS ASSUMÉS de cette passe : les 3 dialogues les plus denses de stock/ (lignes de réception,
+lignes de transfert, récapitulatif de clôture) n'ont PAS pu être ouverts — aucune réception en
+draft, 0 transfert, aucun inventaire ouvert en base locale. Ce sont précisément ceux qui ont le
+plus de chances de dépasser le viewport.
+
+### Revue CodeRabbit de la PR #35 (traitée en ca8d56c)
+
+Bot : 4 constats en ligne. CLI : 11 constats. Aucun bloquant, CI verte. Les deux ont bien trouvé
+des choses DIFFÉRENTES, ce qui justifie de lancer les deux comme le prescrit le process.
+
+FONDÉS, APPLIQUÉS :
+- gouttière droite de DialogHeader (bot) — défaut que CETTE PR avait créé : le bg-popover posé
+  sur la croix était nécessaire (le corps est devenu défilant), mais la croix fait 44 px en
+  pointer-coarse, donc un titre long n'était plus masqué par un glyphe transparent mais COUPÉ
+  par un carré plein. Mesuré : 36 px de titre sous le carré sans gouttière, +8 px avec.
+- bouton de bascule fournisseur sans garde de mutation (CLI, majeur) — le bouton « Créer » du
+  même écran est gardé, celui-là non : deux clics rapides = deux écritures, retour à l'état de
+  départ sans explication. Seule la ligne en cours est désactivée (basculer.variables.id).
+- nom accessible non unique des listes de lots (CLI) — vérifié en base : product_variants a un
+  index unique sur le SKU, AUCUN sur le nom. Deux variantes homonymes donnaient deux listes
+  indistinguables au lecteur d'écran.
+- jetons découpait className, qui est un SVGAnimatedString sur un élément SVG (CLI) → classList.
+- le PLAN décrivait encore « preparerImage → valider » alors que la SPEC et le code font
+  « type → preparerImage → taille » : le document relu en premier disait le contraire du code.
+
+APPLIQUÉ MAIS JUSTIFICATION CORRIGÉE : le stub matchMedia hors afterEach de
+liste-adaptative.test.tsx est PRÉVENTIF, pas correctif. Sabotage vérifié : un seul test échoue,
+avant comme après — chaque autre cas réinstalle son propre stub avant de rendre, donc aucun
+n'observe la fuite. Mon brief le présentait comme enterrant « la vraie cause sous une cascade » :
+faux dans ce fichier. L'agent l'a signalé plutôt que de laisser passer.
+
+ÉCARTÉS, VÉRIFIÉS NON FONDÉS (réponse argumentée postée sur la PR) :
+- « valeurPaire doit retourner dd.textContent ?? "" » — soulevé CINQ FOIS par les deux revues sur
+  autant de fichiers. strict:true est bien actif, et le compilateur accepte `return dd.textContent`
+  déclaré string dans cette base. Sonde exécutée avant de répondre.
+- assertion de type dite redondante ligne 155 de nouveau.test.tsx — le bot annonce un échec
+  ESLint ; `bunx eslint` sur ce fichier ne signale rien, la règle n'est pas déclenchée ici.
+- libellé de repli français dans select.test.tsx — c'est un test isolé du composant, pas un écran.
+- recalculer l'attendu de image.test.ts avec Intl — le test littéral actuel est PLUS STRICT :
+  recalculer avec la même formule que le code le rendrait vert même si la formule changeait des
+  deux côtés.
+- assouplir la contrainte du plan sur routeTree.gen.ts — la contrainte est juste : le fichier ne
+  doit pas apparaître au diff, régénéré ou non.
+
+LEÇON : sur 15 constats, 6 fondés. Les 5 occurrences de textContent montrent qu'un même faux
+positif se propage à tous les fichiers portant le motif — vérifier UNE FOIS par sonde et écarter
+en bloc, plutôt que d'appliquer mécaniquement.
+
+État : typecheck + lint verts, 49 fichiers / 426 tests web verts. PR #35 à jour, CI verte.
