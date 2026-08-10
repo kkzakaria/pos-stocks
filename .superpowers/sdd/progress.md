@@ -791,3 +791,65 @@ positif se propage à tous les fichiers portant le motif — vérifier UNE FOIS 
 en bloc, plutôt que d'appliquer mécaniquement.
 
 État : typecheck + lint verts, 49 fichiers / 426 tests web verts. PR #35 à jour, CI verte.
+
+## Correctif POS — calques modaux à 375 px (PR #38, mergée en a30e4c3)
+
+Défaut DÉJÀ EN PRODUCTION depuis la phase 1, découvert lors de la vérification navigateur de la
+2b mais étranger à son périmètre. Traité dans sa propre PR sur décision de l'utilisateur.
+
+MA CAUSE ANNONCÉE ÉTAIT FAUSSE, ET CELLE DE L'IMPLÉMENTEUR AUSSI.
+  - moi : « c'est la rangée du pavé numérique qui ne se replie pas ». Faux : mesuré, le pavé se
+    replie très bien dès que la piste est bornée, et à 7 500 F CFA le panneau faisait déjà 357 px
+    sans que le pavé y soit pour rien.
+  - l'implémenteur : « une piste auto est dimensionnée au MAX-content ». Faux aussi, et
+    piégeusement : par la spec Grid, la taille de base d'une piste auto est son MIN-CONTENT, et
+    « Maximize Tracks » ne distribue l'espace libre que tant qu'il est POSITIF. Un contenu qui
+    déborde laisse donc la piste collée à son plancher.
+  - preuve ARITHMÉTIQUE trouvée en revue : le panneau mesurait 488 px alors que max-w-lg plafonne
+    à 512. S'il avait suivi le max-content (7 touches sur une ligne), il aurait tapé le plafond.
+    488 = min-content de l'en-tête (404 montant + 44 cible + 40 de padding).
+
+CONSÉQUENCE PRATIQUE, VÉRIFIÉE À LA MESURE : `1fr` seul vaut `minmax(auto, 1fr)`, garde le même
+plancher et REPRODUIT LE DÉFAUT À L'IDENTIQUE (panneau à 512, bouton hors écran). Seul
+`grid-cols-1` = `minmax(0, 1fr)` corrige, parce que c'est LA BORNE MINIMALE À ZÉRO qui fait le
+travail. Écrit explicitement dans les commentaires : c'est exactement la « simplification » qu'on
+serait tenté de faire, et elle serait silencieusement fausse.
+
+QUATRIÈME DÉGUISEMENT DU MÊME MÉCANISME min-content DANS CE CHANTIER (après break-words inerte en
+table, line-clamp sur le SelectTrigger, et le débordement rogné du dialogue) : TOUT MONTANT
+PRODUIT PAR formaterMontant EST UNE SEULE SÉQUENCE INSÉCABLE. Décomposé en points de code :
+7 + U+202F + 500 + U+00A0 + F + U+202F + CFA — AUCUNE U+0020, y compris à l'intérieur du symbole
+« F CFA ». Son min-content vaut donc sa largeur entière et rien ne peut le couper. C'est ce qui
+casse les mises en page flex/grid partout où un gros montant est rendu.
+
+Le pas typographique (text-3xl sm:text-5xl sur le total) n'est PAS du confort : à 375 px l'en-tête
+laisse 259 px, et text-5xl rend 302 px pour le plus petit total réaliste (7 500) et 412 px à sept
+chiffres. Aucun montant ne tenait, et AUCUN NE POUVAIT SE REPLIER faute de point de coupure —
+la seule autre issue était que les chiffres sortent de l'écran par-dessus la cible de fermeture.
+
+INVENTAIRE : il y a CINQ calques écrits à la main dans pos/, pas quatre. tickets-du-jour.tsx
+n'avait jamais été audité. Les deux qui ne débordent pas aujourd'hui (fermeture-caisse,
+tickets-du-jour) sont sains PAR LEUR CONTENU, pas par construction : grid-cols-1 leur a été posé
+quand même — la classe est inerte tant que rien ne déborde, et laisser deux fichiers sur cinq
+porter le motif fautif garantissait qu'il serait recopié.
+
+DIFFÉRÉ MAJEUR SORTI EN ISSUE #37 : à 375x540 (viewport VISUEL d'un iPhone SE barres déployées,
+le calque inset-0 se calant sur le viewport de MISE EN PAGE à 667), « Valider la vente » tombe à
+y 516..572, sous la ligne de flottaison, et RIEN NE DÉFILE (scrollHeight === clientHeight,
+elementFromPoint = null). LE CAISSIER NE PEUT PAS ENCAISSER. Ce correctif l'atténue (~20 px de
+hauteur en moins) sans le résoudre. Non traité ici sur décision de la revue : la parade est le
+motif à deux boîtes de dialog.tsx, mais elle touche usePiegeFocus dont dépendent 38 cas de
+ecran-vente.test.tsx, elle exige une valeur arbitraire que les contraintes interdisent, et le
+clavier virtuel iOS y introduirait un comportement non mesuré. Campagne E2E dédiée requise.
+
+LEÇON DE MÉTHODE, VALABLE POUR TOUTE VÉRIFICATION FUTURE : un calque en position:fixed masque son
+propre débordement à documentElement.scrollWidth, qui reste égal à clientWidth. AUCUNE ASSERTION
+AUTOMATIQUE DE DÉBORDEMENT NE PEUT VOIR CE TYPE DE DÉFAUT — c'est ainsi qu'il a traversé la
+vérification de la phase 1. Mesurer les rectangles des éléments et leur atteignabilité par
+elementFromPoint, jamais le document.
+
+Les DEUX revues CodeRabbit (bot et CLI) n'ont rendu AUCUN constat sur cette PR — la seule de tout
+le chantier dans ce cas. La revue interne avait déjà corrigé le mécanisme documenté, l'inventaire
+des calques et une mesure fausse dans un commentaire de garde avant qu'elles ne voient le code.
+
+État : 51 fichiers / 437 tests web verts. PR #38 et #36 mergées, branches supprimées.
