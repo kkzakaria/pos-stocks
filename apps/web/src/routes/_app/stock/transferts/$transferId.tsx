@@ -170,7 +170,7 @@ export const COLONNES_LIGNES_TRANSFERT: ColonneAdaptative<LigneTransfertAffichee
  * in either tier. */
 export function actionsLigneTransfert(l: LigneTransfertAffichee) {
   return (
-    <span className="flex gap-2">
+    <span className="flex justify-end gap-2">
       <Button variant="outline" size="sm" onClick={l.surModifier}>
         Modifier
       </Button>

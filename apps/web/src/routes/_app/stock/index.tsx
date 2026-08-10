@@ -380,7 +380,7 @@ export function NiveauxStockPage() {
               onValueChange={(valeur) => setEntrepotId(valeur as string)}
             >
               <SelectTrigger id="n-entrepot" className="w-full">
-                <SelectValue placeholder="Choisir un entrepôt">
+                <SelectValue>
                   {(valeur: string) =>
                     entrepots.find((w) => w.id === valeur)?.name ??
                     "Choisir un entrepôt"

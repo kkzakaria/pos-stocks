@@ -283,7 +283,7 @@ export function InventairesPage() {
               onValueChange={(valeur) => setStatut(valeur as string)}
             >
               <SelectTrigger id="i-statut" className="w-full sm:w-48">
-                <SelectValue placeholder="Tous">
+                <SelectValue>
                   {(valeur: string) => STATUTS_INVENTAIRE_FR[valeur] ?? "Tous"}
                 </SelectValue>
               </SelectTrigger>
