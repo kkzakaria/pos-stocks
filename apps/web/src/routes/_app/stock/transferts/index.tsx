@@ -93,8 +93,11 @@ export const COLONNES_TRANSFERTS: ColonneAdaptative<TransfertListe>[] = [
     cle: "date",
     entete: "Date",
     // Resurfaces via sousTitreTransfert, which renders this same date.
+    // No classeCellule: unlike receptions' date cell, this one never carried
+    // a `text-sm` — the brief's column table lists none for it, and adding
+    // one would make this column render larger than every other cell in
+    // table mode (the table itself already defaults to `text-xs`).
     masquerEnCarte: true,
-    classeCellule: "text-sm",
     cellule: sousTitreTransfert,
   },
   {

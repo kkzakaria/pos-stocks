@@ -239,29 +239,19 @@ describe("colonnes de la liste des transferts", () => {
     }
   })
 
-  it("garde la date en text-sm, sans traitement de texte libre", () => {
+  it("laisse la date, les lignes, la quantité et le statut sans traitement de texte libre", () => {
     afficher(1280)
-    // `text-sm` is carried over from the old cell — a deliberate typographic
-    // exception on the only column that had one. Dropping it looks like noise
-    // removal (the card does not depend on it) but shrinks the date past `md`.
-    // And `TEXTE_LIBRE` added here "for symmetry" would let `07/08/2026` break
-    // mid-token: a formatted date is atomic.
-    const cellule = screen.getByText("07/08/2026").closest("td")
-    expect(jetons(cellule)).toContain("text-sm")
-    expect(jetons(cellule)).not.toContain("wrap-anywhere")
-  })
-
-  it("laisse les lignes, la quantité et le statut sans traitement de texte libre", () => {
-    afficher(1280)
-    // A count, a quantity and a badge from a closed set are atomic values:
-    // breaking one across two lines would be a defect, not a fix. Asserted so
-    // that a blanket `classeCellule` on every column fails here rather than
-    // shipping.
+    // A formatted date, a count, a quantity and a badge from a closed set
+    // are atomic values: breaking one across two lines would be a defect,
+    // not a fix. Asserted so that a blanket `classeCellule` on every column
+    // fails here rather than shipping. Unlike receptions' date cell, this
+    // one carries no `classeCellule` at all — it never had a `text-sm`
+    // exception to preserve, so `jetons(cellule)` is expected to be empty.
     const cellules = [
+      screen.getByText("07/08/2026").closest("td"),
       screen.getByText("4").closest("td"),
       screen.getByText("42").closest("td"),
       screen.getByText("En attente").closest("td"),
-      screen.getByText("07/08/2026").closest("td"),
     ]
 
     for (const cellule of cellules) {
