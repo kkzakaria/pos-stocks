@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Rendre utilisables de 375 px à desktop les six écrans du domaine stock — niveaux, réceptions (liste et détail), transferts (liste et détail), inventaires (liste et détail) — et refermer au passage les défauts d'affichage que la phase 2b a tracés sur ce répertoire.
+**Goal:** Rendre utilisables de 375 px à desktop les sept écrans du domaine stock — niveaux, réceptions (liste et détail), transferts (liste et détail), inventaires (liste et détail) — et refermer au passage les défauts d'affichage que la phase 2b a tracés sur ce répertoire.
 
-**Architecture:** Les sept tables du périmètre consomment `ListeAdaptative` telle quelle. Aucune structure du domaine ne lui résiste : pas de pied de totaux, pas de maître-détail, pas de colonne conditionnelle en milieu de tableau qu'un scalaire de ligne ne résoudrait pas. La phase crée en revanche **son propre filet de tests** : le domaine n'en a qu'un seul aujourd'hui, sur le seul écran déjà migré.
+**Architecture:** Les **huit** tables du périmètre — sept écrans, mais `inventaires/$countId.tsx` en porte **deux** (saisie + récapitulatif de clôture) — consomment `ListeAdaptative` telle quelle. C'est le compte qu'attend le journal du projet, qui annonce **douze tables restantes pour les phases 3 et 4** : huit ici, quatre en phase 4 (`administration/entrepots.tsx`, `administration/utilisateurs.tsx`, `produit/section-variantes.tsx`, `produit/section-stock.tsx`). Aucune de ces structures ne lui résiste : pas de pied de totaux, pas de maître-détail, pas de colonne conditionnelle en milieu de tableau qu'un scalaire de ligne ne résoudrait pas. La phase crée en revanche **son propre filet de tests** : le domaine n'en a qu'un seul aujourd'hui, sur le seul écran déjà migré.
 
 **Tech Stack:** React 19, TanStack Router + Query, Tailwind CSS v4, `@base-ui/react`, Vitest 3 + Testing Library + jsdom.
 
@@ -12,7 +12,7 @@
 
 ## Avertissement liminaire : cette phase n'hérite d'aucun filet
 
-`apps/web/src/routes/_app/stock/` contient **un seul fichier de test** — `mouvements.test.tsx`, sur l'écran migré en phase 1, **hors périmètre**. Les six écrans de cette phase n'ont aucune couverture.
+`apps/web/src/routes/_app/stock/` contient **un seul fichier de test** — `mouvements.test.tsx`, sur l'écran migré en phase 1, **hors périmètre**. Les sept écrans de cette phase n'ont aucune couverture.
 
 Conséquence directe sur la méthode : en phase 2b, une colonne perdue ou dupliquée était rattrapée par les suites existantes du catalogue. **Ici, rien ne rattrape.** Le test garde-fou d'un écran n'existe que s'il est écrit **dans la tâche qui migre cet écran**, jamais « à la fin ». Une tâche dont le test n'est pas écrit n'est pas terminée, même si l'écran se rend correctement au navigateur.
 
@@ -74,7 +74,7 @@ Rappel du mécanisme (JSDoc de `TEXTE_LIBRE`) : `break-words` seul y est **inert
 
 Le composant est consommé tel quel par défaut. **Mais le gel n'est pas un interdit** : quand une contrainte réelle n'a aucune alternative propre, on modifie le composant. Ordre de préférence : résoudre au niveau de l'écran → vérifier que `masquerEnCarte` ne couvre pas déjà le cas → ouvrir le composant. Toute modification est additive, documentée en JSDoc, couverte par un test, et sa raison consignée au rapport de tâche. **C'est le contournement qui doit se justifier.**
 
-À ce stade de la reconnaissance, **aucune tâche de cette phase n'a de raison d'ouvrir le composant.** Si l'une croit devoir le faire, c'est un signal à remonter avant d'écrire la ligne.
+À ce stade de la reconnaissance, **aucune tâche de cette phase n'a de raison d'ouvrir `ListeAdaptative`.** Si l'une croit devoir le faire, c'est un signal à remonter avant d'écrire la ligne. (La phase ouvre en revanche **un** composant partagé, et un seul : `FiltresRepliables`, dont le `label` s'élargit à `React.ReactNode` — arbitrage A, Task 4. C'est une exception tranchée d'avance, pas un précédent.)
 
 ---
 
@@ -93,7 +93,7 @@ Le composant est consommé tel quel par défaut. **Mais le gel n'est pas un inte
 
 7. **Le palier le plus étroit du mode table est 1024 px, pas 768.** À `lg`, la barre latérale devient permanente (−240 px) au moment exact où la grille passe à trois colonnes. Conteneur mesuré : 991 px à 1023 → **480 px à 1024** → 651 px à 1280. Un défaut de largeur de table y est **invisible aux paliers habituels**. **Ajouter 1024 à toute campagne de vérification.**
 8. **Une correction responsive horizontale peut faire franchir un plafond vertical.** C'est ce qui a rendu un dialogue non validable en 2b : replier une rangée la rend plus haute, et un dialogue plafonné à `viewport − 2rem` finit par pousser son bouton de validation dans la zone défilante. Toute correction horizontale sur un dialogue se revérifie **en hauteur**, à 375×812 **et** en viewport court.
-9. **Un calque en `position: fixed` masque son propre débordement à `scrollWidth`.** `documentElement.scrollWidth` vaut `clientWidth` alors que la modale déborde de 129 px. **Aucune assertion automatique de débordement ne peut voir ce défaut** : mesurer les **rectangles des éléments** (`getBoundingClientRect`), jamais le document. Concerne les 6 dialogues et les 6 `AlertDialog` du périmètre.
+9. **Un calque en `position: fixed` masque son propre débordement à `scrollWidth`.** `documentElement.scrollWidth` vaut `clientWidth` alors que la modale déborde de 129 px. **Aucune assertion automatique de débordement ne peut voir ce défaut** : mesurer les **rectangles des éléments** (`getBoundingClientRect`), jamais le document. Concerne **les quatorze calques du périmètre — 9 `Dialog` et 5 `AlertDialog`**, énumérés un par un au § Definition of Done. **C'est cette énumération qui se coche, jamais un compte** : un compte se retient de travers, et un calque non mesuré ne se signale par rien.
 10. **Le JIT de Tailwind v4 ne génère que les classes présentes DANS LES SOURCES.** Injecter une classe via `className` depuis la console pour mesurer donne un faux négatif : mesurer en `style.cssText`.
 11. **Chrome renvoie encore des rectangles de layout pour le contenu d'un `<details>` FERMÉ** (`content-visibility: hidden`). Chaque panneau `FiltresRepliables` replié produit de fausses occlusions et de fausses cibles sous-dimensionnées lors d'un audit automatisé. Déplier avant de mesurer.
 12. **`FiltresRepliables` n'a pas de wrapper au-dessus de `md`** : au palier `md`+ il rend `<>{children}</>`. Un `className` (et donc une marge) passé au composant **est perdu au desktop**. Les marges vivent sur le `<div>` intérieur, exactement comme `catalogue/produits/index.tsx` le fait avec son `mt-4`.
@@ -102,7 +102,7 @@ Le composant est consommé tel quel par défaut. **Mais le gel n'est pas un inte
 
 ## Structure de fichiers
 
-**Modifiés (7) :**
+**Modifiés (8) :**
 
 | Fichier | Ce que la phase y fait |
 |---|---|
@@ -112,11 +112,12 @@ Le composant est consommé tel quel par défaut. **Mais le gel n'est pas un inte
 | `apps/web/src/routes/_app/stock/index.tsx` | `ListeAdaptative` + `FiltresRepliables` + `h-full` + liste « En transit » + `SelectValue` |
 | `apps/web/src/routes/_app/stock/receptions/$purchaseId.tsx` | `ListeAdaptative` + en-tête de page + `SelectValue` d'article |
 | `apps/web/src/routes/_app/stock/transferts/$transferId.tsx` | `ListeAdaptative` + en-tête de page + dialogue de réception |
-| `apps/web/src/routes/_app/stock/inventaires/$countId.tsx` | `ListeAdaptative` (saisie) + en-tête + récapitulatif de clôture |
+| `apps/web/src/routes/_app/stock/inventaires/$countId.tsx` | `ListeAdaptative` (saisie **et** récapitulatif de clôture) + en-tête + élargissement du dialogue de récapitulatif + `flex-wrap` du bloc d'actions de pied |
+| `apps/web/src/components/ui/filtres-repliables.tsx` | `label` élargi de `string` à `React.ReactNode` — **seule ouverture de composant partagé de la phase**, arbitrage A |
 
 **Créés (7 fichiers de test) :** `receptions/index.test.tsx`, `transferts/index.test.tsx`, `inventaires/index.test.tsx`, `stock/index.test.tsx`, `receptions/$purchaseId.test.tsx`, `transferts/$transferId.test.tsx`, `inventaires/$countId.test.tsx`.
 
-**Intouchés :** `stock/mouvements.tsx` et `stock/mouvements.test.tsx` (tables témoins de la phase 1), `lib/transferts.ts`, `lib/stock.ts`, `lib/permissions.ts`, `components/ui/*`.
+**Intouchés :** `stock/mouvements.tsx` et `stock/mouvements.test.tsx` (tables témoins de la phase 1), `lib/transferts.ts`, `lib/stock.ts`, `lib/permissions.ts`, et `components/ui/*` **à la seule exception de `filtres-repliables.tsx`** ci-dessus. En particulier `liste-adaptative.tsx`, `dialog.tsx` et `table.tsx` ne bougent pas : l'élargissement du dialogue de récapitulatif passe par le `className` que `DialogContent` accepte déjà.
 
 ---
 
@@ -173,6 +174,22 @@ Trois raisons, dans l'ordre de force :
 
 `label` n'est rendu que dans le `<summary>`, c'est-à-dire **uniquement sous `md`** : le desktop est strictement inchangé.
 
+**Ce libellé composé doit être protégé de la coupe — le plan l'invente, il lui doit sa propre règle.** `nomEntrepotCourant` est du **texte libre saisi par l'utilisateur** ; l'écran le plus étroit du périmètre est aussi celui où on le fait remonter dans un en-tête. Direction du conteneur, vérifiée dans le composant : le `<summary>` est `flex min-h-11 items-center gap-1.5`, donc **flex-rangée** — c'est la première des deux formes du § Hors table qui s'applique, la **paire indivisible `min-w-0 break-words`**, pas `break-words` seul.
+
+Difficulté mécanique : `label` est typé `string`, il arrive donc dans le `<summary>` comme **item flex anonyme**, et un item anonyme ne peut porter aucune classe. La protection suppose un porteur. **Tranché : élargir `label` de `string` à `React.ReactNode`** — modification **additive** de `FiltresRepliables` (valeur par défaut `"Filtres"` inchangée, aucun appelant existant cassé), documentée en JSDoc, couverte par un cas dans `components/ui/filtres-repliables.test.tsx`, et consignée au rapport de tâche. L'écran passe alors :
+
+```tsx
+label={
+  nomEntrepotCourant ? (
+    <span className="min-w-0 break-words">Filtres — {nomEntrepotCourant}</span>
+  ) : (
+    "Filtres"
+  )
+}
+```
+
+C'est la **seule** ouverture de composant partagé prévue par la phase, et elle ne concerne pas `ListeAdaptative`. Si un exécutant trouve une voie qui protège la coupe sans toucher au composant, elle est préférable — mais elle doit produire le même résultat mesuré au navigateur, avec un nom d'entrepôt d'un seul jeton insécable à 375 px.
+
 **Alternative écartée :** sortir le sélecteur d'entrepôt du panneau et le laisser au-dessus. Elle scinderait la barre de filtres en deux groupes visuels et réinstallerait précisément le mur de contrôles empilés que le repli existe pour supprimer.
 
 ### B. `inventaires/$countId.tsx` — la table de saisie passe PAR `ListeAdaptative`
@@ -183,7 +200,7 @@ Trois raisons, dans l'ordre de force :
 
 1. `cellule` accepte **tout nœud React**. Un champ de saisie n'est pas plus exotique qu'un `Badge` ou un `<Link>`, tous deux déjà rendus par des colonnes en production.
 2. Les lignes sont **uniformes** — un article, quatre chiffres, une action. C'est exactement la forme que le composant sert ; rien ici n'a la structure d'un maître-détail ou d'un pied de totaux, les deux seules formes qui lui aient résisté.
-3. **Le mode carte améliore la saisie plutôt que de la dégrader.** En table à 375 px, un `<Input className="w-24">` plus un bouton « Enregistrer » dans la même rangée que le nom du produit et trois chiffres, c'est la pire rangée du domaine. En carte, l'article est le titre, le champ occupe sa paire « Compté » avec son libellé en vis-à-vis, et le bouton devient `actionCarte` — pleine largeur sous les paires, dans la zone du pouce.
+3. **Le mode carte améliore la saisie plutôt que de la dégrader.** En table à 375 px, un `<Input className="w-24">` plus un bouton « Enregistrer » dans la même rangée que le nom du produit et trois chiffres, c'est la pire rangée du domaine. En carte, l'article est le titre, le champ occupe sa paire « Compté » avec son libellé en vis-à-vis, et le bouton devient `actionCarte` — rendu **sous les paires, en bas de carte, dans la zone du pouce**, au lieu d'être comprimé dans la rangée. (Sans plus : `ListeAdaptative` rend `actionCarte` dans un simple `<div className="mt-2">` et **n'impose aucune largeur** — le bouton garde la sienne. Aucune tâche de la phase ne prescrit `w-full` ; les deux actions de carte du périmètre restent alignées à droite, parce que c'est **le même nœud** qui sert de cellule de table et d'`actionCarte`, règle 5 de la composition.)
 4. L'état de saisie vit déjà **dans l'écran** (`saisies: Record<string, string>`), pas dans la cellule : le passer par un type « Affichée » ne déplace aucune responsabilité.
 5. Écrire une passe manuelle ici, c'est écrire une **huitième** implémentation de carte dans le dépôt, avec sa propre dérive de libellés.
 
@@ -195,9 +212,17 @@ Trois raisons, dans l'ordre de force :
 
 **Le fait :** le récapitulatif est une table de 4 colonnes **à l'intérieur d'un `DialogContent`** — sans précédent dans le dépôt.
 
-**Tranché : `ListeAdaptative`.** Le composant ne mesure rien : il lit `matchMedia` sur le **viewport**, et la largeur d'un `DialogContent` (`w-full max-w-[calc(100%-2rem)] sm:max-w-sm`) suit précisément le viewport. Le signal est donc le bon, la nouveauté est l'emplacement, pas le mécanisme.
+**Tranché : `ListeAdaptative`, ET on élargit ce dialogue-là.** Les deux vont ensemble ; voici pourquoi.
 
-Et le besoin est réel : à 375 px, le corps du dialogue offre ~311 px utiles. Une table de 4 colonnes portant un nom de produit, un SKU et trois chiffres y déborde nécessairement — or c'est un **calque `fixed`**, donc ce débordement est **invisible à `scrollWidth`** (piège 9). Personne ne le verrait sans une mesure de rectangles délibérée. La table restante est purement lecture seule, sans état, sans action : le consommateur le plus simple de toute la phase.
+**Le signal de bascule est bon, mais il ne suffit pas.** `ListeAdaptative` ne mesure rien : il lit `matchMedia` sur le **viewport**. Sous `md` c'est exactement ce qu'il faut — le `DialogContent` vaut alors `max-w-[calc(100%-2rem)]`, donc il suit le viewport, et le mode cartes s'installe pile au moment où la boîte devient étroite. **Mais au-delà, le dialogue est découplé du viewport** : `dialog.tsx` plafonne le contenu à `sm:max-w-sm` dès 640 px, soit **384 px pour toujours**. Or `useEstLarge()` rebascule en table à 768 px. À partir de `md`, le composant partagé rendrait donc une table de 4 colonnes dans une boîte de 384 px — à défilement horizontal interne, c'est-à-dire **la géométrie même que l'arbitrage prétend fuir**.
+
+**Correctif, sur ce dialogue seulement :** `<DialogContent className="md:max-w-2xl">`. Le composant accepte déjà un `className` fusionné par `cn()`, et le précédent existe dans le dépôt (`components/utilisateur/gerer-acces.tsx`, `sm:max-w-lg`) — aucune modification de `dialog.tsx`. Le palier choisi est `md`, pas `sm` : à `sm` (640–767 px) le mode cartes est encore actif et `max-w-2xl` (42 rem = 672 px) dépasserait le viewport, ce qui collerait la boîte aux bords ; à `md` (768 px) elle laisse 96 px de marge et 640 px de corps utile, de quoi loger « Article / Compté / Stock avant clôture / Écart appliqué » sans défilement interne. `2xl` est sur l'échelle Tailwind du système, comme `sm` et `lg` déjà utilisés pour les dialogues du dépôt.
+
+**Ce plafond se mesure**, aux quatre paliers de la campagne (375, 768, 1024, 1280) : la boîte doit valoir ~343 px à 375 (cartes), et 672 px à 768/1024/1280 (table), **sans barre de défilement horizontale interne** au conteneur de table. C'est une correction de géométrie pure, dans le mandat de la phase.
+
+**Ce que le défaut est vraiment — et ce qu'il n'est pas.** Ne pas écrire que la table « déborde du calque, invisible à `scrollWidth` » : `components/ui/table.tsx` enveloppe déjà chaque table dans un `<div className="relative w-full overflow-x-auto">`. La table **défile donc à l'intérieur** du dialogue ; elle ne le fait pas grandir et ne crève pas le calque. Le défaut réel est « une table de 4 colonnes à défilement horizontal dans une modale de 384 px » — mauvais, mais d'une autre nature : on perd la comparaison entre colonnes, pas des pixels hors écran. Le précédent invoqué au piège 9 (la modale de paiement du POS, 488 px de panneau dans 375) est un calque **écrit à la main, sans ce conteneur** : c'est pour cela que lui débordait pour de bon. La distinction compte — la confondre enseignerait un mécanisme faux, et ferait chercher au navigateur un débordement qui n'existe pas ici.
+
+Le besoin de la bascule reste entier sous `md` : à 375 px le corps du dialogue offre ~311 px utiles, et quatre colonnes n'y sont pas lisibles, défilement ou pas. La table restante est purement lecture seule, sans état, sans action : le consommateur le plus simple de toute la phase.
 
 **Deux contraintes, non négociables :**
 
@@ -210,11 +235,13 @@ Et le besoin est réel : à 375 px, le corps du dialogue offre ~311 px utiles. U
 
 **Le fait — et une divergence avec le brief :** ce ne sont pas deux écrans mais **trois**, avec deux formulations :
 
-| Écran | Prédicat actuel | Répétitions dans le fichier |
-|---|---|---|
-| `receptions/$purchaseId.tsx` | `brouillon && peutEcrire` | 4 |
-| `transferts/$transferId.tsx` | `brouillon && peutEcrireOrigine` | 4 |
-| `inventaires/$countId.tsx` | `ouvert && peutEcrire` | 4 |
+| Écran | Prédicat actuel | Répétitions dans le fichier | Points d'appel |
+|---|---|---|---|
+| `receptions/$purchaseId.tsx` | `brouillon && peutEcrire` | **6** | bouton « Ajouter une ligne » · `<TableHead />` d'action · cellule d'action · `colSpan` · message d'état vide · bloc d'actions de pied |
+| `transferts/$transferId.tsx` | `brouillon && peutEcrireOrigine` | **6** | mêmes six |
+| `inventaires/$countId.tsx` | `ouvert && peutEcrire` | **5** | `const colonnes = … ? 5 : 4` · `<TableHead />` d'action · cellule « Compté » (saisie ou lecture) · cellule d'action · bloc d'actions de pied |
+
+Deux de ces points d'appel **disparaissent** avec la migration sur chaque écran — `<TableHead />` et `colSpan` pour les réceptions/transferts, `<TableHead />` et `const colonnes` pour l'inventaire —, `ListeAdaptative` calculant `colonnes.length`. Les autres survivent, et la « cellule d'action » en engendre **deux** (le ternaire de choix du tableau de colonnes **et** `actionCarte`, qui vont toujours ensemble). Bilan après migration : **cinq** usages de `ligneModifiable` sur les réceptions et les transferts, **quatre** de `saisieOuverte` sur l'inventaire.
 
 **Tranché :**
 
@@ -223,7 +250,7 @@ Et le besoin est réel : à 375 px, le corps du dialogue offre ~311 px utiles. U
    - `const ligneModifiable = brouillon && peutEcrire` (réception détail)
    - `const ligneModifiable = brouillon && peutEcrireOrigine` (transfert détail)
    - `const saisieOuverte = ouvert && peutEcrire` (inventaire détail)
-3. **Cette constante remplace TOUTES les répétitions du fichier** : choix du tableau de colonnes, `actionCarte`, bouton « Ajouter une ligne », bloc d'actions de pied, message d'état vide. Le risque n'est pas la verbosité, c'est qu'une des quatre occurrences dérive.
+3. **Cette constante remplace TOUTES les répétitions du fichier** : choix du tableau de colonnes, `actionCarte`, bouton « Ajouter une ligne », bloc d'actions de pied, **message d'état vide** — et, sur l'inventaire, le branchement de la cellule « Compté » (via `saisissable`, voir l'arbitrage B). Le risque n'est pas la verbosité, c'est qu'une des six occurrences (cinq sur l'inventaire) dérive. **Aucune ne se laisse oublier : le § Definition of Done exige qu'après migration le prédicat brut n'apparaisse plus qu'une seule fois par fichier — sa déclaration.**
 4. **Ne jamais l'appeler `peutEcrire`** — cela masquerait le droit pur et laisserait croire au lecteur que l'action de ligne suit le rôle seul.
 5. Bénéfice collatéral : l'arithmétique `colSpan={brouillon && peutEcrire ? 6 : 5}` **disparaît entièrement**, `ListeAdaptative` calculant `colonnes.length`. Trois occurrences fragiles en moins.
 
@@ -233,9 +260,11 @@ Et le besoin est réel : à 375 px, le corps du dialogue offre ~311 px utiles. U
 
 Relevé par reconnaissance, **à revérifier en lisant le code au début de chaque tâche**.
 
-### `SelectValue` — deux modes d'échec distincts, 10 occurrences
+### `SelectValue` — deux modes d'échec distincts, 10 occurrences défectueuses sur 12
 
-**Mode 1 — auto-fermant, sans fonction de rendu : base-ui retombe sur la valeur brute et affiche l'UUID.** Trois occurrences, **les seules de la SPA** ; la phase referme le sujet.
+Le périmètre porte **12** `SelectValue`. Dix sont défectueux et listés ci-dessous ; **deux sont déjà conformes et ne doivent pas être touchés** : `r-statut` (`receptions/index.tsx`, repli `?? "Tous"`) et `t-statut` (`transferts/index.tsx`, ternaire sur `""`).
+
+**Mode 1 — auto-fermant, sans fonction de rendu : base-ui retombe sur la valeur brute et affiche l'UUID.** Trois occurrences, **les seules de la SPA** (vérifié par recherche) ; la phase referme ce mode définitivement.
 
 | Fichier | `id` | Effet observé |
 |---|---|---|
@@ -280,9 +309,15 @@ Correctif uniforme : `flex flex-wrap items-center gap-3` sur le conteneur, `min-
 
 ## Découpage
 
-Sept tâches de taille comparable.
+Sept tâches, **de poids inégaux — ce plan ne prétend pas le contraire.**
 
-**`receptions/index.tsx` en premier, délibérément** : c'est le plus petit des trois écrans à ligne cliquable, il porte **deux des trois** défauts d'identifiant brut, et sa table n'a **aucune** colonne conditionnelle. Elle isole donc le point resté ouvert du chantier — le lien de ligne — de toute autre variable. Les deux tâches suivantes ne font que répliquer ce qu'elle aura établi.
+**`receptions/index.tsx` en premier, délibérément** : il porte **deux des trois** défauts d'identifiant brut, et sa table n'a **aucune** colonne conditionnelle. Elle isole donc le point resté ouvert du chantier — le lien de ligne — de toute autre variable. Les deux tâches suivantes ne font que répliquer ce qu'elle aura établi. (Ce n'est pas le plus petit des trois écrans à ligne cliquable — `inventaires/index.tsx` l'est —, et l'ordre ne repose pas là-dessus.)
+
+**Répartition réelle de la charge**, à dire d'emblée pour que personne ne prenne une tâche en croyant en prendre une autre :
+
+- **Tasks 2 et 3** — répliques minces de la Task 1. Le motif est déjà tranché, il reste à le transposer et à écrire le test.
+- **Tasks 4 et 6** — nettement plus lourdes : la 4 cumule trois contrôles de filtre, l'arbitrage A, un bloc `<ul>` hors composant, une colonne d'action conditionnelle et deux dialogues ; la 6 travaille le plus gros fichier du domaine, avec deux dialogues, l'en-tête le plus exposé et deux `SelectValue`.
+- **Task 7 — la plus lourde et la plus risquée de la phase.** Elle porte **deux tables** (saisie et récapitulatif de clôture), **deux arbitrages** (B et C), un élargissement de dialogue à mesurer, le plus grand nombre de cas de test (neuf), et la seule colonne éditable du périmètre. **On ne la scinde pas** : ses deux tables vivent dans le même fichier et partagent `ecartRendu`, les séparer créerait deux tâches qui se marchent dessus sur les mêmes lignes. À planifier comme telle — pas comme « la septième d'une série de sept comparables ».
 
 ---
 
@@ -359,7 +394,7 @@ Modèle : `catalogue/produits/index.test.tsx` (le mock `Link`) + `catalogue/four
 Cas attendus :
 
 1. `COLONNES_RECEPTIONS` a **7** éléments.
-2. Les 6 en-têtes nommés sont rendus à 1280 px (`Date`, `Entrepôt`, `Fournisseur`, `Référence`, `Lignes`, `Total`, `Statut` — les 7 sont nommés ici, aucun en-tête vide).
+2. Les **7** en-têtes nommés sont rendus à 1280 px (`Date`, `Entrepôt`, `Fournisseur`, `Référence`, `Lignes`, `Total`, `Statut`) — aucun en-tête vide sur cet écran, contrairement aux tables à colonne d'action.
 3. Le total est formaté via `texteMontant`, **jamais** `getByText(formaterMontant(x))`.
 4. À 375 px, le lien vers la fiche est présent **exactement une fois** et pointe sur `/stock/receptions/p1`.
 5. `surClicLigne` **ne se déclenche pas** au clic sur ce lien.
@@ -383,6 +418,7 @@ it("ne duplique aucune colonne masquée en mode carte", () => {
 
 7. Le pendant positif : les 4 paires visibles portent bien leur valeur (`valeurPaire(carte, "Entrepôt")`, `"Référence"`, `"Lignes"`, `"Statut"`).
 8. `TEXTE_LIBRE` : les cellules Entrepôt / Fournisseur / Référence portent **les deux** jetons (`wrap-anywhere` **et** `whitespace-normal`) ; Total et Statut n'en portent **aucun**. Commentaire obligatoire dans le cas : *jsdom n'a ni moteur de mise en page ni cascade — on garde que la classe est posée, l'effet se mesure au navigateur.*
+9. Un cas dédié au repli des `SelectValue` corrigés (`r-entrepot`, `r-fournisseur`) si le dialogue de création est montable dans le test ; **à défaut, le couvrir par la vérification navigateur et le consigner au rapport de tâche**. Un correctif de sélecteur sans test ni consigne de preuve n'est pas terminé.
 
 - [ ] **Step 6: Vérifier et commiter**
 
@@ -429,7 +465,7 @@ Identique à la Task 1. `nbActifs = statut !== "" ? 1 : 0`. `h-full`. `etatVide`
 
 - [ ] **Step 4: Tests**
 
-Mêmes 8 cas que la Task 1, transposés. Garde-fou : `queryByText("Destination")`, `queryByText("Date")` et `queryByText("Quantité")` **null**, et le nom de l'entrepôt de destination présent **une seule fois**. `TEXTE_LIBRE` sur Origine / Destination / Référence, **absent** sur Lignes, Quantité et Statut.
+Mêmes 9 cas que la Task 1, transposés. Garde-fou : `queryByText("Destination")`, `queryByText("Date")` et `queryByText("Quantité")` **null**, et le nom de l'entrepôt de destination présent **une seule fois**. `TEXTE_LIBRE` sur Origine / Destination / Référence, **absent** sur Lignes, Quantité et Statut. Cas dédié au repli des `SelectValue` corrigés (`t-origine`, `t-destination`) si le dialogue de création est montable ; **à défaut, le couvrir par la vérification navigateur et le consigner au rapport de tâche**. Ne pas toucher à `t-statut`, déjà conforme.
 
 - [ ] **Step 5: Vérifier et commiter**
 
@@ -484,6 +520,7 @@ L'écran le plus dense de la phase : trois contrôles de filtre, un bloc « En t
 
 **Files:**
 - Modify: `apps/web/src/routes/_app/stock/index.tsx`
+- Modify: `apps/web/src/components/ui/filtres-repliables.tsx` (`label` → `React.ReactNode`) et `apps/web/src/components/ui/filtres-repliables.test.tsx` (le cas qui le couvre)
 - Create: `apps/web/src/routes/_app/stock/index.test.tsx`
 
 **Produces:** `NiveauStockAffiche`, `COLONNES_NIVEAUX`, `COLONNES_NIVEAUX_ECRITURE`, `titreNiveau`, `actionsNiveau`.
@@ -509,7 +546,9 @@ Colonne d'action : `COLONNE_ACTION_NIVEAU` (module-privée, `masquerEnCarte: tru
 
 - [ ] **Step 2: Filtres — l'arbitrage A**
 
-`FiltresRepliables` avec `nbActifs = (recherche !== "" ? 1 : 0) + (alertesSeules ? 1 : 0)` — **l'entrepôt ne compte pas** — et `label={nomEntrepotCourant ? \`Filtres — ${nomEntrepotCourant}\` : "Filtres"}`. Voir l'arbitrage A pour le raisonnement complet ; ne pas le rouvrir, le citer en commentaire.
+`FiltresRepliables` avec `nbActifs = (recherche !== "" ? 1 : 0) + (alertesSeules ? 1 : 0)` — **l'entrepôt ne compte pas** — et le `label` composé « Filtres — {nom d'entrepôt} ». Voir l'arbitrage A pour le raisonnement complet ; ne pas le rouvrir, le citer en commentaire.
+
+**Le nom d'entrepôt est du texte libre : le libellé porte sa protection de coupe.** Le `<summary>` de `FiltresRepliables` est un conteneur flex-**rangée**, donc c'est la paire indivisible `min-w-0 break-words` qu'il faut, sur un **porteur** — ce qui suppose d'élargir `label` de `string` à `React.ReactNode` (modification additive, JSDoc, cas de test dans `components/ui/filtres-repliables.test.tsx`, raison au rapport). Le code exact et la justification sont à l'arbitrage A. **C'est la seule ouverture de composant partagé de la phase** ; `ListeAdaptative` n'est pas concerné.
 
 Utiliser `recherche` (l'état vif) et non `rechercheDebouncee` : c'est ce que fait `mouvements.tsx`, et un compteur qui met 300 ms à réagir à la frappe donnerait l'impression d'un bug.
 
@@ -545,6 +584,7 @@ Cas attendus :
 5. Garde-fou d'absence : `queryByText("Produit")`, `queryByText("Variante")`, `queryByText("SKU")` **null** ; `getAllByRole("button")` dans la carte a **longueur 2** (les deux actions, jamais dupliquées) ; le nom de produit présent **une seule fois**.
 6. Paires visibles : `valeurPaire(carte, "CMP")` via `texteMontant`, `valeurPaire(carte, "Seuil")`, et la quantité **avec** son badge « Stock bas » quand `enAlerte`.
 7. `TEXTE_LIBRE` posé sur Produit / Variante / SKU, **absent** sur Quantité / CMP / Seuil / action.
+8. Un cas dédié au repli du `SelectValue` `n-entrepot` — c'est le seul de la phase qui est **blanc au premier rendu de l'écran lui-même**, donc le plus facile à couvrir en test : monter l'écran sans entrepôt sélectionné et asserter « Choisir un entrepôt ». **À défaut, le couvrir par la vérification navigateur et le consigner au rapport de tâche.**
 
 - [ ] **Step 6: Vérifier et commiter**
 
@@ -566,7 +606,15 @@ Cas attendus :
 
 - [ ] **Step 2: Le prédicat composé — l'arbitrage D**
 
-`const ligneModifiable = brouillon && peutEcrire`, déclaré immédiatement après `brouillon` et `peutEcrire`, et **substitué à ses quatre occurrences** : choix du tableau de colonnes, `actionCarte`, bouton « Ajouter une ligne », bloc d'actions de pied. Le `colSpan={brouillon && peutEcrire ? 6 : 5}` de l'état vide **disparaît** avec la migration.
+`const ligneModifiable = brouillon && peutEcrire`, déclaré immédiatement après `brouillon` et `peutEcrire`. Le fichier porte **six** occurrences du prédicat brut : bouton « Ajouter une ligne », `<TableHead />` de la colonne d'action, cellule d'action, `colSpan` de l'état vide, **message d'état vide**, bloc d'actions de pied. Deux disparaissent avec la migration (`<TableHead />` et `colSpan={brouillon && peutEcrire ? 6 : 5}`, `ListeAdaptative` calculant `colonnes.length`) ; les autres deviennent **cinq usages** de `ligneModifiable` :
+
+1. le ternaire `colonnes={ligneModifiable ? COLONNES_…_ECRITURE : COLONNES_…}` ;
+2. `actionCarte={ligneModifiable ? actionsLigneReception : undefined}` ;
+3. le bouton « Ajouter une ligne » ;
+4. le **message d'état vide** (« Ajoutez une ligne pour composer cette réception… » / « Cette réception ne comporte aucune ligne. ») — c'est celui qu'on oublie, il est loin des quatre autres et son texte est repris mot pour mot ;
+5. le bloc d'actions de pied.
+
+Après cette étape, **`brouillon && peutEcrire` n'apparaît plus qu'une fois dans le fichier : sa déclaration.**
 
 - [ ] **Step 3: Les colonnes**
 
@@ -595,7 +643,11 @@ Pas de `valeur`, pas de `sousTitre` : les cinq colonnes se lisent bien en titre 
 </SelectValue>
 ```
 
-Avec ce correctif, **le sujet est refermé pour toute la SPA**. Vérifier la géométrie du dialogue au navigateur : ses libellés d'article (`{nom} — {variante} ({sku})`) sont les chaînes les plus longues du domaine, et le différé de 2b sur le rognage des options longues s'y appliquera — le constater, ne pas le corriger ici.
+Avec ce correctif, **le sujet du mode 1 est refermé pour toute la SPA** — ces trois `SelectValue` auto-fermants sont les seuls du dépôt, vérifié par recherche —, **et le domaine du stock est entièrement propre** pour les deux modes.
+
+**Ce qui reste ailleurs, et pourquoi c'est inoffensif.** Cinq fonctions de rendu sans libellé de repli subsistent **hors périmètre** : `administration/entrepots.tsx` (`wh-type`), `administration/utilisateurs.tsx` (`u-role`), `components/utilisateur/gerer-acces.tsx` (`ga-role`, `ga-role-entrepot`) et `pos/ouverture-caisse.tsx` (le sélecteur de boutique). Aucune ne peut afficher un champ blanc en pratique : leur valeur initiale n'est jamais vide (`"store"`, `"staff"`, un rôle d'entrepôt existant) ou le contrôle n'est rendu que lorsqu'un identifiant valide est déjà là (`boutiques.length > 1` avec `boutiqueId` fourni en prop). **Ne pas les corriger ici** — un correctif d'agrément hors périmètre, à traiter avec la phase 4 ou une passe dédiée.
+
+Vérifier la géométrie du dialogue au navigateur : ses libellés d'article (`{nom} — {variante} ({sku})`) sont les chaînes les plus longues du domaine, et le différé de 2b sur le rognage des options longues s'y appliquera — le constater, ne pas le corriger ici.
 
 Le dialogue contient deux rangées `flex gap-3` de champs `flex-1` (quantité/coût, puis lot/péremption). Elles se replient correctement à 375 px, mais le vérifier **en hauteur aussi** (piège 8) : dans le cas `suitLots`, le dialogue porte deux rangées de plus et peut franchir le plafond `max-h-[calc(100dvh-2rem)]`.
 
@@ -607,6 +659,7 @@ Le dialogue contient deux rangées `flex gap-3` de champs `flex-1` (quantité/co
 4. Garde-fou d'absence : `queryByText("Article")` **null** ; `getAllByRole("button")` dans la carte de longueur **2** ; le nom de produit présent **une seule fois**.
 5. Paires : Quantité, Coût unitaire (via `texteMontant`), Lot, Péremption — dont le cas « — » quand `lotNumber`/`expiryDate` sont `null`.
 6. `TEXTE_LIBRE` : posé sur Article et Lot, **absent** sur Quantité, Coût unitaire et Péremption.
+7. Un cas dédié au libellé du `SelectValue` `l-variante` si le dialogue de ligne est montable dans le test — c'est le mode 1, celui qui affichait un UUID : asserter qu'aucun identifiant brut n'apparaît et que le repli « — choisir — » est rendu à vide. **À défaut, le couvrir par la vérification navigateur et le consigner au rapport de tâche.**
 
 - [ ] **Step 6: Vérifier et commiter**
 
@@ -628,7 +681,9 @@ Le dialogue contient deux rangées `flex gap-3` de champs `flex-1` (quantité/co
 
 - [ ] **Step 2: Le prédicat composé**
 
-`const ligneModifiable = brouillon && peutEcrireOrigine`, substitué à ses quatre occurrences. **Attention : `peutEcrireDestination` est un droit DIFFÉRENT**, qui gouverne le bouton « Réceptionner » — ne pas le confondre ni le fondre dans la même constante.
+`const ligneModifiable = brouillon && peutEcrireOrigine`. Le fichier porte **six** occurrences du prédicat brut, exactement les mêmes que la Task 5 : bouton « Ajouter une ligne », `<TableHead />` d'action, cellule d'action, `colSpan`, **message d'état vide** (« Ajoutez des articles à transférer avant d'expédier. » / « Ce transfert ne comporte aucune ligne. »), bloc d'actions de pied. Deux disparaissent avec la migration, les autres deviennent **cinq usages** de `ligneModifiable` — la liste numérotée de la Task 5 s'applique telle quelle. Après cette étape, **`brouillon && peutEcrireOrigine` n'apparaît plus qu'une fois : sa déclaration.**
+
+**Attention : `peutEcrireDestination` est un droit DIFFÉRENT**, qui gouverne le bouton « Réceptionner » — ne pas le confondre ni le fondre dans la même constante.
 
 - [ ] **Step 3: Les colonnes**
 
@@ -650,6 +705,8 @@ Chaque ligne est un `flex items-center gap-3` : un `<span className="flex-1 text
 
 Correctif : `min-w-0 break-words` sur le `<span>` (conteneur flex-**rangée** → la paire est indivisible), `shrink-0` sur l'`Input` pour que sa largeur de 24 reste. Ne pas passer la rangée en `flex-wrap` : un champ numérique qui saute sous son libellé casse l'alignement de la colonne de saisie sur une liste de dix articles.
 
+**Harmoniser aussi le bloc d'actions de pied**, tant qu'on est dans ce fichier : `<div className="mt-6 flex items-center gap-3">` → `flex flex-wrap`. Son jumeau de `receptions/$purchaseId.tsx` porte **déjà** `flex-wrap` — la preuve que le motif a été jugé nécessaire pour un bloc de ce gabarit à 375 px. Ici la rangée porte « Expédier », « Annuler le transfert » **et** le paragraphe d'erreur `role="alert"`, tous trois items flex de la même rangée : le besoin est strictement supérieur. Correction d'une classe, pas de restructuration : les `AlertDialog`, leurs déclencheurs et leurs textes restent intouchés.
+
 **Ne pas toucher** à `aria-label={\`Quantité reçue — ${item.sku}\`}` — **au caractère près**, tiret cadratin compris.
 
 Vérifier le plafond vertical (piège 8) : ce dialogue croît **linéairement avec le nombre de lignes**, c'est le plus haut du domaine. Le bouton « Valider la réception » doit rester atteignable, et le corps du dialogue doit défiler sans barre parasite.
@@ -659,6 +716,8 @@ Vérifier le plafond vertical (piège 8) : ce dialogue croît **linéairement av
 - [ ] **Step 5: Tests**
 
 Structure identique à la Task 5 : comptes de colonnes (5 / 6), en-têtes aux deux droits, mocks distincts par ligne, garde-fou d'absence (`queryByText("Article")` null, deux boutons par carte, nom de produit une seule fois), paires visibles dont le cas `unitCost === null` → « — » et le cas `receivedQuantity < quantity` → badge « Écart −N », et le cas `TEXTE_LIBRE` posé/absent.
+
+Ajouter un cas dédié aux replis des `SelectValue` corrigés (`tl-variante`, `tl-lot`) si le dialogue de ligne est montable dans le test ; **à défaut, le couvrir par la vérification navigateur et le consigner au rapport de tâche.**
 
 Ajouter un cas sur `preparerReception` **si et seulement si** un comportement de l'écran a changé — sinon, ne pas y toucher : la fonction est testée ailleurs et sa logique est hors périmètre.
 
@@ -670,7 +729,7 @@ Ajouter un cas sur `preparerReception` **si et seulement si** un comportement de
 
 ### Task 7 : Inventaire — détail
 
-La tâche qui porte les arbitrages B et C.
+**La tâche la plus lourde et la plus risquée de la phase** — deux tables dans un même fichier, les arbitrages B et C, un dialogue à élargir et à mesurer, la seule colonne éditable du périmètre, neuf cas de test. Elle n'est pas « comparable » aux six autres ; voir le § Découpage.
 
 **Files:**
 - Modify: `apps/web/src/routes/_app/stock/inventaires/$countId.tsx`
@@ -682,7 +741,16 @@ La tâche qui porte les arbitrages B et C.
 
 `Inventaire — {warehouseName}` : même correctif d'en-tête que les Tasks 5 et 6.
 
-`const saisieOuverte = ouvert && peutEcrire`, substitué à ses quatre occurrences. La variable `colonnes` (`ouvert && peutEcrire ? 5 : 4`) et le `colSpan` **disparaissent** avec la migration.
+`const saisieOuverte = ouvert && peutEcrire`. Le fichier porte **cinq** occurrences du prédicat brut : `const colonnes = ouvert && peutEcrire ? 5 : 4`, `<TableHead />` de la colonne d'action, la cellule « Compté » (champ de saisie ou valeur en lecture), la cellule d'action, le bloc d'actions de pied. Les deux premières **disparaissent** avec la migration (`colonnes`, son `colSpan` et l'en-tête vide) ; les trois autres deviennent **quatre usages** :
+
+1. `saisissable: saisieOuverte` épissé dans chaque `LigneInventaireAffichee` (arbitrage B) — c'est lui qui branche la cellule « Compté » ;
+2. le ternaire `colonnes={saisieOuverte ? COLONNES_…_ECRITURE : COLONNES_…}` ;
+3. `actionCarte={saisieOuverte ? actionEnregistrerLigne : undefined}` ;
+4. le bloc d'actions de pied.
+
+Cet écran n'a **ni** bouton « Ajouter une ligne » **ni** message d'état vide conditionné par le prédicat — c'est la seule différence avec les Tasks 5 et 6, et elle explique le 5 au lieu du 6. Après cette étape, **`ouvert && peutEcrire` n'apparaît plus qu'une fois : sa déclaration.**
+
+**Harmoniser le bloc d'actions de pied** au passage : `<div className="mt-6 flex items-center gap-3">` → `flex flex-wrap`. Comme sur le transfert (Task 6), la rangée porte le bouton de clôture **et** un paragraphe d'erreur `role="alert"`, et son jumeau de `receptions/$purchaseId.tsx` porte déjà `flex-wrap`. Une classe, rien d'autre : l'`AlertDialog` de clôture et son texte ne bougent pas.
 
 - [ ] **Step 2: Le type « Affichée » — l'arbitrage B**
 
@@ -714,7 +782,7 @@ export type LigneInventaireAffichee = LigneInventaire & {
 
 La colonne « Compté » branche sur `l.saisissable` : `<Input>` si vrai, sinon la valeur en lecture (« — (non compté) » ou le nombre), **exactement comme aujourd'hui**. L'`Input` conserve `aria-label={\`Quantité comptée — ${item.sku}\`}` **au caractère près**, ainsi que `type="number" min={0} step={1}` et `className="ml-auto w-24 text-right"`.
 
-`COLONNE_ACTION_LIGNE_INVENTAIRE` (module-privée, en-tête vide, `masquerEnCarte: true`) porte le bouton « Enregistrer » ; `actionCarte={saisieOuverte ? actionEnregistrerLigne : undefined}`.
+`COLONNE_ACTION_LIGNE_INVENTAIRE` (module-privée, en-tête vide, `masquerEnCarte: true`) porte le bouton « Enregistrer » ; `actionCarte={saisieOuverte ? actionEnregistrerLigne : undefined}`. `actionEnregistrerLigne` rend **le même nœud** dans les deux modes, en conservant le `<span className="flex justify-end">` actuel de la cellule — pas de `w-full` : `ListeAdaptative` place `actionCarte` dans un `<div className="mt-2">` sans largeur imposée, et le bouton reste aligné à droite comme celui de la Task 4.
 
 `TEXTE_LIBRE` sur Article seulement. **Pas** sur Attendu, Compté ni Écart — ce sont des quantités, et `ecartRendu` colore un signe qu'il ne faut pas séparer de son chiffre.
 
@@ -730,6 +798,8 @@ Le second tableau, dans le `Dialog`, passe aussi par `ListeAdaptative` :
 | `ecart` | Écart appliqué | oui | non | — | paire |
 
 `titreEcartCloture` reprend le repli existant `e.productName ?? e.variantId` et le `(${e.sku})` en muted — **ne pas « améliorer » ces replis**, ils couvrent le cas d'une variante supprimée entre l'ouverture et la clôture.
+
+**Élargir ce dialogue** : `<DialogContent className="md:max-w-2xl">`. Sans cela, le plafond `sm:max-w-sm` de `dialog.tsx` fige la boîte à **384 px dès 640 px de viewport**, alors que `useEstLarge()` rebascule en table à 768 px — quatre colonnes dans 384 px, à défilement horizontal interne. Voir l'arbitrage C pour le raisonnement complet et le choix du palier `md` plutôt que `sm` ; ne pas le rouvrir, le citer en commentaire. **À mesurer aux quatre paliers de la campagne** (375, 768, 1024, 1280) : ~343 px de boîte à 375 (cartes), 672 px à 768 et au-delà (table), et **aucune barre de défilement horizontale** sur le conteneur de table.
 
 **`containerClassName` non passé** (le corps du dialogue est déjà la boîte défilante). `ecartRendu` reste partagé entre les deux tableaux.
 
@@ -759,16 +829,53 @@ Le paragraphe final (« N mouvements de stock générés… ») et le cas `recap
 - **Les 4 cas de `stock/mouvements.test.tsx` sont inchangés**, au caractère près. S'ils ont bougé, c'est un signal à remonter, pas à corriger dans le test.
 - Aucun autre test existant modifié pour « le faire passer ». Le hook dégradant vers desktop garantit que les suites d'écran préexistantes voient le même arbre qu'avant.
 - **Les 7 fichiers de test sont créés**, et chacun prouve que **chaque garde mord** : le garde-fou assert l'**absence** des colonnes masquées ; les gestionnaires sont câblés avec un mock **distinct par ligne** et un clic sur la **seconde** ; la lecture seule ne perd aucune donnée ; `TEXTE_LIBRE` est posé sur les colonnes de texte libre **et absent des autres**.
+- **Le prédicat composé brut n'apparaît plus qu'une fois par fichier — sa déclaration.** Garde vérifiable par recherche, chaque compte doit valoir exactement **1** :
+
+  ```bash
+  grep -c "brouillon && peutEcrire\b"        apps/web/src/routes/_app/stock/receptions/\$purchaseId.tsx
+  grep -c "brouillon && peutEcrireOrigine\b" apps/web/src/routes/_app/stock/transferts/\$transferId.tsx
+  grep -c "ouvert && peutEcrire\b"           apps/web/src/routes/_app/stock/inventaires/\$countId.tsx
+  ```
+
+  Avant migration ces comptes valent **6, 6 et 5**. Tout compte supérieur à 1 après migration signale une occurrence oubliée — le plus souvent le **message d'état vide**, qui est loin des autres dans le fichier.
 - Le littéral `h-[calc(100dvh-3rem)]` a **disparu du répertoire `stock/`** (`grep -rn "100dvh" apps/web/src/routes/_app/stock/` ne renvoie rien). Il survit dans `administration/utilisateurs.tsx` — phase 4.
-- **Les 10 `SelectValue` du domaine affichent un libellé**, jamais un identifiant ni un champ blanc : 3 auto-fermants pourvus d'une fonction de rendu, 7 fonctions de rendu pourvues d'un repli, `placeholder` morts retirés. Le sujet est refermé pour toute la SPA.
+- **Les 10 `SelectValue` défectueux du domaine affichent un libellé**, jamais un identifiant ni un champ blanc : 3 auto-fermants pourvus d'une fonction de rendu, 7 fonctions de rendu pourvues d'un repli, `placeholder` morts retirés. Le périmètre en porte **12** au total — les deux filtres de statut de `receptions/index.tsx` (`r-statut`, repli `?? "Tous"`) et de `transferts/index.tsx` (`t-statut`, ternaire sur `""`) sont **déjà conformes** et ne doivent pas être touchés. Le **mode 1** (auto-fermant sans fonction de rendu) est refermé pour toute la SPA ; le **mode 2** l'est pour le domaine du stock, cinq fonctions sans repli subsistant hors périmètre (administration, `gerer-acces`, ouverture de caisse) — inoffensives car leur valeur initiale n'est jamais vide, tracées, non corrigées ici.
 - Les 3 en-têtes de page se replient, avec `min-w-0 break-words` sur le titre et `shrink-0` sur le badge.
 - `routeTree.gen.ts` **n'apparaît dans aucun diff de la phase**.
-- **Vérification navigateur consignée à 375, 768, 1024 et 1280 px**, thèmes clair **et** sombre, sur les six écrans. **1024 est obligatoire** (piège 7) : c'est le palier le plus étroit du mode table.
+- **Vérification navigateur consignée à 375, 768, 1024 et 1280 px**, thèmes clair **et** sombre, sur les sept écrans (niveaux, réceptions liste et détail, transferts liste et détail, inventaires liste et détail — les compter, ne pas se fier au chiffre). **1024 est obligatoire** (piège 7) : c'est le palier le plus étroit du mode table.
   - Aucun défilement horizontal du corps de page ; cibles tactiles ≥ 44 px ; focus visible au clavier ; aucune donnée tronquée sans échappatoire.
-  - **Les 6 dialogues et les 6 `AlertDialog` du périmètre sont ouverts et mesurés en RECTANGLES d'éléments**, jamais en `scrollWidth` (piège 9). La 2b avait laissé un trou assumé sur exactement trois d'entre eux — lignes de réception, lignes de transfert, récapitulatif de clôture — faute de données locales : **ce trou doit être comblé ici**, en seedant une réception en brouillon, un transfert et un inventaire ouvert.
+  - **Les quatorze calques du périmètre sont ouverts et mesurés en RECTANGLES d'éléments**, jamais en `scrollWidth` (piège 9). Ils s'énumèrent, ils ne se comptent pas — voici la liste, relevée par recherche dans le code (`<DialogContent` / `<AlertDialogContent`). Les numéros de ligne sont ceux d'avant migration et **bougeront** ; c'est l'identité du calque qui fait foi.
+
+    **9 `Dialog` :**
+
+    | # | Calque | Emplacement (avant migration) |
+    |---|---|---|
+    | 1 | « Nouvelle réception » | `receptions/index.tsx:146` |
+    | 2 | « Nouveau transfert » | `transferts/index.tsx:127` |
+    | 3 | « Ouvrir un inventaire complet » | `inventaires/index.tsx:123` |
+    | 4 | « Ajuster — {produit} ({variante}) » | `stock/index.tsx:378` |
+    | 5 | « Seuil d'alerte — {produit} ({variante}) » | `stock/index.tsx:437` |
+    | 6 | Ligne de réception (« Ajouter » / « Modifier la ligne ») | `receptions/$purchaseId.tsx:481` |
+    | 7 | Ligne de transfert (« Ajouter » / « Modifier la ligne ») | `transferts/$transferId.tsx:517` |
+    | 8 | « Réceptionner le transfert » | `transferts/$transferId.tsx:641` |
+    | 9 | « Récapitulatif de clôture » | `inventaires/$countId.tsx:350` |
+
+    **5 `AlertDialog` :**
+
+    | # | Calque | Emplacement (avant migration) |
+    |---|---|---|
+    | 1 | « Valider la réception ? » | `receptions/$purchaseId.tsx:409` |
+    | 2 | « Supprimer ce brouillon ? » | `receptions/$purchaseId.tsx:441` |
+    | 3 | « Expédier le transfert ? » | `transferts/$transferId.tsx:440` |
+    | 4 | « Annuler ce transfert ? » | `transferts/$transferId.tsx:468` |
+    | 5 | « Clôturer l'inventaire ? » | `inventaires/$countId.tsx:310` |
+
+    La 2b avait laissé un trou assumé sur exactement trois d'entre eux — ligne de réception (`Dialog` 6), ligne de transfert (`Dialog` 7), récapitulatif de clôture (`Dialog` 9) — faute de données locales : **ce trou doit être comblé ici**, en seedant une réception en brouillon, un transfert et un inventaire ouvert. Les mêmes données ouvrent aussi le `Dialog` 8 et les `AlertDialog` 1 à 5, qui n'ont pas d'autre chemin d'accès.
   - Chaque dialogue corrigé horizontalement est revérifié **en hauteur**, à 375×812 et en viewport court (piège 8).
   - Les panneaux `FiltresRepliables` sont **dépliés avant mesure** (piège 11).
 - Si `ListeAdaptative` a été modifié, la raison est consignée et la modification est additive, documentée et testée. **À ce stade, aucune tâche n'a de raison de le faire.**
+- `FiltresRepliables.label` accepte un `React.ReactNode` (par défaut `"Filtres"` inchangé), la JSDoc le dit, un cas de `components/ui/filtres-repliables.test.tsx` le couvre, et le libellé composé de `stock/index.tsx` porte `min-w-0 break-words` — vérifié au navigateur à 375 px avec un nom d'entrepôt d'un seul jeton insécable.
+- Le dialogue « Récapitulatif de clôture » porte `md:max-w-2xl` et **aucun conteneur de table n'y défile horizontalement** à 768, 1024 et 1280 px. `dialog.tsx` n'apparaît dans aucun diff.
 - PR ouverte, revue CodeRabbit traitée — **CLI et bot, ils trouvent des choses différentes, lancer les deux** — merge sur feu vert explicite (merge commit, pas de squash).
 
 ---
@@ -809,7 +916,7 @@ Aucune de ces mutations, aucun de leurs `AlertDialog`, aucun de leurs textes de 
 - **`administration/`** et le tableau de bord — phase 4, avec le dernier `h-[calc(100dvh-3rem)]` et le débordement horizontal de 13 px déjà prouvé non-régression.
 - **Quantités sans séparateur de milliers** : différé tracé en 2b, en tension avec « le chiffre est sacré », mais transversal.
 - **Propagation de `reglages.data.currency`** : différé transversal tracé, à faire en un seul passage.
-- **`alert-dialog.tsx` sans `max-h` ni défilement interne** : différé majeur tracé en 2b (fichier jumeau de `dialog.tsx`, non corrigé). Cette phase ouvre six `AlertDialog` de plus — si l'un d'eux déborde en hauteur, **le constater et le consigner**, pas le corriger : le correctif appartient à une passe dédiée sur le composant.
+- **`alert-dialog.tsx` sans `max-h` ni défilement interne** : différé majeur tracé en 2b (fichier jumeau de `dialog.tsx`, non corrigé). Cette phase ouvre cinq `AlertDialog` de plus — si l'un d'eux déborde en hauteur, **le constater et le consigner**, pas le corriger : le correctif appartient à une passe dédiée sur le composant.
 - **Rognage des options longues de `Select`** : différé mineur tracé en 2b, le déclencheur borné fait hériter la liste de sa largeur. Le dialogue d'article de la Task 5 l'exhibera au maximum — le constater, pas le corriger.
 - **`InputGroupButton size="icon-xs"` à 24 px** : différé mineur, ne concerne pas ce répertoire.
 - **`TableHeader sticky` inerte sur les trois écrans de détail** : tranché ci-dessus, on le laisse inerte. Donner une boîte défilante à ces tables sort du mandat responsive.
