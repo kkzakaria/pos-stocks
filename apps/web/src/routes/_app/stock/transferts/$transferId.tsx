@@ -2,6 +2,7 @@ import { useEffect, useState } from "react"
 import { createFileRoute } from "@tanstack/react-router"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { apiFetch } from "@/lib/api"
+import { cn } from "@/lib/utils"
 import { formaterMontant } from "@/lib/format"
 import { useAccesStock } from "@/lib/permissions"
 import {
@@ -42,14 +43,9 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
+import { TEXTE_LIBRE } from "@/components/ui/table"
+import { ListeAdaptative } from "@/components/ui/liste-adaptative"
+import type { ColonneAdaptative } from "@/components/ui/liste-adaptative"
 
 export const Route = createFileRoute("/_app/stock/transferts/$transferId")({
   component: TransfertDetailPage,
@@ -77,6 +73,133 @@ type ProduitAvecLots = {
     }>
   }
 }
+
+/**
+ * `LigneTransfert` with the two screen-owned handlers a row does not carry
+ * on its own: opening the edit dialog and removing the line. Same trade
+ * already made by `LigneReceptionAffichee` (`receptions/$purchaseId.tsx`)
+ * and `NiveauStockAffiche` (`stock/index.tsx`).
+ */
+export type LigneTransfertAffichee = LigneTransfert & {
+  surModifier: () => void
+  surRetirer: () => void
+}
+
+/**
+ * Card mode: reproduces `titreLigneReception`'s identity shape (Task 5)
+ * token-for-token — same dominant product name, same muted
+ * `variantName (sku)` trailer.
+ */
+export function titreLigneTransfert(l: LigneTransfertAffichee) {
+  return (
+    <>
+      {l.productName}{" "}
+      <span className="font-normal text-muted-foreground">
+        {l.variantName} ({l.sku})
+      </span>
+    </>
+  )
+}
+
+/**
+ * The five data columns — exactly what a read-only account sees.
+ *
+ * Article and Lot carry `TEXTE_LIBRE`: a lot number is an arbitrary, often
+ * unbreakable token, same reasoning as the product/variant names it sits
+ * next to. CMP figé does NOT carry it — a formatted amount is atomic. Reçu
+ * does NOT carry it either: it pairs a discrepancy badge with a number,
+ * splitting them would break the link between the two.
+ */
+export const COLONNES_LIGNES_TRANSFERT: ColonneAdaptative<LigneTransfertAffichee>[] =
+  [
+    {
+      cle: "article",
+      entete: "Article",
+      // Resurfaces via titreLigneTransfert.
+      masquerEnCarte: true,
+      classeCellule: TEXTE_LIBRE,
+      cellule: (l) => (
+        <>
+          <span className="font-medium">{l.productName}</span>{" "}
+          <span className="text-muted-foreground">
+            {l.variantName} ({l.sku})
+          </span>
+        </>
+      ),
+    },
+    {
+      cle: "quantite",
+      entete: "Quantité",
+      numeric: true,
+      cellule: (l) => l.quantity,
+    },
+    {
+      cle: "lot",
+      entete: "Lot",
+      classeCellule: cn("font-mono text-xs", TEXTE_LIBRE),
+      cellule: (l) => l.lotNumber ?? "—",
+    },
+    {
+      cle: "cmpFige",
+      entete: "CMP figé",
+      numeric: true,
+      cellule: (l) => (l.unitCost === null ? "—" : formaterMontant(l.unitCost)),
+    },
+    {
+      cle: "recu",
+      entete: "Reçu",
+      numeric: true,
+      cellule: (l) =>
+        l.receivedQuantity === null ? (
+          "—"
+        ) : (
+          <span className="flex items-center justify-end gap-2">
+            {l.receivedQuantity < l.quantity && (
+              <Badge variant="destructive">
+                Écart −{l.quantity - l.receivedQuantity}
+              </Badge>
+            )}
+            <span className="tabular-nums">{l.receivedQuantity}</span>
+          </span>
+        ),
+    },
+  ]
+
+/** The two write actions, shared by the table's action column and by the
+ * card's trailing action — the buttons therefore exist exactly once per row
+ * in either tier. */
+export function actionsLigneTransfert(l: LigneTransfertAffichee) {
+  return (
+    <span className="flex gap-2">
+      <Button variant="outline" size="sm" onClick={l.surModifier}>
+        Modifier
+      </Button>
+      <Button variant="outline" size="sm" onClick={l.surRetirer}>
+        Retirer
+      </Button>
+    </span>
+  )
+}
+
+/** Appended only when the account can write on this draft. `masquerEnCarte`
+ * keeps the buttons out of the card's pairs: `actionCarte` renders the very
+ * same node there instead. Module-private: the screen and its test consume
+ * the composed array below, never this column on its own. */
+const COLONNE_ACTION_LIGNE_TRANSFERT: ColonneAdaptative<LigneTransfertAffichee> =
+  {
+    cle: "action",
+    entete: "",
+    masquerEnCarte: true,
+    cellule: actionsLigneTransfert,
+  }
+
+/**
+ * Write-capable roles get the trailing action column. Derived from
+ * `COLONNES_LIGNES_TRANSFERT`, not re-enumerated — see the same reasoning
+ * in `receptions/$purchaseId.tsx`.
+ */
+export const COLONNES_LIGNES_TRANSFERT_ECRITURE: ColonneAdaptative<LigneTransfertAffichee>[] =
+  [...COLONNES_LIGNES_TRANSFERT, COLONNE_ACTION_LIGNE_TRANSFERT]
 
 /**
  * Inter-warehouse transfer detail: editing the draft's lines (item,
@@ -301,15 +424,24 @@ function TransfertDetailPage() {
   const peutEcrireDestination =
     acces.ecritureTous ||
     acces.entrepotsEcriture.includes(transfert.toWarehouseId)
+  // Named once, right after its two operands: says what it AUTHORIZES (line
+  // editing from the origin side), not how it is computed. Every raw-predicate
+  // occurrence in the file collapses to this one constant — see the plan's
+  // arbitrage D. `peutEcrireDestination` is a SEPARATE, unrelated permission
+  // gating the "Réceptionner" button below — never folded in here.
+  const ligneModifiable = brouillon && peutEcrireOrigine
 
   return (
     <div>
-      <div className="mb-2 flex items-center gap-3">
-        <h1 className="text-xl font-semibold">
+      <div className="mb-2 flex flex-wrap items-center gap-3">
+        <h1 className="min-w-0 text-xl font-semibold break-words">
           Transfert — {transfert.fromWarehouseName} →{" "}
           {transfert.toWarehouseName}
         </h1>
-        <Badge variant={varianteBadgeStatut(transfert.status)}>
+        <Badge
+          variant={varianteBadgeStatut(transfert.status)}
+          className="shrink-0"
+        >
           {STATUTS_TRANSFERT_FR[transfert.status]}
         </Badge>
       </div>
@@ -329,95 +461,39 @@ function TransfertDetailPage() {
 
       <div className="mb-4 flex items-center justify-between">
         <h2 className="text-base font-semibold">Lignes</h2>
-        {brouillon && peutEcrireOrigine && (
+        {ligneModifiable && (
           <Button variant="outline" size="sm" onClick={ouvrirCreation}>
             Ajouter une ligne
           </Button>
         )}
       </div>
 
-      <Table>
-        <TableHeader sticky>
-          <TableRow>
-            <TableHead>Article</TableHead>
-            <TableHead numeric>Quantité</TableHead>
-            <TableHead>Lot</TableHead>
-            <TableHead numeric>CMP figé</TableHead>
-            <TableHead numeric>Reçu</TableHead>
-            {brouillon && peutEcrireOrigine && <TableHead />}
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {transfert.items.map((item) => (
-            <TableRow key={item.id}>
-              <TableCell>
-                <span className="font-medium">{item.productName}</span>{" "}
-                <span className="text-muted-foreground">
-                  {item.variantName} ({item.sku})
-                </span>
-              </TableCell>
-              <TableCell numeric>{item.quantity}</TableCell>
-              <TableCell className="font-mono text-xs">
-                {item.lotNumber ?? "—"}
-              </TableCell>
-              <TableCell numeric>
-                {item.unitCost === null ? "—" : formaterMontant(item.unitCost)}
-              </TableCell>
-              <TableCell numeric>
-                {item.receivedQuantity === null ? (
-                  "—"
-                ) : (
-                  <span className="flex items-center justify-end gap-2">
-                    {item.receivedQuantity < item.quantity && (
-                      <Badge variant="destructive">
-                        Écart −{item.quantity - item.receivedQuantity}
-                      </Badge>
-                    )}
-                    <span className="tabular-nums">
-                      {item.receivedQuantity}
-                    </span>
-                  </span>
-                )}
-              </TableCell>
-              {brouillon && peutEcrireOrigine && (
-                <TableCell>
-                  <span className="flex justify-end gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => ouvrirEdition(item)}
-                    >
-                      Modifier
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => supprimerLigne.mutate(item.id)}
-                    >
-                      Retirer
-                    </Button>
-                  </span>
-                </TableCell>
-              )}
-            </TableRow>
-          ))}
-          {transfert.items.length === 0 && (
-            <TableRow>
-              <TableCell colSpan={brouillon && peutEcrireOrigine ? 6 : 5}>
-                <EtatVide
-                  icon={PackageSearch}
-                  titre="Aucune ligne"
-                  message={
-                    brouillon && peutEcrireOrigine
-                      ? "Ajoutez des articles à transférer avant d'expédier."
-                      : "Ce transfert ne comporte aucune ligne."
-                  }
-                />
-              </TableCell>
-            </TableRow>
-          )}
-        </TableBody>
-      </Table>
+      <ListeAdaptative<LigneTransfertAffichee>
+        colonnes={
+          ligneModifiable
+            ? COLONNES_LIGNES_TRANSFERT_ECRITURE
+            : COLONNES_LIGNES_TRANSFERT
+        }
+        lignes={transfert.items.map((item) => ({
+          ...item,
+          surModifier: () => ouvrirEdition(item),
+          surRetirer: () => supprimerLigne.mutate(item.id),
+        }))}
+        cleLigne={(l) => l.id}
+        titre={titreLigneTransfert}
+        actionCarte={ligneModifiable ? actionsLigneTransfert : undefined}
+        etatVide={
+          <EtatVide
+            icon={PackageSearch}
+            titre="Aucune ligne"
+            message={
+              ligneModifiable
+                ? "Ajoutez des articles à transférer avant d'expédier."
+                : "Ce transfert ne comporte aucune ligne."
+            }
+          />
+        }
+      />
 
       {erreurSuppression && (
         <p role="alert" className="mt-3 text-sm text-destructive">
@@ -425,8 +501,8 @@ function TransfertDetailPage() {
         </p>
       )}
 
-      {brouillon && peutEcrireOrigine && (
-        <div className="mt-6 flex items-center gap-3">
+      {ligneModifiable && (
+        <div className="mt-6 flex flex-wrap items-center gap-3">
           <AlertDialog>
             <AlertDialogTrigger
               render={
@@ -554,10 +630,10 @@ function TransfertDetailPage() {
                       }}
                     >
                       <SelectTrigger id="tl-variante" className="w-full">
-                        <SelectValue placeholder="— choisir —">
+                        <SelectValue>
                           {(valeur: string) =>
                             variantes.find((v) => v.variantId === valeur)
-                              ?.libelle
+                              ?.libelle ?? "— choisir —"
                           }
                         </SelectValue>
                       </SelectTrigger>
@@ -592,10 +668,10 @@ function TransfertDetailPage() {
                     onValueChange={(valeur) => setLotId(valeur as string)}
                   >
                     <SelectTrigger id="tl-lot" className="w-full">
-                      <SelectValue placeholder="— à choisir avant expédition —">
+                      <SelectValue>
                         {(valeur: string) =>
                           lotsDisponibles.find((l) => l.id === valeur)
-                            ?.lotNumber
+                            ?.lotNumber ?? "— à choisir avant expédition —"
                         }
                       </SelectValue>
                     </SelectTrigger>
@@ -664,7 +740,7 @@ function TransfertDetailPage() {
               </p>
               {transfert.items.map((item) => (
                 <div key={item.id} className="flex items-center gap-3">
-                  <span className="flex-1 text-sm">
+                  <span className="min-w-0 flex-1 text-sm break-words">
                     {item.productName} — {item.variantName} (expédié :{" "}
                     {item.quantity})
                   </span>
@@ -674,7 +750,7 @@ function TransfertDetailPage() {
                     min={0}
                     max={item.quantity}
                     step={1}
-                    className="w-24"
+                    className="w-24 shrink-0"
                     placeholder={String(item.quantity)}
                     value={saisiesRecues[item.id] ?? ""}
                     onChange={(e) =>
