@@ -29,7 +29,7 @@ Corollaire : les 4 cas de `mouvements.test.tsx` ne doivent **pas bouger d'une li
 - **Aucun changement d'identité visuelle**, tokens uniquement. **Aucune nouvelle dépendance.**
 - Aucune modification d'`apps/api`, `packages/shared`, `index.html`, `routeTree.gen.ts`.
 - Montants via `formaterMontant` ; chiffres en `tabular-nums`. **Jamais `getByText(formaterMontant(x))`** : espaces insécables étroites (U+202F) — passer par `texteMontant`.
-- Helpers de test **partagés, jamais recopiés localement** : `installerMatchMedia` (`@/test/media-query`), `jetons` (`@/test/jetons`), `texteMontant` (`@/test/texte-montant`).
+- Helpers de test **partagés, jamais recopiés localement** : `installerMatchMedia` (`@/test/media-query`), `jetons` (`@/test/jetons`), `texteMontant` (`@/test/texte-montant`), `valeurPaire` (`@/test/valeur-paire`, extrait de 8 copies locales avant la Task 2 — voir le ledger).
 - Tests : Vitest 3 `globals: true`. Les deux formes (import explicite de `describe`/`it`/`expect`, ou globales) coexistent dans le dépôt — **suivre le fichier voisin** (`stock/mouvements.test.tsx` et `catalogue/*.test.tsx` utilisent les globales).
 - **`routeTree.gen.ts` ne doit JAMAIS apparaître au diff.** Il est régénéré par la suite de tests elle-même. Vérifié : le plugin TanStack Router ignore déjà les fichiers `*.test.tsx` du répertoire `routes/` (`grep -c test src/routeTree.gen.ts` = 0), donc créer `receptions/$purchaseId.test.tsx` est sûr — mais le contrôler au `git status` avant chaque commit.
 - Hooks husky actifs. **Jamais `--no-verify`.** Push local avec `CI=1`.
@@ -102,7 +102,7 @@ Le composant est consommé tel quel par défaut. **Mais le gel n'est pas un inte
 
 ## Structure de fichiers
 
-**Modifiés (8) :**
+**Modifiés (10) :**
 
 | Fichier | Ce que la phase y fait |
 |---|---|
@@ -113,11 +113,15 @@ Le composant est consommé tel quel par défaut. **Mais le gel n'est pas un inte
 | `apps/web/src/routes/_app/stock/receptions/$purchaseId.tsx` | `ListeAdaptative` + en-tête de page + `SelectValue` d'article |
 | `apps/web/src/routes/_app/stock/transferts/$transferId.tsx` | `ListeAdaptative` + en-tête de page + dialogue de réception |
 | `apps/web/src/routes/_app/stock/inventaires/$countId.tsx` | `ListeAdaptative` (saisie **et** récapitulatif de clôture) + en-tête + élargissement du dialogue de récapitulatif + `flex-wrap` du bloc d'actions de pied |
-| `apps/web/src/components/ui/filtres-repliables.tsx` | `label` élargi de `string` à `React.ReactNode` — **seule ouverture de composant partagé de la phase**, arbitrage A |
+| `apps/web/src/components/ui/filtres-repliables.tsx` | `label` élargi de `string` à `React.ReactNode` — **seule ouverture de composant partagé prévue par la phase**, arbitrage A |
+| `apps/web/src/components/ui/filtres-repliables.test.tsx` | cas couvrant le `label` en `React.ReactNode` |
+| `apps/web/src/components/ui/liste-adaptative.tsx` | `whitespace-normal` sur la cellule d'état vide — ouverture **non prévue à la reconnaissance**, trouvée et corrigée en Task 1 (voir ci-dessous) |
 
 **Créés (7 fichiers de test) :** `receptions/index.test.tsx`, `transferts/index.test.tsx`, `inventaires/index.test.tsx`, `stock/index.test.tsx`, `receptions/$purchaseId.test.tsx`, `transferts/$transferId.test.tsx`, `inventaires/$countId.test.tsx`.
 
-**Intouchés :** `stock/mouvements.tsx` et `stock/mouvements.test.tsx` (tables témoins de la phase 1), `lib/transferts.ts`, `lib/stock.ts`, `lib/permissions.ts`, et `components/ui/*` **à la seule exception de `filtres-repliables.tsx`** ci-dessus. En particulier `liste-adaptative.tsx`, `dialog.tsx` et `table.tsx` ne bougent pas : l'élargissement du dialogue de récapitulatif passe par le `className` que `DialogContent` accepte déjà.
+**Intouchés :** `stock/mouvements.tsx` et `stock/mouvements.test.tsx` (tables témoins de la phase 1), `lib/transferts.ts`, `lib/stock.ts`, `lib/permissions.ts`, `dialog.tsx` et `table.tsx`, et `components/ui/*` **à la seule exception de `filtres-repliables.tsx`/`filtres-repliables.test.tsx`** et de `liste-adaptative.tsx` ci-dessus. L'élargissement du dialogue de récapitulatif passe par le `className` que `DialogContent` accepte déjà — `dialog.tsx` lui-même ne bouge pas.
+
+**Sur `liste-adaptative.tsx` : la reconnaissance s'est trompée, la phase le corrige.** Le § suivant affirmait qu'aucune tâche n'aurait de raison d'ouvrir ce composant. En pratique, la Task 1 a trouvé que la cellule d'état vide héritait de `whitespace-nowrap` (défaut de `TableCell`), poussant une barre de défilement horizontale sur les huit tables de la phase avant même la première migration. Le correctif — une classe additive, JSDoc, un cas de test dans `liste-adaptative.test.tsx` — suit exactement le protocole que le paragraphe suivant prescrit pour une ouverture justifiée ; c'est la prédiction « aucune tâche n'aura de raison » qui était fausse, pas le protocole. Consigné au ledger de la Task 1.
 
 ---
 

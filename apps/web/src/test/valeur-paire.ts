@@ -10,9 +10,9 @@ import { within } from "@testing-library/react"
  * field happens to contain the same text.
  */
 export function valeurPaire(carte: HTMLElement, libelle: string): string {
-  const dt = within(carte).getByText(libelle)
+  const dt = within(carte).getByText(libelle, { selector: "dt" })
   const dd = dt.nextElementSibling
-  if (!(dd instanceof HTMLElement)) {
+  if (!(dd instanceof HTMLElement) || dd.tagName !== "DD") {
     throw new Error(`Aucune <dd> associée au libellé « ${libelle} »`)
   }
   return dd.textContent
