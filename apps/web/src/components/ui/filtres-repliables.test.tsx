@@ -34,6 +34,27 @@ describe("FiltresRepliables", () => {
     nettoyer()
   })
 
+  it("accepte un label composé (ReactNode) protégé de la coupe", () => {
+    // Additive widening of `label` from `string` to `React.ReactNode`
+    // (arbitrage A, `stock/index.tsx`): a caller can now wrap free-typed
+    // text in its own carrier so it can be given `min-w-0 break-words`.
+    const nettoyer = installerMatchMedia(375)
+    render(
+      <FiltresRepliables
+        nbActifs={0}
+        label={
+          <span className="min-w-0 break-words">Filtres — Boutique Centre</span>
+        }
+      >
+        {contenu()}
+      </FiltresRepliables>
+    )
+    const resume = document.querySelector("summary")
+    expect(resume).not.toBeNull()
+    expect(resume?.textContent).toContain("Filtres — Boutique Centre")
+    nettoyer()
+  })
+
   it("annonce le nombre de filtres actifs sous md", () => {
     const nettoyer = afficher(2, 375)
     const resume = document.querySelector("summary")
