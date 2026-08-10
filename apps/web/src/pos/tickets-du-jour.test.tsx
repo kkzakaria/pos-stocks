@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, afterEach } from "vitest"
 import { render, screen, fireEvent, waitFor } from "@testing-library/react"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
+import { jetons } from "@/test/jetons"
 import { TicketsDuJour } from "@/pos/tickets-du-jour"
 import * as posApi from "@/lib/pos-api"
 import type { VenteListe } from "@/lib/pos-api"
@@ -154,6 +155,50 @@ describe("TicketsDuJour — pagination (différé P6)", () => {
     fireEvent.click(screen.getByRole("button", { name: "Suivant" }))
     await waitFor(() =>
       expect(spy).toHaveBeenLastCalledWith("store1", expect.any(String), 2)
+    )
+  })
+})
+
+// jsdom has neither a layout engine nor a CSS cascade: these cases guard that
+// the classes are APPLIED, never that they produce their effect. This overlay
+// is the fifth copy in `pos/` of the `grid place-items-center` pattern whose
+// implicit `auto` column is floored at the panel's min-content; it is the only
+// one that was never audited. Nothing in this list overflows TODAY — every row
+// is breakable — so `grid-cols-1` is inert here (identical rendering with and
+// without, checked in the browser at 375 x 812: panel x 16..359 either way).
+// It is pinned all the same, so the faulty pattern stops being copyable.
+describe("TicketsDuJour — tenue à 375 px", () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it("le calque met sa colonne à minimum zéro au lieu du plancher min-content", () => {
+    vi.spyOn(posApi, "fetchVentesDuJour").mockResolvedValue({
+      sales: [vente],
+      total: 1,
+      page: 1,
+      limite: 50,
+    })
+    rendre()
+    // `auto` floors the track at the panel's min-content and free space is
+    // distributed only while it is positive: `grid-cols-1` is `minmax(0, 1fr)`
+    // and it is the zero MINIMUM that corrects this — `1fr` alone
+    // (`minmax(auto, 1fr)`) keeps the floor and would not.
+    const calque = screen.getByRole("dialog").parentElement
+    expect(jetons(calque)).toContain("grid")
+    expect(jetons(calque)).toContain("grid-cols-1")
+  })
+
+  it("le bouton « Fermer » ne cède pas ses pixels au titre", () => {
+    vi.spyOn(posApi, "fetchVentesDuJour").mockResolvedValue({
+      sales: [vente],
+      total: 1,
+      page: 1,
+      limite: 50,
+    })
+    rendre()
+    expect(jetons(screen.getByRole("button", { name: "Fermer" }))).toContain(
+      "shrink-0"
     )
   })
 })

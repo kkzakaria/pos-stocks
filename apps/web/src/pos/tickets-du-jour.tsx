@@ -32,7 +32,16 @@ export function TicketsDuJour({ storeId, onReimprimer, onFermer }: Props) {
   })
   const { conteneurRef, gererClavier } = usePiegeFocus<HTMLDivElement>(onFermer)
   return (
-    <div className="fixed inset-0 z-30 grid place-items-center bg-black/50 p-4">
+    // `grid-cols-1` (i.e. `minmax(0, 1fr)`), same reason as the payment modal:
+    // an `auto` track is FLOORED at its item's min-content and free space is
+    // distributed only while it is POSITIVE, so a panel that overflows keeps
+    // the track at that floor and drags `w-full` past the viewport. It is the
+    // zero MINIMUM that guards this, not a bounded maximum — `1fr` alone is
+    // `minmax(auto, 1fr)` and keeps the floor. Nothing overflows here TODAY
+    // (every line of this list is breakable), so the class is inert: it stops
+    // the faulty pattern from being copied and pins the panel to the viewport
+    // if a future row turns out not to be.
+    <div className="fixed inset-0 z-30 grid grid-cols-1 place-items-center bg-black/50 p-4">
       <div
         ref={conteneurRef}
         role="dialog"
@@ -49,7 +58,9 @@ export function TicketsDuJour({ storeId, onReimprimer, onFermer }: Props) {
           <button
             onClick={onFermer}
             aria-label="Fermer"
-            className="inline-flex items-center justify-center rounded p-2 text-xl leading-none outline-none focus-visible:ring-2 focus-visible:ring-ring/30 pointer-coarse:size-11"
+            // `shrink-0`: the touch target never gives up pixels to the title,
+            // like the close buttons of the payment and stockout dialogs.
+            className="inline-flex shrink-0 items-center justify-center rounded p-2 text-xl leading-none outline-none focus-visible:ring-2 focus-visible:ring-ring/30 pointer-coarse:size-11"
           >
             ×
           </button>

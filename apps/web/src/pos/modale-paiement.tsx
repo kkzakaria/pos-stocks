@@ -86,7 +86,25 @@ export function ModalePaiement({
   }
 
   return (
-    <div className="fixed inset-0 z-30 grid place-items-center bg-black/50 p-4">
+    // `grid-cols-1` (i.e. `minmax(0, 1fr)`) rather than the implicit `auto`
+    // column: an `auto` track is FLOORED at its item's min-content — the base
+    // size comes from the automatic minimum, and « Maximize Tracks »
+    // distributes free space only while it is POSITIVE, so an item that
+    // overflows leaves the track pinned at that floor. An amount is a single
+    // unbreakable run (`formaterMontant` joins it with U+202F and U+00A0), so
+    // its min-content equals its full width: the track — and `w-full` with it
+    // — is pushed PAST the viewport. `position: fixed` keeps
+    // `documentElement.scrollWidth === clientWidth`, so no document-level
+    // overflow assertion can see it — measured at 375x812: panel 488px wide,
+    // « Fermer » at x 440..484, entirely off-screen. 488 is the min-content of
+    // the header, well under the 512px `max-w-lg` cap: had the track followed
+    // the max-content (the seven pad buttons on one line) it would have hit
+    // that cap, which is how we know the FLOOR is what sizes the track.
+    // It is therefore the ZERO MINIMUM that corrects this, not a bounded
+    // maximum: `1fr` alone is `minmax(auto, 1fr)`, keeps the same min-content
+    // floor and reproduces the defect identically (measured in review: panel
+    // at 512px, close button off-screen). Never « simplify » this to `1fr`.
+    <div className="fixed inset-0 z-30 grid grid-cols-1 place-items-center bg-black/50 p-4">
       <div
         ref={conteneurRef}
         role="dialog"
@@ -97,14 +115,27 @@ export function ModalePaiement({
         className="w-full max-w-lg rounded-lg bg-card p-5 outline-none"
       >
         <div className="mb-4 flex items-start justify-between">
-          <div>
+          {/* `min-w-0`: an amount is a single unbreakable run — `formaterMontant`
+              joins it with U+202F and U+00A0 — so this flex item's automatic
+              minimum size equals the full amount width. Without it the item
+              refuses to shrink and shoves the close button out of the panel
+              (measured at 375x812 before the fix: « Fermer » at x 440..472 for
+              a panel ending at 359). With it, an amount too wide to fit
+              overflows its own box and the close button stays put. */}
+          <div className="min-w-0">
             <p
               id="modale-paiement-titre"
               className="text-sm text-muted-foreground"
             >
               Total à encaisser
             </p>
-            <p className="text-5xl font-bold tabular-nums">
+            {/* Type step, not a redesign: at 375 the header leaves 259px next
+                to the 44px touch target, and `text-5xl` renders 273px for the
+                SMALLEST realistic total (7 500 F CFA) and 404px for a
+                multi-million one — every amount overflowed. `text-3xl` renders
+                171px to 252px over that same range, so the whole realistic
+                span fits. Desktop keeps `text-5xl` untouched (472px of room). */}
+            <p className="text-3xl font-bold tabular-nums sm:text-5xl">
               {formaterMontant(total)}
             </p>
           </div>
@@ -112,7 +143,8 @@ export function ModalePaiement({
             onClick={onFermer}
             aria-label="Fermer"
             // border-box : 44×44 au doigt (padding absorbé), compact à la souris.
-            className="inline-flex items-center justify-center rounded p-2 text-2xl leading-none outline-none focus-visible:ring-2 focus-visible:ring-ring/30 pointer-coarse:size-11"
+            // `shrink-0`: the target never gives up pixels to a long amount.
+            className="inline-flex shrink-0 items-center justify-center rounded p-2 text-2xl leading-none outline-none focus-visible:ring-2 focus-visible:ring-ring/30 pointer-coarse:size-11"
           >
             ×
           </button>

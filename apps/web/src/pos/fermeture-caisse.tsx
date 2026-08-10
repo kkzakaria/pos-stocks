@@ -45,7 +45,16 @@ export function FermetureCaisse({ session, onFermee, onAnnuler }: Props) {
   }, [resultat])
 
   return (
-    <div className="fixed inset-0 z-30 grid place-items-center bg-black/50 p-4">
+    // `grid-cols-1` (i.e. `minmax(0, 1fr)`), same reason as the payment modal:
+    // an `auto` track is FLOORED at its item's min-content and free space is
+    // distributed only while it is POSITIVE, so a panel that overflows keeps
+    // the track at that floor and drags `w-full` past the viewport. It is the
+    // zero MINIMUM that guards this, not a bounded maximum — `1fr` alone is
+    // `minmax(auto, 1fr)` and keeps the floor. Nothing overflows here TODAY
+    // (the largest token, the variance, is one step below at `text-3xl`), so
+    // the class is inert: it stops the faulty pattern from being copied and
+    // pins the panel to the viewport if a future amount grows.
+    <div className="fixed inset-0 z-30 grid grid-cols-1 place-items-center bg-black/50 p-4">
       <div
         ref={conteneurRef}
         role="dialog"
