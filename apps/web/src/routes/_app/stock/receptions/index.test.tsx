@@ -4,6 +4,7 @@ import { ListeAdaptative } from "@/components/ui/liste-adaptative"
 import { installerMatchMedia } from "@/test/media-query"
 import { texteMontant } from "@/test/texte-montant"
 import { jetons } from "@/test/jetons"
+import { valeurPaire } from "@/test/valeur-paire"
 import {
   COLONNES_RECEPTIONS,
   ReceptionsPage,
@@ -110,21 +111,6 @@ const R: ReceptionListe = {
   receivedAt: null,
   itemCount: 3,
   totalCost: 1250000,
-}
-
-/**
- * Card mode renders non-hidden columns as `<dt>`/`<dd>` pairs inside a
- * `<dl>` — reading the `<dd>` next to a given `<dt>` label targets that
- * specific pair instead of the whole card's `textContent`, which another
- * field can satisfy by coincidence.
- */
-function valeurPaire(carte: HTMLElement, libelle: string): string {
-  const dt = within(carte).getByText(libelle)
-  const dd = dt.nextElementSibling
-  if (!(dd instanceof HTMLElement)) {
-    throw new Error(`Aucune <dd> associée au libellé « ${libelle} »`)
-  }
-  return dd.textContent
 }
 
 describe("colonnes de la liste des réceptions", () => {

@@ -2,6 +2,7 @@ import { render, screen, within } from "@testing-library/react"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { ListeAdaptative } from "@/components/ui/liste-adaptative"
 import { installerMatchMedia } from "@/test/media-query"
+import { valeurPaire } from "@/test/valeur-paire"
 import {
   COLONNES_VENTES,
   titreVente,
@@ -65,21 +66,6 @@ const V: VenteListe = {
 /** fr-FR inserts U+202F narrow no-break spaces in amounts. */
 function texteMontant(valeur: number): RegExp {
   return new RegExp(String(valeur).replace(/\B(?=(\d{3})+(?!\d))/g, "\\s?"))
-}
-
-/**
- * Card mode renders non-hidden columns as `<dt>`/`<dd>` pairs inside a
- * `<dl>` — reading the `<dd>` next to a given `<dt>` label targets that
- * specific pair instead of the whole card's `textContent`, which other
- * fields (a date, a ticket number) can satisfy by coincidence.
- */
-function valeurPaire(carte: HTMLElement, libelle: string): string {
-  const dt = within(carte).getByText(libelle)
-  const dd = dt.nextElementSibling
-  if (!(dd instanceof HTMLElement)) {
-    throw new Error(`Aucune <dd> associée au libellé « ${libelle} »`)
-  }
-  return dd.textContent
 }
 
 function afficher(largeur: number) {

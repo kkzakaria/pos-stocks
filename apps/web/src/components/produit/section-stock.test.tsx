@@ -4,6 +4,7 @@ import { SectionStock } from "@/components/produit/section-stock"
 import { installerMatchMedia } from "@/test/media-query"
 import { texteMontant } from "@/test/texte-montant"
 import { jetons } from "@/test/jetons"
+import { valeurPaire } from "@/test/valeur-paire"
 import type { LigneStockProduit } from "@/components/produit/types"
 
 const lignes: LigneStockProduit[] = [
@@ -41,21 +42,6 @@ const LIGNE_GRAND: LigneStockProduit = {
  * min-content width a table column is sized on.
  */
 const NOM_HOSTILE = "EntrepotRegionalDeSanPedroZoneIndustrielleNordSecteur7"
-
-/**
- * Card mode renders the remaining columns as `<dt>`/`<dd>` pairs inside a
- * `<dl>` — reading the `<dd>` next to a given `<dt>` targets that specific
- * pair instead of the block's whole `textContent`, which another field can
- * satisfy by coincidence.
- */
-function valeurPaire(bloc: HTMLElement, libelle: string): string {
-  const dt = within(bloc).getByText(libelle)
-  const dd = dt.nextElementSibling
-  if (!(dd instanceof HTMLElement)) {
-    throw new Error(`Aucune <dd> associée au libellé « ${libelle} »`)
-  }
-  return dd.textContent
-}
 
 /**
  * Total width the footer row actually covers, spans included. The invariant

@@ -9,6 +9,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { ListeAdaptative } from "@/components/ui/liste-adaptative"
 import { installerMatchMedia } from "@/test/media-query"
 import { jetons } from "@/test/jetons"
+import { valeurPaire } from "@/test/valeur-paire"
 import {
   COLONNES_FOURNISSEURS,
   COLONNES_FOURNISSEURS_ECRITURE,
@@ -62,21 +63,6 @@ const INACTIF: FournisseurAffiche = {
   isActive: false,
   surBascule: BASCULE_INACTIF,
   basculeEnCours: false,
-}
-
-/**
- * Card mode renders non-hidden columns as `<dt>`/`<dd>` pairs inside a
- * `<dl>` — reading the `<dd>` next to a given `<dt>` label targets that
- * specific pair instead of the whole card's `textContent`, which another
- * field can satisfy by coincidence.
- */
-function valeurPaire(carte: HTMLElement, libelle: string): string {
-  const dt = within(carte).getByText(libelle)
-  const dd = dt.nextElementSibling
-  if (!(dd instanceof HTMLElement)) {
-    throw new Error(`Aucune <dd> associée au libellé « ${libelle} »`)
-  }
-  return dd.textContent
 }
 
 describe("colonnes de la liste des fournisseurs", () => {
